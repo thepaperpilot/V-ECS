@@ -9,20 +9,23 @@
 
 using namespace vecs;
 
-void PostRenderSystem::windowResizeCallback(WindowResizeEvent* event) {
+void PostRenderSystem::refreshWindow(RefreshWindowEvent* event) {
+    engine->renderer.recreateSwapChain();
+    update();
+}
+
+void PostRenderSystem::windowResize(WindowResizeEvent* event) {
     framebufferResized = true;
 }
 
-void PostRenderSystem::addVerticesCallback(EventData* event) {
+void PostRenderSystem::addVertices(AddVerticesEvent* event) {
     verticesDirty = true;
-    AddVerticesEvent* addVerticesEvent = static_cast<AddVerticesEvent*>(event);
-    vertices = std::vector<Vertex>(vertices.begin(), addVerticesEvent->vertices.begin());
+    vertices = std::vector<Vertex>(vertices.begin(), event->vertices.begin());
 }
 
-void PostRenderSystem::removeVerticesCallback(EventData* event) {
+void PostRenderSystem::removeVertices(RemoveVerticesEvent* event) {
     verticesDirty = true;
-    AddVerticesEvent* addVerticesEvent = static_cast<AddVerticesEvent*>(event);
-    vertices.erase(addVerticesEvent->vertices.begin());
+    vertices.erase(event->vertices.begin());
 }
 
 PostRenderSystem::PostRenderSystem(Engine* engine, uint32_t maxFramesInFlight, size_t initialVertexBufferSize) {
@@ -58,8 +61,11 @@ PostRenderSystem::PostRenderSystem(Engine* engine, uint32_t maxFramesInFlight, s
         }
     }
 
-    // Set window resize callback so we know to recreate our swap chain
-    EventManager::addListener(this, &PostRenderSystem::windowResizeCallback);
+    // Set window resize event listener so we know to recreate our swap chain
+    EventManager::addListener(this, &PostRenderSystem::windowResize);
+
+    // Set window refresh event listener so we can recreate our swap chain and redraw as the window is resized
+    EventManager::addListener(this, &PostRenderSystem::refreshWindow);
 }
 
 void PostRenderSystem::update() {

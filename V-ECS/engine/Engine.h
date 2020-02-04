@@ -9,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 
+#include "../events/EventManager.h"
 #include "../rendering/Renderer.h"
 #include "../ecs/World.h"
 
@@ -29,6 +30,8 @@ namespace vecs {
         QueueFamilyIndices indices;
         SwapChainSupportDetails swapChainSupport;
     };
+
+    struct RefreshWindowEvent : EventData {};
 
     // A lot of this is based on the Vulkan tutorial at https://vulkan-tutorial.com
     // The Engine is what handles using Vulkan and GLFW to create a window,

@@ -49,6 +49,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Engine::debugCallback(
 }
 
 void Engine::windowResizeCallback(GLFWwindow* window, int width, int height) {
+    // TODO pause game if not paused already, because
+    // ECS world won't update while resizing on some systems
+    // except for frames where window size actually changed
     WindowResizeEvent event;
     event.width = width;
     event.height = height;
@@ -75,7 +78,9 @@ void Engine::initWindow() {
 
     // Register GLFW callbacks
     glfwSetWindowUserPointer(window, this);
+    glfwSetWindowSizeLimits(window, 1, 1, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetFramebufferSizeCallback(window, windowResizeCallback);
+    glfwSetWindowRefreshCallback(window, [](GLFWwindow* window) { EventManager::fire(RefreshWindowEvent()); });
 }
 
 void Engine::initVulkan() {

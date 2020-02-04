@@ -10,8 +10,10 @@ namespace vecs {
 
 	// Forward declarations
 	class Engine;
+	struct RefreshWindowEvent;
 	struct WindowResizeEvent;
-	struct EventData;
+	struct AddVerticesEvent;
+	struct RemoveVerticesEvent;
 
 	class PostRenderSystem : public System {
 	public:
@@ -40,9 +42,10 @@ namespace vecs {
 		bool verticesDirty = true;
 		size_t vertexBufferSize;
 
-		void windowResizeCallback(WindowResizeEvent* event);
-		void addVerticesCallback(EventData* event);
-		void removeVerticesCallback(EventData* event);
+		void refreshWindow(RefreshWindowEvent* event);
+		void windowResize(WindowResizeEvent* event);
+		void addVertices(AddVerticesEvent* event);
+		void removeVertices(RemoveVerticesEvent* event);
 
 		std::vector<VkSemaphore> imageAvailableSemaphores;
 		std::vector<VkSemaphore> renderFinishedSemaphores;
