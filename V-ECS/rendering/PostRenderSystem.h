@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ecs/System.h"
-#include "../rendering/Vertex.h"
+#include "Vertex.h"
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -34,13 +34,15 @@ namespace vecs {
 
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
 		std::vector<Vertex> vertices = {
 			{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
 			{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
 			{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 		};
 		bool verticesDirty = true;
-		size_t vertexBufferSize;
+		size_t bufferSize;
 
 		void refreshWindow(RefreshWindowEvent* event);
 		void windowResize(WindowResizeEvent* event);
@@ -53,11 +55,11 @@ namespace vecs {
 		std::vector<VkFence> imagesInFlight;
 		size_t currentFrame = 0;
 
+		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+
 		void createVertexBuffer(size_t size);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
 		void fillVertexBuffer();
-
 		void cleanupVertexBuffer();
 	};
 }

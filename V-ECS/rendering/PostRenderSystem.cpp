@@ -99,8 +99,8 @@ void PostRenderSystem::update() {
     if (verticesDirty) {
         verticesDirty = false;
         size_t minSize = vertices.size();
-        if (minSize > vertexBufferSize) {
-            size_t size = vertexBufferSize;
+        if (minSize > bufferSize) {
+            size_t size = bufferSize;
             // Double size until its equal to or greater than minSize
             while (size < minSize)
                 size >>= 1;
@@ -174,40 +174,62 @@ void PostRenderSystem::cleanup() {
     cleanupVertexBuffer();
 }
 
-void PostRenderSystem::createVertexBuffer(size_t size) {
-    vertexBufferSize = size;
-
-    // Create our new vertex buffer with the given size
-    // This size should be more than we currently need,
-    // so we don't need to reallocate another for awhile
+void PostRenderSystem::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+    // Create our new buffer with the given size
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(Vertex) * size;
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(engine->device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(engine->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create vertex buffer!");
     }
 
     // Assign memory to our buffer
     // First define our memory requirements
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(engine->device, vertexBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(engine->device, buffer, &memRequirements);
 
     // Define our memory allocation request
     VkMemoryAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
     // Allocate memory
-    if (vkAllocateMemory(engine->device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(engine->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate vertex buffer memory!");
     }
 
-    // Bind this memory to our vertex buffer
-    vkBindBufferMemory(engine->device, vertexBuffer, vertexBufferMemory, 0);
+    // Bind this memory to our new buffer
+    vkBindBufferMemory(engine->device, buffer, bufferMemory, 0);
+}
+
+void PostRenderSystem::createVertexBuffer(size_t size) {
+    bufferSize = size;
+    VkDeviceSize bufferSize = sizeof(Vertex) * size;
+
+    // Create a staging buffer with the given size
+    // This size should be more than we currently need,
+    // so we don't need to reallocate another for awhile
+    createBuffer(
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer,
+        stagingBufferMemory
+    );
+
+    // Create a GPU-optimized buffer for the actual vertices
+    createBuffer(
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        vertexBuffer,
+        vertexBufferMemory
+    );
 }
 
 uint32_t PostRenderSystem::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -229,11 +251,51 @@ uint32_t PostRenderSystem::findMemoryType(uint32_t typeFilter, VkMemoryPropertyF
 
 void PostRenderSystem::fillVertexBuffer() {
     void* data;
+    // Map vertices data to our staging buffer
+    // Note verticesSize will often be less than bufferSize
     unsigned long long verticesSize = sizeof(Vertex) * vertices.size();
-    vkMapMemory(engine->device, vertexBufferMemory, 0, verticesSize, 0, &data);
+    vkMapMemory(engine->device, stagingBufferMemory, 0, verticesSize, 0, &data);
     memcpy(data, vertices.data(), (size_t)verticesSize);
-    vkUnmapMemory(engine->device, vertexBufferMemory);
+    vkUnmapMemory(engine->device, stagingBufferMemory);
 
+    // Retrieve a command buffer we'll use to copy data from the staging to vertex buffer
+    // TODO create an optimized command pool in our constructor after getting the graphics queue family index
+    // Optimizing in this case means giving it the VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag
+    VkCommandBufferAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = engine->renderer.commandPool;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(engine->device, &allocInfo, &commandBuffer);
+
+    // Start command buffer
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    // Copy between the buffers
+    VkBufferCopy copyRegion = {};
+    copyRegion.size = verticesSize;
+    vkCmdCopyBuffer(commandBuffer, stagingBuffer, vertexBuffer, 1, &copyRegion);
+
+    // End command buffer
+    vkEndCommandBuffer(commandBuffer);
+
+    // Submit our command buffer to the graphics queue
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(engine->renderer.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(engine->renderer.graphicsQueue);
+
+    // Destroy our command buffer
+    vkFreeCommandBuffers(engine->device, engine->renderer.commandPool, 1, &commandBuffer);
+
+    // Redraw our vertices
     engine->renderer.vertexBuffer = vertexBuffer;
     engine->renderer.vertices = vertices;
     engine->renderer.createCommandBuffers();
@@ -243,4 +305,8 @@ void PostRenderSystem::cleanupVertexBuffer() {
     vkDestroyBuffer(engine->device, vertexBuffer, nullptr);
     // Also free its memory
     vkFreeMemory(engine->device, vertexBufferMemory, nullptr);
+
+    // Do the same for our staging buffer
+    vkDestroyBuffer(engine->device, stagingBuffer, nullptr);
+    vkFreeMemory(engine->device, stagingBufferMemory, nullptr);
 }

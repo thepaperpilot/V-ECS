@@ -20,6 +20,8 @@ namespace vecs {
 	public:
 		Engine* engine;
 
+		VkCommandPool commandPool;
+
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
@@ -41,7 +43,6 @@ namespace vecs {
 	private:
 		VkFormat swapChainImageFormat;
 		VkExtent2D swapChainExtent;
-		VkCommandPool commandPool;
 
 		std::vector<VkImageView> swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;

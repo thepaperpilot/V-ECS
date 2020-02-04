@@ -1,6 +1,6 @@
 #include "VoxelWorld.h"
 #include "../engine/Engine.h"
-#include "PostRenderSystem.h"
+#include "../rendering/PostRenderSystem.h"
 #include "VoxelRenderingSystem.h"
 
 using namespace vecs;
