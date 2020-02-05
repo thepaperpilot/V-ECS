@@ -14,6 +14,8 @@ namespace vecs {
 
 		World* world;
 
+		virtual void init() {};
+
 		virtual void update() = 0;
 	};
 }

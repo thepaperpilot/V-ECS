@@ -1,6 +1,9 @@
 #include "engine/Engine.h"
 #include "ecs/World.h"
 #include "voxel/VoxelWorld.h"
+#include "voxel/ChunkComponent.h"
+#include "voxel/BlockComponent.h"
+#include "rendering/MeshComponent.h"
 
 using namespace vecs;
 
@@ -17,6 +20,14 @@ void preCleanup() {
 
 int main() {
     app.preCleanup = preCleanup;
+
+    // Set up temporary chunk
+    uint32_t chunk = game.createEntity();
+    game.addComponent(chunk, new ChunkComponent);
+    game.addComponent(chunk, new MeshComponent);
+
+    uint32_t block = game.createEntity();
+    game.addComponent(block, new BlockComponent);
 
     try {
         app.run(&game);

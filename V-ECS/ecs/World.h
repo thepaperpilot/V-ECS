@@ -5,6 +5,7 @@
 #include <set>
 #include <unordered_map>
 #include <iostream>
+#include <functional>
 
 #include "EntityQuery.h"
 #include "System.h"
@@ -13,17 +14,10 @@ namespace vecs {
 
 	struct Component {};
 
-	struct ComponentFilter {
-		EntityQuery query;
-		std::set<uint32_t> entities;
-		void (*onEntityAdded)(uint32_t entity);
-		void (*onEntityRemoved)(uint32_t entity);
-	};
-
 	// The World contains all of the program's Systems
 	// and handles updating each system as appropriate
 	class World {
-		friend bool EntityQuery::checkEntity(World* world, uint32_t entity);
+		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
 	public:
 		std::set<uint32_t> entities;
 
@@ -69,7 +63,7 @@ namespace vecs {
 		}
 
 		void addSystem(System* system, int priority);
-		void addFilter(ComponentFilter filter);
+		void addQuery(EntityQuery query);
 
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
@@ -98,6 +92,6 @@ namespace vecs {
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions
 		// to run whenever an entity is added to or removed from the filtered entity list
-		std::vector<ComponentFilter> filters;
+		std::vector<EntityQuery> queries;
 	};
 }
