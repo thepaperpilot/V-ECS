@@ -9,7 +9,7 @@ using namespace vecs;
 
 Engine app;
 
-World title;
+World title(&app);
 VoxelWorld game(&app);
 
 void preCleanup() {

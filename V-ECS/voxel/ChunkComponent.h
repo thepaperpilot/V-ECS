@@ -5,6 +5,6 @@
 namespace vecs {
 
 	struct ChunkComponent : public Component {
-		std::vector<uint32_t> blocks;
+		std::set<uint32_t> blocks;
 	};
 }

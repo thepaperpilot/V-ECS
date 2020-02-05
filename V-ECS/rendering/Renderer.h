@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vertex.h"
+#include "../ecs/EntityQuery.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -29,8 +30,7 @@ namespace vecs {
 		std::vector<VkImage> swapChainImages;
 		std::vector<VkCommandBuffer> commandBuffers;
 
-		VkBuffer vertexBuffer;
-		std::vector<Vertex> vertices;
+		EntityQuery meshes;
 
 		void init(QueueFamilyIndices indices, SwapChainSupportDetails swapChainSupport);
 		void recreateSwapChain();

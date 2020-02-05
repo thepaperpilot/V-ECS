@@ -3,16 +3,20 @@
 
 using namespace vecs;
 
-ComponentFilter::ComponentFilter(std::type_index components ...) {
-	with(components);
+void ComponentFilter::with(std::type_index component) {
+	required.insert(component);
 }
 
-void ComponentFilter::with(std::type_index components ...) {
-	required.insert(components);
+void ComponentFilter::with(std::vector<std::type_index> components) {
+	required.insert(components.begin(), components.end());
 }
 
-void ComponentFilter::without(std::type_index components ...) {
-	disallowed.insert(components);
+void ComponentFilter::without(std::type_index component) {
+	disallowed.insert(component);
+}
+
+void ComponentFilter::without(std::vector<std::type_index> components) {
+	disallowed.insert(components.begin(), components.end());
 }
 
 bool ComponentFilter::checkEntity(World* world, uint32_t entity) {

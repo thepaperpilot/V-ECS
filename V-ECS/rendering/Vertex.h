@@ -10,6 +10,10 @@ namespace vecs {
         glm::vec2 pos;
         glm::vec3 color;
 
+        bool equals(Vertex other) {
+            return color == other.color && pos == other.pos;
+        }
+
         static VkVertexInputBindingDescription getBindingDescription() {
             VkVertexInputBindingDescription bindingDescription = {};
             bindingDescription.binding = 0;

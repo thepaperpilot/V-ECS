@@ -1,25 +1,31 @@
 #pragma once
 
+#include <vulkan/vulkan.h>
 #include <typeindex>
 #include <map>
 #include <set>
 #include <unordered_map>
 #include <iostream>
-#include <functional>
 
+#include "../engine/Engine.h"
 #include "EntityQuery.h"
 #include "System.h"
 
 namespace vecs {
 
-	struct Component {};
+	struct Component {
+		// Optional function to cleanup any necessary fields a component may have
+		virtual void cleanup(VkDevice device) {}
+	};
 
 	// The World contains all of the program's Systems
 	// and handles updating each system as appropriate
 	class World {
 		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
 	public:
-		std::set<uint32_t> entities;
+		World(Engine* engine) {
+			this->engine = engine;
+		}
 
 		uint32_t createEntity();
 		void deleteEntity(uint32_t entity);
@@ -28,6 +34,9 @@ namespace vecs {
 		// but I can't define templated functions in a separate .cpp file
 		template <class Component>
 		void addComponent(uint32_t entity, Component* component) {
+#ifndef NDEBUG
+			std::cout << "Adding " << typeid(Component).name() << " to entity " << entity << std::endl;
+#endif
 			// Mark entity dirty since it has had a structural change
 			dirtyEntities.insert(entity);
 			// Add component as this entity's value for this component type
@@ -44,13 +53,17 @@ namespace vecs {
 			// it has that component already, so we can mark it dirty if necessary
 			if (!hasComponentType(entity, typeid(Component)))
 				dirtyEntities.insert(entity);
-			return components[typeif(Component)][entity];
+			return static_cast<Component*>(components[typeid(Component)][entity]);
 		}
 		template <class Component>
 		void removeComponent(uint32_t entity) {
+#ifndef NDEBUG
+			std::cout << "Removing " << typeid(Component).name() << " from entity " << entity << std::endl;
+#endif
 			// Mark entity dirty since it has had a structural change
 			dirtyEntities.insert(entity);
 			// Remove component value for this entity
+			components[typeid(Component)][entity]->cleanup(engine->device);
 			components[typeid(Component)].erase(entity);
 		}
 		// Reserves an additional n components of the specified type
@@ -63,7 +76,7 @@ namespace vecs {
 		}
 
 		void addSystem(System* system, int priority);
-		void addQuery(EntityQuery query);
+		void addQuery(EntityQuery* query);
 
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
@@ -76,8 +89,11 @@ namespace vecs {
 		// be switched around and re-used 
 		virtual void cleanup() {};
 
+	protected:
+		Engine* engine;
+
 	private:
-		uint32_t nextEntity;
+		uint32_t nextEntity = 0;
 		// We use a map for the systems because it can sort on insert very quickly
 		// and allow us to run our systems in order by "priority"
 		std::multimap<int, System*> systems;
@@ -92,6 +108,6 @@ namespace vecs {
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions
 		// to run whenever an entity is added to or removed from the filtered entity list
-		std::vector<EntityQuery> queries;
+		std::vector<EntityQuery*> queries;
 	};
 }

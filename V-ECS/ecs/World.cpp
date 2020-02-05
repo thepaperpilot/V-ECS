@@ -30,7 +30,7 @@ void World::addSystem(System* system, int priority) {
 	systems.insert(std::pair<int, System*>(priority, system));
 }
 
-void World::addQuery(EntityQuery query) {
+void World::addQuery(EntityQuery* query) {
 	queries.push_back(query);
 }
 
@@ -40,21 +40,21 @@ void World::update() {
 	// and we want to make sure we don't to erase the fact it was dirtied
 	std::set<uint32_t> entitiesToClean = dirtyEntities;
 	dirtyEntities.clear();
-	std::vector<std::pair<EntityQuery, uint32_t>> addCallbacks;
-	std::vector<std::pair<EntityQuery, uint32_t>> removeCallbacks;
+	std::vector<std::pair<EntityQuery*, uint32_t>> addCallbacks;
+	std::vector<std::pair<EntityQuery*, uint32_t>> removeCallbacks;
 	for (auto const& entity : entitiesToClean) {
-		for (auto query : queries) {
-			if (query.entities.count(entity)) {
+		for (auto const& query : queries) {
+			if (query->entities.count(entity)) {
 				// Check if its been removed
-				if (!query.filter.checkEntity(this, entity)) {
-					query.entities.erase(entity);
-					if (query.onEntityRemoved) removeCallbacks.emplace_back(std::make_pair(query, entity));
+				if (!query->filter.checkEntity(this, entity)) {
+					query->entities.erase(entity);
+					if (query->onEntityRemoved) removeCallbacks.emplace_back(std::make_pair(query, entity));
 				}
 			} else {
 				// Check if its been added
-				if (!query.filter.checkEntity(this, entity)) {
-					query.entities.insert(entity);
-					if (query.onEntityAdded) addCallbacks.emplace_back(std::make_pair(query, entity));
+				if (query->filter.checkEntity(this, entity)) {
+					query->entities.insert(entity);
+					if (query->onEntityAdded) addCallbacks.emplace_back(std::make_pair(query, entity));
 				}
 			}
 		}
@@ -62,9 +62,9 @@ void World::update() {
 
 	// Only call the callbacks after we've updated all the queries' entities lists
 	for (auto const& pair : addCallbacks)
-		pair.first.onEntityAdded(pair.second);
+		pair.first->onEntityAdded(pair.second);
 	for (auto const& pair : removeCallbacks)
-		pair.first.onEntityRemoved(pair.second);
+		pair.first->onEntityRemoved(pair.second);
 
 	// Update each system in priority-order
 	for (auto& kvp : systems) {

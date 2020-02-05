@@ -4,6 +4,7 @@
 #include <typeindex>
 #include <set>
 #include <unordered_map>
+#include <functional>
 
 namespace vecs {
 
@@ -14,13 +15,13 @@ namespace vecs {
 	// This class describes a filter for finding only specific entities
 	class ComponentFilter {
 	public:
-		// Creates a query requiring all these component types
-		ComponentFilter(std::type_index components...);
-
+		// TODO should the with and without functions just use va_list?
 		// Adds required types
-		void with(std::type_index components...);
+		void with(std::type_index component);
+		void with(std::vector<std::type_index> components);
 		// Adds disallowed types
-		void without(std::type_index components...);
+		void without(std::type_index component);
+		void without(std::vector<std::type_index> components);
 
 		// Checks if an entity matches the query
 		bool checkEntity(World* world, uint32_t entity);

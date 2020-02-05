@@ -1,4 +1,5 @@
 #include "../engine/Engine.h"
+#include "../ecs/World.h"
 #include "../util/VulkanUtils.h"
 #include "../events/EventManager.h"
 #include "../events/WindowResizeEvent.h"
@@ -417,6 +418,7 @@ void Engine::createLogicalDevice(QueueFamilyIndices indices) {
 void Engine::setupWorld(World* world) {
     this->world = world;
     world->init();
+    world->addQuery(&renderer.meshes);
 }
 
 void Engine::mainLoop() {

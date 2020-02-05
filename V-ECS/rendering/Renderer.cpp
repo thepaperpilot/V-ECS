@@ -4,6 +4,7 @@
 #include "Vertex.h"
 
 #include <algorithm>
+#include "MeshComponent.h"
 
 using namespace vecs;
 
@@ -15,6 +16,8 @@ void Renderer::init(QueueFamilyIndices indices, SwapChainSupportDetails swapChai
     createGraphicsPipeline();
     createFramebuffers();
     createCommandPool(indices);
+
+    meshes.filter.with(typeid(MeshComponent));
 }
 
 void Renderer::recreateSwapChain() {
@@ -496,13 +499,19 @@ void Renderer::createCommandBuffers() {
         // Bind the graphics pipeline
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-        // Bind our vertex buffer
-        VkBuffer vertexBuffers[] = { vertexBuffer };
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+        for (auto const entity : meshes.entities) {
+            MeshComponent mesh = *engine->world->getComponent<MeshComponent>(entity);
+            if (mesh.vertices.empty()) continue;
 
-        // Draw our vertices
-        vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+            // Bind our vertex and index buffers
+            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
+            VkDeviceSize offsets[] = { 0 };
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+            // Draw our vertices
+            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+        }
 
         // End the render pass
         vkCmdEndRenderPass(commandBuffers[i]);

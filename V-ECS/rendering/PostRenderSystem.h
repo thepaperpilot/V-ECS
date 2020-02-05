@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../ecs/System.h"
+#include "../ecs/EntityQuery.h"
+#include "MeshComponent.h"
 #include "Vertex.h"
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
@@ -12,15 +14,14 @@ namespace vecs {
 	class Engine;
 	struct RefreshWindowEvent;
 	struct WindowResizeEvent;
-	struct AddVerticesEvent;
-	struct RemoveVerticesEvent;
 
 	class PostRenderSystem : public System {
 	public:
-		PostRenderSystem(Engine* engine, uint32_t maxFramesInFlight, size_t initialVertexBufferSize);
+		PostRenderSystem(Engine* engine);
 
 		bool framebufferResized = false;
 
+		void init() override;
 		void update() override;
 		void cleanup();
 
@@ -30,24 +31,15 @@ namespace vecs {
 		// if it isn't specific to any entity like these
 		// No need for "singleton" components
 		Engine* engine;
-		uint32_t maxFramesInFlight;
+		uint32_t maxFramesInFlight = 2;
+		size_t initialVertexBufferSize = 4096;
+		size_t initialIndexBufferSize = 4096;
 
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		std::vector<Vertex> vertices = {
-			{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-			{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-			{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-		};
-		bool verticesDirty = true;
-		size_t bufferSize;
+		EntityQuery meshes;
 
 		void refreshWindow(RefreshWindowEvent* event);
 		void windowResize(WindowResizeEvent* event);
-		void addVertices(AddVerticesEvent* event);
-		void removeVertices(RemoveVerticesEvent* event);
+		void onMeshAdded(uint32_t entity);
 
 		std::vector<VkSemaphore> imageAvailableSemaphores;
 		std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -56,10 +48,14 @@ namespace vecs {
 		size_t currentFrame = 0;
 
 		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-
-		void createVertexBuffer(size_t size);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		void fillVertexBuffer();
-		void cleanupVertexBuffer();
+
+		void createVertexBuffer(MeshComponent* mesh, size_t size);
+		void fillVertexBuffer(MeshComponent* mesh);
+		void cleanupVertexBuffer(MeshComponent* mesh);
+
+		void createIndexBuffer(MeshComponent* mesh, size_t size);
+		void fillIndexBuffer(MeshComponent* mesh);
+		void cleanupIndexBuffer(MeshComponent* mesh);
 	};
 }

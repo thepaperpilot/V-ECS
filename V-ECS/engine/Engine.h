@@ -11,9 +11,11 @@
 
 #include "../events/EventManager.h"
 #include "../rendering/Renderer.h"
-#include "../ecs/World.h"
 
 namespace vecs {
+
+    // Forward Declarations
+    class World;
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
