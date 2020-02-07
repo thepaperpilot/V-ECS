@@ -2,7 +2,8 @@
 #include "../ecs/World.h"
 #include "../util/VulkanUtils.h"
 #include "../events/EventManager.h"
-#include "../events/WindowResizeEvent.h"
+#include "WindowResizeEvent.h"
+#include "../input/InputEvents.h"
 
 #include <map>
 #include <set>
@@ -49,7 +50,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Engine::debugCallback(
     return VK_FALSE;
 }
 
-void Engine::windowResizeCallback(GLFWwindow* window, int width, int height) {
+void windowResizeCallback(GLFWwindow* window, int width, int height) {
     // TODO pause game if not paused already, because
     // ECS world won't update while resizing on some systems
     // except for frames where window size actually changed
@@ -77,11 +78,18 @@ void Engine::initWindow() {
 
     window = glfwCreateWindow(windowWidth, windowHeight, applicationName, nullptr, nullptr);
 
+    // Enable raw mouse motion when cursor is disabled
+    if (glfwRawMouseMotionSupported())
+        glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
     // Register GLFW callbacks
     glfwSetWindowUserPointer(window, this);
     glfwSetWindowSizeLimits(window, 1, 1, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetFramebufferSizeCallback(window, windowResizeCallback);
     glfwSetWindowRefreshCallback(window, [](GLFWwindow* window) { EventManager::fire(RefreshWindowEvent()); });
+    glfwSetCursorPosCallback(window, cursorPositionCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetKeyCallback(window, keyCallback);
 }
 
 void Engine::initVulkan() {
@@ -422,9 +430,13 @@ void Engine::setupWorld(World* world) {
 }
 
 void Engine::mainLoop() {
+    lastFrameTime = glfwGetTime();
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        world->update();
+
+        double currentTime = glfwGetTime();
+        world->update(currentTime - lastFrameTime);
+        lastFrameTime = currentTime;
     }
     vkDeviceWaitIdle(device);
 }

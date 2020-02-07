@@ -1,7 +1,7 @@
 #include "PostRenderSystem.h"
 #include "../engine/Engine.h"
+#include "../engine/WindowResizeEvent.h"
 #include "../events/EventManager.h"
-#include "../events/WindowResizeEvent.h"
 
 #include <vulkan/vulkan.h>
 #include <numeric>

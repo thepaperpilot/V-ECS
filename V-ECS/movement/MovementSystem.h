@@ -5,16 +5,12 @@
 
 namespace vecs {
 
-	class ChunkSystem : public System {
+	class MovementSystem : public System {
 	public:
 		void init() override;
 		void update() override;
 
 	private:
-		EntityQuery chunks;
-		EntityQuery blocks;
-
-		void onBlockAdded(uint32_t entity);
-		void onBlockRemoved(uint32_t entity);
+		EntityQuery withVelocity;
 	};
 }

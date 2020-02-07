@@ -27,6 +27,8 @@ namespace vecs {
 			this->engine = engine;
 		}
 
+		double deltaTime = 0;
+
 		uint32_t createEntity();
 		void deleteEntity(uint32_t entity);
 
@@ -83,7 +85,7 @@ namespace vecs {
 		virtual void init() {
 			std::cout << "init NOT overriden" << std::endl;
 		};
-		void update();
+		void update(double deltaTime);
 		// Optional function for child classes to cleanup anything they need to
 		// This won't get called automatically by the Engine because Worlds may
 		// be switched around and re-used 

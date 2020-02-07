@@ -59,6 +59,7 @@ namespace vecs {
         Renderer renderer;
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
         VkDevice device;
+        GLFWwindow* window;
 
         void run(World* initialWorld);
 
@@ -74,13 +75,12 @@ namespace vecs {
             const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
             void* pUserData);
 
-        static void windowResizeCallback(GLFWwindow* window, int width, int height);
-
         VkInstance instance;
         VkDebugUtilsMessengerEXT debugMessenger;
         VkSurfaceKHR surface;
         World* world;
-        GLFWwindow* window;
+
+        double lastFrameTime;
 
         void initWindow();
 

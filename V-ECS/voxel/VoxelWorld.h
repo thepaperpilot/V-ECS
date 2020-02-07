@@ -47,7 +47,9 @@ namespace vecs {
 
 	// Forward Declarations
 	class ChunkSystem;
+	class MovementSystem;
 	class PostRenderSystem;
+	class ControllerSystem;
 
 	// This is a type of World that comes with several built-in
 	// systems for rendering a voxel-based world
@@ -60,7 +62,11 @@ namespace vecs {
 		void cleanup() override;
 
 	private:
-		ChunkSystem* chunkSystem;
-		PostRenderSystem* postRenderSystem;
+		uint32_t player = 0;
+
+		ChunkSystem* chunkSystem = nullptr;
+		MovementSystem* movementSystem = nullptr;
+		PostRenderSystem* postRenderSystem = nullptr;
+		ControllerSystem* controllerSystem = nullptr;
 	};		
 }

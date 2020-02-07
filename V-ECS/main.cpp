@@ -1,8 +1,8 @@
 #include "engine/Engine.h"
 #include "ecs/World.h"
 #include "voxel/VoxelWorld.h"
-#include "voxel/ChunkComponent.h"
-#include "voxel/BlockComponent.h"
+#include "voxel/components/ChunkComponent.h"
+#include "voxel/components/BlockComponent.h"
 #include "rendering/MeshComponent.h"
 
 using namespace vecs;

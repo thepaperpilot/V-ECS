@@ -1,8 +1,8 @@
 #include "ChunkSystem.h"
-#include "ChunkComponent.h"
-#include "BlockComponent.h"
-#include "../rendering/MeshComponent.h"
-#include "../ecs/World.h"
+#include "../components/ChunkComponent.h"
+#include "../components/BlockComponent.h"
+#include "../../rendering/MeshComponent.h"
+#include "../../ecs/World.h"
 
 using namespace vecs;
 

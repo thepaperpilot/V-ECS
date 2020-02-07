@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ecs/World.h"
+#include "../../ecs/World.h"
 
 namespace vecs {
 

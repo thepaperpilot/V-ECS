@@ -34,7 +34,9 @@ void World::addQuery(EntityQuery* query) {
 	queries.push_back(query);
 }
 
-void World::update() {
+void World::update(double deltaTime) {
+	this->deltaTime = deltaTime;
+
 	// Copy our list of dirty entities so that we can clear it before handling the dirty entities
 	// That's because, whilst handling our dirty entities, a system may dirty more
 	// and we want to make sure we don't to erase the fact it was dirtied

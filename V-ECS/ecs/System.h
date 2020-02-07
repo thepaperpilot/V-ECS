@@ -12,7 +12,7 @@ namespace vecs {
 	class System {
 	public:
 
-		World* world;
+		World* world = nullptr;
 
 		virtual void init() {};
 
