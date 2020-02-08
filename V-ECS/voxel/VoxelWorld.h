@@ -47,9 +47,11 @@ namespace vecs {
 
 	// Forward Declarations
 	class ChunkSystem;
-	class MovementSystem;
-	class PostRenderSystem;
 	class ControllerSystem;
+	class MovementSystem;
+	class PreRenderSystem;
+	class MeshRendererSystem;
+	class PostRenderSystem;
 
 	// This is a type of World that comes with several built-in
 	// systems for rendering a voxel-based world
@@ -65,8 +67,10 @@ namespace vecs {
 		uint32_t player = 0;
 
 		ChunkSystem* chunkSystem = nullptr;
-		MovementSystem* movementSystem = nullptr;
-		PostRenderSystem* postRenderSystem = nullptr;
 		ControllerSystem* controllerSystem = nullptr;
+		MovementSystem* movementSystem = nullptr;
+		PreRenderSystem* preRenderSystem = nullptr;
+		MeshRendererSystem* meshRendererSystem = nullptr;
+		PostRenderSystem* postRenderSystem = nullptr;
 	};		
 }

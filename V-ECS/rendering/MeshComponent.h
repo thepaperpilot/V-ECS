@@ -71,7 +71,6 @@ namespace vecs {
 		}
 
 		void cleanup(VkDevice device) override {
-			std::cout << "cleaning up mesh" << std::endl;
 			vkDestroyBuffer(device, vertexBuffer, nullptr);
 			// Also free its memory
 			vkFreeMemory(device, vertexBufferMemory, nullptr);

@@ -6,6 +6,8 @@
 #include "../movement/VelocityComponent.h"
 #include "../input/ControllerSystem.h"
 #include "../input/ControlledComponent.h"
+#include "../rendering/PreRenderSystem.h"
+#include "../rendering/MeshRendererSystem.h"
 #include "../rendering/PostRenderSystem.h"
 
 using namespace vecs;
@@ -15,7 +17,9 @@ void VoxelWorld::init() {
 	addSystem(this->chunkSystem = new ChunkSystem, PRE_RENDERING_PRIORITY - 200);
 	addSystem(this->controllerSystem = new ControllerSystem(engine->window), PRE_RENDERING_PRIORITY - 100); // Happens after chunk system
 	addSystem(this->movementSystem = new MovementSystem, PRE_RENDERING_PRIORITY - 90); // Happens after controller system
-	addSystem(this->postRenderSystem = new PostRenderSystem(engine), POST_RENDERING_PRIORITY); // Happens after all logic and rendering
+	addSystem(this->preRenderSystem = new PreRenderSystem(engine), PRE_RENDERING_PRIORITY); // Prepares our image to draw to
+	addSystem(this->meshRendererSystem = new MeshRendererSystem(engine), PRE_RENDERING_PRIORITY + POST_RENDERING_PRIORITY / 2); // Draws all our mesh components
+	addSystem(this->postRenderSystem = new PostRenderSystem(engine), POST_RENDERING_PRIORITY); // Submits image to the GPU
 
 	// Add player entity
 	player = createEntity();
@@ -26,5 +30,6 @@ void VoxelWorld::init() {
 
 void VoxelWorld::cleanup() {
 	// Cleanup each system that needs it
-	postRenderSystem->cleanup();
+	preRenderSystem->cleanup();
+	meshRendererSystem->cleanup();
 }
