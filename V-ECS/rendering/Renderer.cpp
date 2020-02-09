@@ -1,21 +1,30 @@
 #include "Renderer.h"
-#include "../engine/Engine.h"
-#include "../util/VulkanUtils.h"
 #include "Vertex.h"
+#include "../engine/Engine.h"
+#include "../ecs/World.h"
+#include "../util/VulkanUtils.h"
 
 #include <algorithm>
 #include "MeshComponent.h"
 
 using namespace vecs;
 
-void Renderer::init(QueueFamilyIndices indices, SwapChainSupportDetails swapChainSupport) {
-    initQueueHandles(indices);
-    createSwapChain(indices, swapChainSupport);
+Renderer::Renderer(Device* device, VkSurfaceKHR surface, GLFWwindow* window, World* world) {
+    this->device = device;
+    this->surface = surface;
+    this->window = window;
+    this->world = world;
+
+    // Select various properties by checking for our preferences or choosing a fallback
+    surfaceFormat = chooseSwapSurfaceFormat(device->swapChainSupport.formats);
+    presentMode = chooseSwapPresentMode(device->swapChainSupport.presentModes);
+
+    initQueueHandles();
+    createSwapChain();
     createImageViews();
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
-    createCommandPool(indices);
 
     meshes.filter.with(typeid(MeshComponent));
 }
@@ -23,16 +32,17 @@ void Renderer::init(QueueFamilyIndices indices, SwapChainSupportDetails swapChai
 void Renderer::recreateSwapChain() {
     // If we were minimized, wait until that changes
     int width = 0, height = 0;
-    glfwGetFramebufferSize(engine->window, &width, &height);
+    glfwGetFramebufferSize(window, &width, &height);
     while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(engine->window, &width, &height);
+        glfwGetFramebufferSize(window, &width, &height);
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(engine->device);
+    vkDeviceWaitIdle(*device);
 
     cleanupSwapChain();
-    createSwapChain(engine->findQueueFamilies(engine->physicalDevice), querySwapChainSupport(engine->physicalDevice));
+
+    createSwapChain();
     createImageViews();
     createRenderPass();
     createGraphicsPipeline();
@@ -40,32 +50,31 @@ void Renderer::recreateSwapChain() {
     createCommandBuffers();
 }
 
-void Renderer::initQueueHandles(QueueFamilyIndices indices) {
+void Renderer::initQueueHandles() {
 	// Retrieve the queue handles for the first in each of our queue families
-	vkGetDeviceQueue(engine->device, indices.graphicsFamily.value(), 0, &graphicsQueue);
-	vkGetDeviceQueue(engine->device, indices.presentFamily.value(), 0, &presentQueue);
+	vkGetDeviceQueue(*device, device->queueFamilyIndices.graphics.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(*device, device->queueFamilyIndices.present.value(), 0, &presentQueue);
 }
 
-void Renderer::createSwapChain(QueueFamilyIndices indices, SwapChainSupportDetails swapChainSupport) {
-    // Select various properties by checking for our preferences or choosing a fallback
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-    VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+void Renderer::createSwapChain() {
+    VkSurfaceCapabilitiesKHR capabilities = device->swapChainSupport.capabilities;
+
+    VkExtent2D extent = chooseSwapExtent(capabilities);
 
     // Tell our queue how many images to contain
     // Start with 1 more than the minimum, so we can buffer at least slightly
-    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+    uint32_t imageCount = capabilities.minImageCount + 1;
 
     // If we have a non-zero maximum, set our imageCount to be no bigger than that
-    if (swapChainSupport.capabilities.maxImageCount > 0 &&
-        imageCount > swapChainSupport.capabilities.maxImageCount) {
-        imageCount = swapChainSupport.capabilities.maxImageCount;
+    if (capabilities.maxImageCount > 0 &&
+        imageCount > capabilities.maxImageCount) {
+        imageCount = capabilities.maxImageCount;
     }
 
     // Configure the data we need to create our swap chain
     VkSwapchainCreateInfoKHR createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = engine->surface;
+    createInfo.surface = surface;
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -75,31 +84,29 @@ void Renderer::createSwapChain(QueueFamilyIndices indices, SwapChainSupportDetai
 
     // Setup whether we need to share between two family queues
     // This will happen if our present queue and graphics queue are different
-    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-    if (indices.graphicsFamily != indices.presentFamily) {
+    uint32_t queueFamilyIndices[] = { device->queueFamilyIndices.graphics.value(), device->queueFamilyIndices.present.value() };
+    if (device->queueFamilyIndices.graphics.value() != device->queueFamilyIndices.present.value()) {
         // TODO Handle explicit ownership transfers
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = 2;
         createInfo.pQueueFamilyIndices = queueFamilyIndices;
     } else {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0; // Optional
-        createInfo.pQueueFamilyIndices = nullptr; // Optional
     }
 
-    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+    createInfo.preTransform = capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(engine->device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(*device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(engine->device, swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(*device, swapChain, &imageCount, nullptr);
     swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(engine->device, swapChain, &imageCount, swapChainImages.data());
+    vkGetSwapchainImagesKHR(*device, swapChain, &imageCount, swapChainImages.data());
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
 }
@@ -134,7 +141,7 @@ VkExtent2D Renderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabiliti
         return capabilities.currentExtent;
     } else {
         int width, height;
-        glfwGetFramebufferSize(engine->window, &width, &height);
+        glfwGetFramebufferSize(window, &width, &height);
 
         VkExtent2D actualExtent = {
             static_cast<uint32_t>(width),
@@ -169,7 +176,7 @@ void Renderer::createImageViews() {
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(engine->device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+        if (vkCreateImageView(*device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create image views!");
         }
     }
@@ -229,11 +236,12 @@ void Renderer::createRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(engine->device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }
 
+// TODO does this whole thing need to be redone on resize, or just parts of it?
 void Renderer::createGraphicsPipeline() {
     // Read our compiled shaders from their files
     // Note they are in SPIR-V format (compiled from GLSL)
@@ -364,7 +372,7 @@ void Renderer::createGraphicsPipeline() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-    if (vkCreatePipelineLayout(engine->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
@@ -384,13 +392,13 @@ void Renderer::createGraphicsPipeline() {
     pipelineInfo.subpass = 0;
 
     // Create the graphics pipeline!
-    if (vkCreateGraphicsPipelines(engine->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(*device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
 
     // Cleanup our shader modules
-    vkDestroyShaderModule(engine->device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(engine->device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(*device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(*device, vertShaderModule, nullptr);
 }
 
 VkShaderModule Renderer::createShaderModule(const std::vector<char>& code) {
@@ -403,7 +411,7 @@ VkShaderModule Renderer::createShaderModule(const std::vector<char>& code) {
 
     // Create the shader module
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(engine->device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+    if (vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("failed to create shader module!");
     }
 
@@ -430,54 +438,17 @@ void Renderer::createFramebuffers() {
         framebufferInfo.layers = 1;
 
         // Create the frame buffer!
-        if (vkCreateFramebuffer(engine->device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
         }
     }
 }
 
-void Renderer::createCommandPool(QueueFamilyIndices indices) {
-    // Specify our command pool info, which is really just our graphics queue family index
-    // We could also add flags for rerecording new commands, but we don't need those
-    VkCommandPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
-
-    // Create the command pool
-    if (vkCreateCommandPool(engine->device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create command pool!");
-    }
-}
-
 void Renderer::createCommandBuffers() {
-    commandBuffers.resize(swapChainFramebuffers.size());
-
-    // Describe a command buffer allocation that'll fill our command pool
-    VkCommandBufferAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    // Primary is for going directly to the queue, secondary is for use inside of other (primary) command buffers
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
-
-    // Create the command buffers
-    if (vkAllocateCommandBuffers(engine->device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffers!");
-    }
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapChainFramebuffers.size(), device->commandPool, true);
 
     // Setup each command buffer
     for (size_t i = 0; i < commandBuffers.size(); i++) {
-        // You can use flags here to specify cases you'll be using the buffer for
-        // None apply to us
-        // If these are secondary buffers you'd also specify the primary one here
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-        // Being the command buffer
-        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer!");
-        }
-
         // Describe our render pass
         VkRenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -499,8 +470,9 @@ void Renderer::createCommandBuffers() {
         // Bind the graphics pipeline
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+        // TODO I don't think this is how to render multiple "meshes"
         for (auto const entity : meshes.entities) {
-            MeshComponent mesh = *engine->world->getComponent<MeshComponent>(entity);
+            MeshComponent mesh = *world->getComponent<MeshComponent>(entity);
             if (mesh.vertices.empty()) continue;
 
             // Bind our vertex and index buffers
@@ -523,59 +495,30 @@ void Renderer::createCommandBuffers() {
     }
 }
 
-SwapChainSupportDetails Renderer::querySwapChainSupport(VkPhysicalDevice physicalDevice) {
-    SwapChainSupportDetails details;
-
-    // Get the capabilities of our surface
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, engine->surface, &details.capabilities);
-
-    // Find how many surface formats the physical device supports
-    uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, engine->surface, &formatCount, nullptr);
-    // If the number of formats supported is non-zero, add them to our details.formats list
-    if (formatCount != 0) {
-        details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, engine->surface, &formatCount, details.formats.data());
-    }
-
-    // Find how many present modes the physical device supports
-    uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, engine->surface, &presentModeCount, nullptr);
-    // If the number of modes is non-zero, add them to our details.presentModes list
-    if (presentModeCount != 0) {
-        details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, engine->surface, &presentModeCount, details.presentModes.data());
-    }
-
-    return details;
-}
-
 void Renderer::cleanupSwapChain() {
     // Destroy our frame buffers
     for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-        vkDestroyFramebuffer(engine->device, swapChainFramebuffers[i], nullptr);
+        vkDestroyFramebuffer(*device, swapChainFramebuffers[i], nullptr);
     }
 
-    vkFreeCommandBuffers(engine->device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    // Destryor our command buffers
+    vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
     // Destroy our graphics pipeline and render pass
-    vkDestroyPipeline(engine->device, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(engine->device, pipelineLayout, nullptr);
-    vkDestroyRenderPass(engine->device, renderPass, nullptr);
+    vkDestroyPipeline(*device, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(*device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(*device, renderPass, nullptr);
 
     // Destroy our swap chain images
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        vkDestroyImageView(engine->device, swapChainImageViews[i], nullptr);
+        vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
     }
 
     // Destroy our swap chain
-    vkDestroySwapchainKHR(engine->device, swapChain, nullptr);
+    vkDestroySwapchainKHR(*device, swapChain, nullptr);
 }
 
 void Renderer::cleanup() {
     // Destroy all our swap chain objects
     cleanupSwapChain();
-
-    // Destroy our command pool
-    vkDestroyCommandPool(engine->device, commandPool, nullptr);
 }

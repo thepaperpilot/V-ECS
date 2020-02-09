@@ -1,7 +1,8 @@
 #include "PreRenderSystem.h"
 #include "RenderStateComponent.h"
-#include "../engine/Engine.h"
-#include "../engine/WindowResizeEvent.h"
+#include "Renderer.h"
+#include "../engine/Device.h"
+#include "../engine/GLFWEvents.h"
 #include "../events/EventManager.h"
 
 #include <vulkan/vulkan.h>
@@ -15,7 +16,7 @@ void PreRenderSystem::onRenderStateAdded(uint32_t entity) {
     renderState->imageAvailableSemaphores.resize(renderState->maxFramesInFlight);
     renderState->renderFinishedSemaphores.resize(renderState->maxFramesInFlight);
     renderState->inFlightFences.resize(renderState->maxFramesInFlight);
-    renderState->imagesInFlight.resize(engine->renderer.swapChainImages.size(), VK_NULL_HANDLE);
+    renderState->imagesInFlight.resize(renderer->swapChainImages.size(), VK_NULL_HANDLE);
 
     // Semaphores need an info struct but it doesn't actually contain any info lol
     VkSemaphoreCreateInfo semaphoreInfo = {};
@@ -27,9 +28,9 @@ void PreRenderSystem::onRenderStateAdded(uint32_t entity) {
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     for (size_t i = 0; i < renderState->maxFramesInFlight; i++) {
-        if (vkCreateSemaphore(engine->device, &semaphoreInfo, nullptr, &renderState->imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(engine->device, &semaphoreInfo, nullptr, &renderState->renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(engine->device, &fenceInfo, nullptr, &renderState->inFlightFences[i]) != VK_SUCCESS) {
+        if (vkCreateSemaphore(*device, &semaphoreInfo, nullptr, &renderState->imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(*device, &semaphoreInfo, nullptr, &renderState->renderFinishedSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(*device, &fenceInfo, nullptr, &renderState->inFlightFences[i]) != VK_SUCCESS) {
 
             throw std::runtime_error("failed to create synchronization objects for a frame!");
         }
@@ -37,8 +38,8 @@ void PreRenderSystem::onRenderStateAdded(uint32_t entity) {
 }
 
 void PreRenderSystem::refreshWindow(RefreshWindowEvent* event) {
-    engine->renderer.recreateSwapChain();
-    update();
+    renderer->recreateSwapChain();
+    world->update(0);
 }
 
 void PreRenderSystem::windowResize(WindowResizeEvent* event) {
@@ -71,16 +72,16 @@ void PreRenderSystem::update() {
 
     // Make sure we're not sending frames too quickly for them to be actually drawn
     // by using a fence that will pause our code if we ever get too many frames ahead
-    vkWaitForFences(engine->device, 1, &renderState->inFlightFences[renderState->currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(*device, 1, &renderState->inFlightFences[renderState->currentFrame], VK_TRUE, UINT64_MAX);
 
     // Acquire our next image index
-    VkResult result = vkAcquireNextImageKHR(engine->device, engine->renderer.swapChain, UINT64_MAX,
+    VkResult result = vkAcquireNextImageKHR(*device, renderer->swapChain, UINT64_MAX,
         renderState->imageAvailableSemaphores[renderState->currentFrame], VK_NULL_HANDLE, &renderState->imageIndex);
 
     // Check for out of date image
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // We need to recreate the swap chain
-        engine->renderer.recreateSwapChain();
+        renderer->recreateSwapChain();
         // Give up rendering this frame
         return;
     }
@@ -90,7 +91,7 @@ void PreRenderSystem::update() {
 
     // Check if a previous frame is using this image (i.e. there is its fence to wait on)
     if (renderState->imagesInFlight[renderState->imageIndex] != VK_NULL_HANDLE) {
-        vkWaitForFences(engine->device, 1, &renderState->imagesInFlight[renderState->imageIndex], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(*device, 1, &renderState->imagesInFlight[renderState->imageIndex], VK_TRUE, UINT64_MAX);
     }
     // Mark the image as now being in use by this frame
     renderState->imagesInFlight[renderState->imageIndex] = renderState->inFlightFences[renderState->currentFrame];
@@ -99,6 +100,6 @@ void PreRenderSystem::update() {
 void PreRenderSystem::cleanup() {
     // Destroy any remaining entities
     for (uint32_t entity : renderState.entities) {
-        world->getComponent<RenderStateComponent>(entity)->cleanup(engine->device);
+        world->getComponent<RenderStateComponent>(entity)->cleanup(&device->logical);
     }
 }

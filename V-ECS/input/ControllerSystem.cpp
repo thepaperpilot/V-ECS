@@ -4,6 +4,8 @@
 #include "../movement/PositionComponent.h"
 #include "../events/EventManager.h"
 
+#include <glm/glm.hpp>
+
 glm::vec3 up(0, 1, 0);
 
 using namespace vecs;
@@ -95,8 +97,8 @@ void ControllerSystem::onMouseMove(MouseMoveEvent* event) {
 	ControlledComponent* controller = world->getComponent<ControlledComponent>(*controlled.entities.begin());
 
 	// Add our delta mouse movement to our pitch and yaw
-	controller->yaw += event->xPos - lastX;
-	controller->pitch += event->yPos - lastY;
+	controller->yaw += (float)event->xPos - lastX;
+	controller->pitch += (float)event->yPos - lastY;
 	lastX = event->xPos;
 	lastY = event->yPos;
 

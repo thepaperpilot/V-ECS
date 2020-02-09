@@ -1,27 +1,24 @@
 #pragma once
 
 #include "Vertex.h"
+#include "../engine/Device.h"
 #include "../ecs/EntityQuery.h"
+
 #include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
 #include <vector>
 
 namespace vecs {
 
 	// Forward Declarations
 	struct QueueFamilyIndices;
-	class Engine;
-
-	struct SwapChainSupportDetails {
-		VkSurfaceCapabilitiesKHR capabilities;
-		std::vector<VkSurfaceFormatKHR> formats;
-		std::vector<VkPresentModeKHR> presentModes;
-	};
+	class Device;
+	class World;
 
 	class Renderer {
+		friend class Engine;
 	public:
-		Engine* engine;
-
-		VkCommandPool commandPool;
+		Renderer(Device* device, VkSurfaceKHR surface, GLFWwindow* window, World* world);
 
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
@@ -32,15 +29,20 @@ namespace vecs {
 
 		EntityQuery meshes;
 
-		void init(QueueFamilyIndices indices, SwapChainSupportDetails swapChainSupport);
 		void recreateSwapChain();
 		void createCommandBuffers();
-
-		SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physicalDevice);
 
 		void cleanup();
 
 	private:
+		Device* device;
+		VkSurfaceKHR surface;
+		GLFWwindow* window;
+		World* world;
+
+		VkSurfaceFormatKHR surfaceFormat;
+		VkPresentModeKHR presentMode;
+
 		VkFormat swapChainImageFormat;
 		VkExtent2D swapChainExtent;
 
@@ -53,14 +55,13 @@ namespace vecs {
 
 		void cleanupSwapChain();
 
-		void initQueueHandles(QueueFamilyIndices indices);
-		void createSwapChain(QueueFamilyIndices indices, SwapChainSupportDetails swapChainSupport);
+		void initQueueHandles();
+		void createSwapChain();
 		void createImageViews();
 		void createRenderPass();
 		void createGraphicsPipeline();
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 		void createFramebuffers();
-		void createCommandPool(QueueFamilyIndices indices);
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);

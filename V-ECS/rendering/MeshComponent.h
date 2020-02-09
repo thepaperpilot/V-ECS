@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../engine/Device.h"
+#include "../engine/Buffer.h"
 #include "../ecs/World.h"
 #include "../rendering/Vertex.h"
 
@@ -11,16 +13,12 @@ namespace vecs {
 		std::vector<Vertex> vertices;
 		std::vector<uint16_t> indices;
 
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
-		VkBuffer stagingVertexBuffer;
-		VkDeviceMemory stagingVertexBufferMemory;
+		Buffer vertexBuffer;
+		Buffer stagingVertexBuffer;
 		size_t vertexBufferSize;
 
-		VkBuffer indexBuffer;
-		VkDeviceMemory indexBufferMemory;
-		VkBuffer stagingIndexBuffer;
-		VkDeviceMemory stagingIndexBufferMemory;
+		Buffer indexBuffer;
+		Buffer stagingIndexBuffer;
 		size_t indexBufferSize;
 
 		bool dirtyVertices = true;
@@ -64,20 +62,51 @@ namespace vecs {
 				// Remove the indices from the list
 				indices.erase(iter, iter + vertexIndices.size());
 
-				// TODO Find any vertices that are no longer used in an update method if dirtyVertices = true
-
 				dirtyVertices = true;
 			}
 		}
 
-		void cleanup(VkDevice device) override {
-			vkDestroyBuffer(device, vertexBuffer, nullptr);
-			// Also free its memory
-			vkFreeMemory(device, vertexBufferMemory, nullptr);
+		void createVertexBuffer(Device* device, size_t size) {
+			VkDeviceSize bufferSize = sizeof(Vertex) * size;
 
-			// Do the same for our staging buffer
-			vkDestroyBuffer(device, stagingVertexBuffer, nullptr);
-			vkFreeMemory(device, stagingVertexBufferMemory, nullptr);
+			// Create a staging buffer with the given size
+			// This size should be more than we currently need,
+			// so we don't need to reallocate another for awhile
+			stagingVertexBuffer = device->createBuffer(
+				bufferSize,
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+			// Create a GPU-optimized buffer for the actual vertices
+			vertexBuffer = device->createBuffer(
+				bufferSize,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		}
+
+		void createIndexBuffer(Device* device, size_t size) {
+			VkDeviceSize bufferSize = sizeof(Vertex) * size;
+
+			// Create a staging buffer with the given size
+			// This size should be more than we currently need,
+			// so we don't need to reallocate another for awhile
+			stagingIndexBuffer = device->createBuffer(
+				bufferSize,
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+			// Create a GPU-optimized buffer for the actual indices
+			indexBuffer = device->createBuffer(
+				bufferSize,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		}
+
+		void cleanup(VkDevice* device) override {
+			vertexBuffer.cleanup();
+			stagingVertexBuffer.cleanup();
+			indexBuffer.cleanup();
+			stagingIndexBuffer.cleanup();
 		}
 	};
 }

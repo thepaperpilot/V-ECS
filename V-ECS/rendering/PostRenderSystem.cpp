@@ -1,6 +1,7 @@
 #include "PostRenderSystem.h"
 #include "RenderStateComponent.h"
-#include "../engine/Engine.h"
+#include "Renderer.h"
+#include "../engine/Device.h"
 
 #include <vulkan/vulkan.h>
 
@@ -29,15 +30,15 @@ void PostRenderSystem::update() {
     submitInfo.pWaitDstStageMask = waitStages;
     // Tell our submission which command buffer to use to get the image
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &engine->renderer.commandBuffers[renderState->imageIndex];
+    submitInfo.pCommandBuffers = &renderer->commandBuffers[renderState->imageIndex];
     // Tell our submission to send a signal on another semaphore so we know when the image has been submitted
     VkSemaphore signalSemaphores[] = { renderState->renderFinishedSemaphores[renderState->currentFrame] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     // Submit our image to the graphic queue
-    vkResetFences(engine->device, 1, &renderState->inFlightFences[renderState->currentFrame]);
-    if (vkQueueSubmit(engine->renderer.graphicsQueue, 1, &submitInfo, renderState->inFlightFences[renderState->currentFrame]) != VK_SUCCESS) {
+    vkResetFences(*device, 1, &renderState->inFlightFences[renderState->currentFrame]);
+    if (vkQueueSubmit(renderer->graphicsQueue, 1, &submitInfo, renderState->inFlightFences[renderState->currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -48,18 +49,18 @@ void PostRenderSystem::update() {
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
     // Tell it what swap chain to send it to, and what index the image should go in
-    VkSwapchainKHR swapChains[] = { engine->renderer.swapChain };
+    VkSwapchainKHR swapChains[] = { renderer->swapChain };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &renderState->imageIndex;
 
     // Present the image to the screen
-    VkResult result = vkQueuePresentKHR(engine->renderer.presentQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(renderer->presentQueue, &presentInfo);
 
     // Check if the image is out of date, so we can pre-emptively recreate the swap chain before next frame
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || renderState->framebufferResized) {
         renderState->framebufferResized = false;
-        engine->renderer.recreateSwapChain();
+        renderer->recreateSwapChain();
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("failed to present swap chain image!");
     }

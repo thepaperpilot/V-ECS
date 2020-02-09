@@ -8,12 +8,14 @@
 namespace vecs {
 
 	// Forward declarations
-	class Engine;
+	class Device;
+	class Renderer;
 
 	class MeshRendererSystem : public System {
 	public:
-		MeshRendererSystem(Engine* engine) {
-			this->engine = engine;
+		MeshRendererSystem(Device* device, Renderer* renderer) {
+			this->device = device;
+			this->renderer = renderer;
 		}
 
 		bool framebufferResized = false;
@@ -23,22 +25,16 @@ namespace vecs {
 		void cleanup();
 
 	private:
-		Engine* engine;
+		Device* device;
+		Renderer* renderer;
+
 		size_t initialVertexBufferSize = 4096;
 		size_t initialIndexBufferSize = 4096;
 
 		EntityQuery meshes;
 		void onMeshAdded(uint32_t entity);
 
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
-		void createVertexBuffer(MeshComponent* mesh, size_t size);
 		void fillVertexBuffer(MeshComponent* mesh);
-		void cleanupVertexBuffer(MeshComponent* mesh);
-
-		void createIndexBuffer(MeshComponent* mesh, size_t size);
 		void fillIndexBuffer(MeshComponent* mesh);
-		void cleanupIndexBuffer(MeshComponent* mesh);
 	};
 }

@@ -6,19 +6,22 @@
 namespace vecs {
 
 	// Forward declarations
-	class Engine;
+	class Device;
+	class Renderer;
 
 	class PostRenderSystem : public System {
 	public:
-		PostRenderSystem(Engine* engine) {
-			this->engine = engine;
+		PostRenderSystem(Device* device, Renderer* renderer) {
+			this->device = device;
+			this->renderer = renderer;
 		}
 
 		void init() override;
 		void update() override;
 
 	private:
-		Engine* engine;
+		Device* device;
+		Renderer* renderer;
 
 		EntityQuery renderState;
 	};

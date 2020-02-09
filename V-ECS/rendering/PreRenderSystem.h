@@ -6,14 +6,16 @@
 namespace vecs {
 
 	// Forward declarations
-	class Engine;
+	class Device;
+	class Renderer;
 	struct RefreshWindowEvent;
 	struct WindowResizeEvent;
 
 	class PreRenderSystem : public System {
 	public:
-		PreRenderSystem(Engine* engine) {
-			this->engine = engine;
+		PreRenderSystem(Device* device, Renderer* renderer) {
+			this->device = device;
+			this->renderer = renderer;
 		}
 
 		void init() override;
@@ -21,7 +23,8 @@ namespace vecs {
 		void cleanup();
 
 	private:
-		Engine* engine;
+		Device* device;
+		Renderer* renderer;
 
 		EntityQuery renderState;
 		void onRenderStateAdded(uint32_t entity);

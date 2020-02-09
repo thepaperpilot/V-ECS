@@ -15,7 +15,7 @@ namespace vecs {
 
 	struct Component {
 		// Optional function to cleanup any necessary fields a component may have
-		virtual void cleanup(VkDevice device) {}
+		virtual void cleanup(VkDevice* device) {}
 	};
 
 	// The World contains all of the program's Systems
