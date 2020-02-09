@@ -28,6 +28,7 @@ namespace vecs {
 		}
 
 		double deltaTime = 0;
+		bool cancelUpdate = false;
 
 		uint32_t createEntity();
 		void deleteEntity(uint32_t entity);

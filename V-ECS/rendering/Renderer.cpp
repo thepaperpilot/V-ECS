@@ -57,8 +57,8 @@ void Renderer::initQueueHandles() {
 }
 
 void Renderer::createSwapChain() {
-    VkSurfaceCapabilitiesKHR capabilities = device->swapChainSupport.capabilities;
-
+    VkSurfaceCapabilitiesKHR capabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, surface, &capabilities);
     VkExtent2D extent = chooseSwapExtent(capabilities);
 
     // Tell our queue how many images to contain

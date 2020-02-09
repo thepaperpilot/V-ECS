@@ -83,6 +83,7 @@ void PreRenderSystem::update() {
         // We need to recreate the swap chain
         renderer->recreateSwapChain();
         // Give up rendering this frame
+        world->cancelUpdate = true;
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {

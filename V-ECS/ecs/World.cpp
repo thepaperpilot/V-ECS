@@ -72,5 +72,7 @@ void World::update(double deltaTime) {
 	for (auto& kvp : systems) {
 		System* system = kvp.second;
 		system->update();
+		if (cancelUpdate) break;
 	}
+	cancelUpdate = false;
 }
