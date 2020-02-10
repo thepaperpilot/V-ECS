@@ -7,11 +7,11 @@
 namespace vecs {
 
     struct Vertex {
-        glm::vec2 pos;
-        glm::vec3 color;
+        glm::vec3 pos;
+        glm::vec2 texCoord;
 
-        bool equals(Vertex other) {
-            return color == other.color && pos == other.pos;
+        bool operator==(const Vertex& other) const {
+            return pos == other.pos && texCoord == other.texCoord;
         }
 
         static VkVertexInputBindingDescription getBindingDescription() {
@@ -29,14 +29,14 @@ namespace vecs {
             // Position
             attributeDescriptions[0].binding = 0;
             attributeDescriptions[0].location = 0;
-            attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
             attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-            // Color
+            
+            // UV
             attributeDescriptions[1].binding = 0;
             attributeDescriptions[1].location = 1;
-            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[1].offset = offsetof(Vertex, color);
+            attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
 
             return attributeDescriptions;
         }

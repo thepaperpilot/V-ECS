@@ -46,10 +46,13 @@ namespace vecs {
 		VkCommandPool createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+		void beginCommandBuffer(VkCommandBuffer buffer);
 		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
 		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool = nullptr, bool begin = true);
 		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool = nullptr, bool begin = false);
 		void submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool = nullptr, bool free = true);
+
+		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
 		void cleanup();
 
@@ -61,8 +64,5 @@ namespace vecs {
 		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
 		void createLogicalDevice();
-
-		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		void beginCommandBuffer(VkCommandBuffer buffer);
 	};
 }

@@ -19,6 +19,8 @@ void PostRenderSystem::update() {
     RenderStateComponent* renderState =
         world->getComponent<RenderStateComponent>(*this->renderState.entities.begin());
 
+    renderer->createCommandBuffer(renderState->imageIndex);
+
     // Create our info to submit an image to the buffers
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

@@ -48,6 +48,7 @@ namespace vecs {
 	// Forward Declarations
 	class ChunkSystem;
 	class ControllerSystem;
+	class CameraSystem;
 	class MovementSystem;
 	class PreRenderSystem;
 	class MeshRendererSystem;
@@ -69,6 +70,7 @@ namespace vecs {
 		ChunkSystem* chunkSystem = nullptr;
 		ControllerSystem* controllerSystem = nullptr;
 		MovementSystem* movementSystem = nullptr;
+		CameraSystem* cameraSystem = nullptr;
 		PreRenderSystem* preRenderSystem = nullptr;
 		MeshRendererSystem* meshRendererSystem = nullptr;
 		PostRenderSystem* postRenderSystem = nullptr;

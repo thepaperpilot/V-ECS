@@ -1,11 +1,13 @@
 #include "Renderer.h"
 #include "Vertex.h"
+#include "Texture.h"
+#include "PushConstantComponent.h"
+#include "MeshComponent.h"
 #include "../engine/Engine.h"
 #include "../ecs/World.h"
 #include "../util/VulkanUtils.h"
 
 #include <algorithm>
-#include "MeshComponent.h"
 
 using namespace vecs;
 
@@ -20,12 +22,11 @@ Renderer::Renderer(Device* device, VkSurfaceKHR surface, GLFWwindow* window, Wor
     presentMode = chooseSwapPresentMode(device->swapChainSupport.presentModes);
 
     initQueueHandles();
-    createSwapChain();
-    createImageViews();
-    createRenderPass();
-    createGraphicsPipeline();
-    createFramebuffers();
+    texture.init(device, graphicsQueue, "textures/goodLudicolo.png");
+    
+    createDescriptorSetLayout();
 
+    pushConstants.filter.with(typeid(PushConstantComponent));
     meshes.filter.with(typeid(MeshComponent));
 }
 
@@ -44,10 +45,14 @@ void Renderer::recreateSwapChain() {
 
     createSwapChain();
     createImageViews();
+    depthTexture.initDepthTexture(device, graphicsQueue, swapChainExtent);
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
-    createCommandBuffers();
+    createDescriptorPool();
+    createDescriptorSets();
+
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapChainFramebuffers.size());
 }
 
 void Renderer::initQueueHandles() {
@@ -159,26 +164,8 @@ void Renderer::createImageViews() {
     swapChainImageViews.resize(swapChainImages.size());
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
-        VkImageViewCreateInfo createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = swapChainImages[i];
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = swapChainImageFormat;
-
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(*device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image views!");
-        }
+        swapChainImageViews[i] =
+            Texture::createImageView(device, swapChainImages[i], swapChainImageFormat);
     }
 }
 
@@ -203,16 +190,33 @@ void Renderer::createRenderPass() {
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // Make our subpass attachment
+    // Make our color attachment reference
     VkAttachmentReference colorAttachmentRef = {};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Create our depth attachment
+    VkAttachmentDescription depthAttachment = {};
+    depthAttachment.format = depthTexture.format;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // Make our depth attachment reference
+    VkAttachmentReference depthAttachmentRef = {};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     // Make our subpass
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     // Make our subpass dependency
     VkSubpassDependency dependency = {};
@@ -224,11 +228,12 @@ void Renderer::createRenderPass() {
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     // Create our render pass
+    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    // Add our color attachment
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    // Add our attachments
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.pAttachments = attachments.data();
     // Add our subpass
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
@@ -238,6 +243,37 @@ void Renderer::createRenderPass() {
 
     if (vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
+    }
+}
+
+void Renderer::createDescriptorSetLayout() {
+    // This describes what uniforms our shader will expect
+    // We set this up so that we can use one uniform object in the vertex shader stage
+    VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // This describes our texture samplers
+    VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+    samplerLayoutBinding.binding = 1;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // Ignore them for now, because we don't have any to use
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &samplerLayoutBinding;
+    //layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size();
+    //layoutInfo.pBindings = bindings.data();
+
+    if (vkCreateDescriptorSetLayout(*device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor set layout!");
     }
 }
 
@@ -328,6 +364,8 @@ void Renderer::createGraphicsPipeline() {
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     // This is a setting that can help with shadow mapping
     rasterizer.depthBiasEnable = VK_FALSE;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     // Describe our multisampling AA
     VkPipelineMultisampleStateCreateInfo multisampling = {};
@@ -335,7 +373,14 @@ void Renderer::createGraphicsPipeline() {
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    // Depth buffer goes here
+    // Describe the depth and stencil buffer
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
 
     // Describe color blending
     // First part is for our frame buffers, of which we only have one
@@ -368,9 +413,45 @@ void Renderer::createGraphicsPipeline() {
     dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
+    // Create our push constant ranges
+    // This won't work because the component won't be added when this gets first run
+    /*
+    uint32_t bytes = 0;
+    std::vector<VkPushConstantRange> pushConstantRanges;
+    pushConstantRanges.resize(pushConstants.entities.size());
+    for (uint32_t entity : pushConstants.entities) {
+        PushConstantComponent* pushConstant = world->getComponent<PushConstantComponent>(entity);
+
+        for (auto constant : pushConstant->constants) {
+            VkPushConstantRange pushConstantRange = {};
+            pushConstantRange.stageFlags = constant.stageFlags;
+            pushConstantRange.offset = bytes;
+            pushConstantRange.size = constant.size;
+            std::cout << bytes << " - " << (bytes + constant.size) << std::endl;
+            bytes += constant.size;
+
+            pushConstantRanges.push_back(pushConstantRange);
+        }
+    }
+    // We're only guaranteed 128 bytes
+    if (bytes > 128)
+        std::cout << "Warning: push constants larger than guaranteed size of 128 bytes (" << bytes << ")" << std::endl;
+    */
+    // TODO uniform buffers are highly tied to the shader program, the vertices being expected, etc.
+    // I think worlds should contain 1+ implementations of an abstract renderer class
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = 3 * sizeof(glm::mat4);
+
     // Save our pipeline layout
+    // We add our uniform descriptor set and push constants here
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     if (vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
@@ -386,6 +467,7 @@ void Renderer::createGraphicsPipeline() {
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
@@ -418,21 +500,90 @@ VkShaderModule Renderer::createShaderModule(const std::vector<char>& code) {
     return shaderModule;
 }
 
+void Renderer::createDescriptorPool() {
+    std::array<VkDescriptorPoolSize, 1> poolSizes = {};
+    //poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    //poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+
+    if (vkCreateDescriptorPool(*device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor pool!");
+    }
+}
+
+void Renderer::createDescriptorSets() {
+    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+    allocInfo.pSetLayouts = layouts.data();
+
+    descriptorSets.resize(swapChainImages.size());
+    if (vkAllocateDescriptorSets(*device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    for (size_t i = 0; i < swapChainImages.size(); i++) {
+        /*
+        VkDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+        */
+
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = texture.view;
+        imageInfo.sampler = texture.sampler;
+
+        std::array<VkWriteDescriptorSet, 1> descriptorWrites = {};
+
+        /*
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+        */
+
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstBinding = 1;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(*device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    }
+}
+
 void Renderer::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     // Create a frame buffer for each image view
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        VkImageView attachments[] = {
-            swapChainImageViews[i]
+        std::array<VkImageView, 2> attachments = {
+            swapChainImageViews[i],
+            depthTexture.view
         };
 
         // Specify all our frame buffer info
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        framebufferInfo.pAttachments = attachments.data();
         framebufferInfo.width = swapChainExtent.width;
         framebufferInfo.height = swapChainExtent.height;
         framebufferInfo.layers = 1;
@@ -444,54 +595,66 @@ void Renderer::createFramebuffers() {
     }
 }
 
-void Renderer::createCommandBuffers() {
-    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapChainFramebuffers.size(), device->commandPool, true);
+void Renderer::createCommandBuffer(int i) {
+    // Start out buffer
+    device->beginCommandBuffer(commandBuffers[i]);
 
-    // Setup each command buffer
-    for (size_t i = 0; i < commandBuffers.size(); i++) {
-        // Describe our render pass
-        VkRenderPassBeginInfo renderPassInfo = {};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        // Attach the frame buffer from the swap chain to this render pass
-        renderPassInfo.framebuffer = swapChainFramebuffers[i];
-        // Tell the render pass where and how big of a space to render
-        // These should match the attachments' sizes
-        renderPassInfo.renderArea.offset = { 0, 0 };
-        renderPassInfo.renderArea.extent = swapChainExtent;
-        // Tell the render pass what color to use to clear the screen (black)
-        VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+    // Describe our render pass
+    VkRenderPassBeginInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass;
+    // Attach the frame buffer from the swap chain to this render pass
+    renderPassInfo.framebuffer = swapChainFramebuffers[i];
+    // Tell the render pass where and how big of a space to render
+    // These should match the attachments' sizes
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = swapChainExtent;
+    // Tell the render pass what color to use to clear the screen (black)
+    std::array<VkClearValue, 2> clearValues = {};
+    clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    clearValues[1].depthStencil = { 1.0f, 0 };
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
 
-        // Begin the render pass
-        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    // Begin the render pass
+    vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        // Bind the graphics pipeline
-        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    // Bind the graphics pipeline
+    vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-        // TODO I don't think this is how to render multiple "meshes"
-        for (auto const entity : meshes.entities) {
-            MeshComponent mesh = *world->getComponent<MeshComponent>(entity);
-            if (mesh.vertices.empty()) continue;
-
-            // Bind our vertex and index buffers
-            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
-            VkDeviceSize offsets[] = { 0 };
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-
-            // Draw our vertices
-            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+    uint32_t offset = 0;
+    for (auto const entity : pushConstants.entities) {
+        PushConstantComponent* pushConstant = world->getComponent<PushConstantComponent>(entity);
+        for (auto constant : pushConstant->constants) {
+            vkCmdPushConstants(commandBuffers[i], pipelineLayout, constant.stageFlags, offset, constant.size, constant.data);
+            offset += constant.size;
         }
+    }
 
-        // End the render pass
-        vkCmdEndRenderPass(commandBuffers[i]);
+    // TODO I don't think this is how to render multiple "meshes"
+    for (auto const entity : meshes.entities) {
+        MeshComponent mesh = *world->getComponent<MeshComponent>(entity);
+        if (mesh.vertices.empty()) continue;
 
-        // End the command buffer
-        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record command buffer!");
-        }
+        // Bind our vertex and index buffers
+        VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffers[i], mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+        // Bind our descriptor set
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+
+        // Draw our vertices
+        vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+    }
+
+    // End the render pass
+    vkCmdEndRenderPass(commandBuffers[i]);
+
+    // End the command buffer
+    if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to record command buffer!");
     }
 }
 
@@ -501,7 +664,7 @@ void Renderer::cleanupSwapChain() {
         vkDestroyFramebuffer(*device, swapChainFramebuffers[i], nullptr);
     }
 
-    // Destryor our command buffers
+    // Destroy our command buffers
     vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
     // Destroy our graphics pipeline and render pass
@@ -514,6 +677,13 @@ void Renderer::cleanupSwapChain() {
         vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
     }
 
+    // Destroy our depth texture
+    if (depthTexture.image)
+        depthTexture.cleanup();
+
+    // Destroy our descriptor pool
+    vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
+
     // Destroy our swap chain
     vkDestroySwapchainKHR(*device, swapChain, nullptr);
 }
@@ -521,4 +691,8 @@ void Renderer::cleanupSwapChain() {
 void Renderer::cleanup() {
     // Destroy all our swap chain objects
     cleanupSwapChain();
+
+    vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);
+
+    texture.cleanup();
 }

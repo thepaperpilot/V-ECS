@@ -154,6 +154,23 @@ void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkComman
     if (free) vkFreeCommandBuffers(logical, commandPool, 1, &buffer);
 }
 
+uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    // Get our different types of memories on our physical device
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physical, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        // Check if this type of memory supports our filter and has all the properties we need
+        // TODO rank and choose best memory type (e.g. use VRAM before swap)
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+
+    // Throw error if we can't find any memory that suits our needs
+    throw std::runtime_error("failed to find suitable memory type!");
+}
+
 void Device::cleanup() {
     // Destroy our command pool
     vkDestroyCommandPool(logical, commandPool, nullptr);
@@ -288,6 +305,14 @@ int Device::rateDeviceSuitability(PhysicalDeviceCandidate candidate) {
     if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
         return 0;
 
+    // Find the physical features of the device
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+
+    // If the device doesn't support anisotropy, its non-suitable
+    if (!supportedFeatures.samplerAnisotropy)
+        return 0;
+
     int score = 0;
 
     // Discrete GPUs have a significant performance advantage
@@ -341,6 +366,7 @@ void Device::createLogicalDevice() {
 
     // List the physical device features we need our logical device to support
     VkPhysicalDeviceFeatures deviceFeatures = {};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     // Create the information struct for our logical device
     // Configuring it with our device queue and required features
@@ -358,23 +384,6 @@ void Device::createLogicalDevice() {
     if (vkCreateDevice(physical, &createInfo, nullptr, &logical) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
-}
-
-uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    // Get our different types of memories on our physical device
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(physical, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        // Check if this type of memory supports our filter and has all the properties we need
-        // TODO rank and choose best memory type (e.g. use VRAM before swap)
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-            return i;
-        }
-    }
-
-    // Throw error if we can't find any memory that suits our needs
-    throw std::runtime_error("failed to find suitable memory type!");
 }
 
 void Device::beginCommandBuffer(VkCommandBuffer buffer) {

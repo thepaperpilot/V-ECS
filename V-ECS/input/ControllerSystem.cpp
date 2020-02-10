@@ -1,10 +1,14 @@
 #include "ControllerSystem.h"
 #include "ControlledComponent.h"
+#include "../rendering/CameraComponent.h"
 #include "../movement/VelocityComponent.h"
 #include "../movement/PositionComponent.h"
 #include "../events/EventManager.h"
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm\ext\matrix_transform.hpp>
 
 glm::vec3 up(0, 1, 0);
 
@@ -18,6 +22,7 @@ void ControllerSystem::init() {
 	controlled.filter.with(typeid(ControlledComponent));
 	controlled.filter.with(typeid(PositionComponent));
 	controlled.filter.with(typeid(VelocityComponent));
+	controlled.filter.with(typeid(CameraComponent));
 	controlled.onEntityAdded = EntityQuery::bind(this, &ControllerSystem::onControlledAdded);
 	controlled.onEntityRemoved = EntityQuery::bind(this, &ControllerSystem::onControlledRemoved);
 	world->addQuery(&controlled);
@@ -68,8 +73,9 @@ void ControllerSystem::update() {
 		// Save velocity
 		world->getComponent<VelocityComponent>(entity)->velocity = velocity;
 
-		// TODO store view matrix in camera component using position and forward vector
-		// view = glm::lookAt(position, position + forward, up);
+		// Store view matrix in camera component using position and forward vector
+		glm::vec3 position = world->getComponent<PositionComponent>(entity)->position + velocity * (float)world->deltaTime;
+		world->getComponent<CameraComponent>(entity)->view = glm::lookAt(position, position + forward, up);
 	}
 }
 
@@ -97,8 +103,8 @@ void ControllerSystem::onMouseMove(MouseMoveEvent* event) {
 	ControlledComponent* controller = world->getComponent<ControlledComponent>(*controlled.entities.begin());
 
 	// Add our delta mouse movement to our pitch and yaw
-	controller->yaw += (float)event->xPos - lastX;
-	controller->pitch += (float)event->yPos - lastY;
+	controller->yaw += ((float)event->xPos - lastX) * controller->lookSpeed;
+	controller->pitch -= ((float)event->yPos - lastY) * controller->lookSpeed;
 	lastX = event->xPos;
 	lastY = event->yPos;
 

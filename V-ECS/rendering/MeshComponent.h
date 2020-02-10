@@ -5,6 +5,8 @@
 #include "../ecs/World.h"
 #include "../rendering/Vertex.h"
 
+#include <vector>
+
 namespace vecs {
 
 	// A component that stores the vertex and index buffers for
@@ -27,10 +29,7 @@ namespace vecs {
 		// I think this ECS impurity is okay since its nearly a setter
 		void addVertex(Vertex vertex) {
 			// Search the list of current vertices for the vertex being added
-			auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) {
-				// Determine if vertex and other are equivalent
-				return vertex.equals(other);
-				});
+			auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) { return vertex == other; });
 
 			if (iter == vertices.end()) {
 				// If the vertex is unique, add it to our list of vertices
@@ -49,10 +48,7 @@ namespace vecs {
 			std::vector<uint16_t> vertexIndices;
 			vertexIndices.resize(vertices.size());
 			std::transform(vertices.begin(), vertices.end(), vertexIndices.begin(), [&vertices](Vertex vertex) {
-				auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) {
-					// Determine if vertex and other are equivalent
-					return vertex.equals(other);
-				});
+				auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) { return vertex == other; });
 				return std::distance(vertices.begin(), iter);
 			});
 

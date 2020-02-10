@@ -4,9 +4,10 @@ The code is provided in a Visual Studio Code project already setup. It was made 
 
 - Install Vulkan SDK
 - Download glm and glfw
+- Download stb_image.h
 - Open project in Visual Studio
 - Go to Project->properties and configure the following properties:
-	- In C/C++, Additional Include Directories should point to the Include directories of glm, glfw, and vulkan
+	- In C/C++, Additional Include Directories should point to the Include directories of glm, glfw, stb, and vulkan
 	- In Linker, Additional Library Directories should point to the libraries folders for Vulkan and glfw (use current settings as reference)
 - You may also need to install the Windows SDK
 

@@ -121,6 +121,7 @@ void Engine::setupWorld(World* world) {
     this->world = world;
     renderer->world = world;
     world->init();
+    world->addQuery(&renderer->pushConstants);
     world->addQuery(&renderer->meshes);
 }
 

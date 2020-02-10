@@ -6,6 +6,6 @@
 namespace vecs {
 
 	struct PositionComponent : public Component {
-		glm::vec3 position{ 0.0,0.0,0.0 };
+		glm::vec3 position{ -2.0,0.5,0.5 };
 	};
 }

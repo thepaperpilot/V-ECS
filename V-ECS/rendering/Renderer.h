@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vertex.h"
+#include "Texture.h"
 #include "../engine/Device.h"
 #include "../ecs/EntityQuery.h"
 
@@ -25,12 +26,15 @@ namespace vecs {
 
 		VkSwapchainKHR swapChain;
 		std::vector<VkImage> swapChainImages;
+		// swapChainExtent contains the current width and height values of our rendered images
+		VkExtent2D swapChainExtent;
 		std::vector<VkCommandBuffer> commandBuffers;
 
+		EntityQuery pushConstants;
 		EntityQuery meshes;
 
 		void recreateSwapChain();
-		void createCommandBuffers();
+		void createCommandBuffer(int i);
 
 		void cleanup();
 
@@ -40,16 +44,22 @@ namespace vecs {
 		GLFWwindow* window;
 		World* world;
 
+		Texture texture;
+		Texture depthTexture;
+
 		VkSurfaceFormatKHR surfaceFormat;
 		VkPresentModeKHR presentMode;
 
 		VkFormat swapChainImageFormat;
-		VkExtent2D swapChainExtent;
 
 		std::vector<VkImageView> swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 
+		VkDescriptorPool descriptorPool;
+		std::vector<VkDescriptorSet> descriptorSets;
+
 		VkRenderPass renderPass;
+		VkDescriptorSetLayout descriptorSetLayout;
 		VkPipelineLayout pipelineLayout;
 		VkPipeline graphicsPipeline;
 
@@ -59,8 +69,11 @@ namespace vecs {
 		void createSwapChain();
 		void createImageViews();
 		void createRenderPass();
+		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
 		VkShaderModule createShaderModule(const std::vector<char>& code);
+		void createDescriptorPool();
+		void createDescriptorSets();
 		void createFramebuffers();
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);

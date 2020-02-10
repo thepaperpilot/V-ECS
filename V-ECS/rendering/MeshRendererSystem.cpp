@@ -97,10 +97,6 @@ void MeshRendererSystem::update() {
             mesh->dirtyVertices = false;
         }
     }
-    if (isDirty) {
-        // At least one vertex and index buffer got updated, so we need to redraw our geometry
-        renderer->createCommandBuffers();
-    }
 }
 
 void MeshRendererSystem::cleanup() {
