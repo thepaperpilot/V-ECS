@@ -23,22 +23,25 @@ namespace vecs {
             return bindingDescription;
         }
 
-        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
-
+        static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
             // Position
-            attributeDescriptions[0].binding = 0;
-            attributeDescriptions[0].location = 0;
-            attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[0].offset = offsetof(Vertex, pos);
+            VkVertexInputAttributeDescription position = {};
+            position.binding = 0;
+            position.location = 0;
+            position.format = VK_FORMAT_R32G32B32_SFLOAT;
+            position.offset = offsetof(Vertex, pos);
             
             // UV
-            attributeDescriptions[1].binding = 0;
-            attributeDescriptions[1].location = 1;
-            attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-            attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
+            VkVertexInputAttributeDescription uv = {};
+            uv.binding = 0;
+            uv.location = 1;
+            uv.format = VK_FORMAT_R32G32_SFLOAT;
+            uv.offset = offsetof(Vertex, texCoord);
 
-            return attributeDescriptions;
+            std::vector<VkVertexInputAttributeDescription> descriptions(2);
+            descriptions[0] = position;
+            descriptions[1] = uv;
+            return descriptions;
         }
     };
 }

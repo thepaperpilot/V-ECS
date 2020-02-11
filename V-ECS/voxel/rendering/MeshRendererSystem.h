@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../ecs/System.h"
-#include "../ecs/EntityQuery.h"
+#include "../../ecs/System.h"
+#include "../../ecs/EntityQuery.h"
 #include "MeshComponent.h"
 #include <vulkan/vulkan.h>
 
@@ -9,13 +9,13 @@ namespace vecs {
 
 	// Forward declarations
 	class Device;
-	class Renderer;
+	class VoxelRenderer;
 
 	class MeshRendererSystem : public System {
 	public:
-		MeshRendererSystem(Device* device, Renderer* renderer) {
+		MeshRendererSystem(Device* device, VoxelRenderer* voxelRenderer) {
 			this->device = device;
-			this->renderer = renderer;
+			this->voxelRenderer = voxelRenderer;
 		}
 
 		bool framebufferResized = false;
@@ -26,7 +26,7 @@ namespace vecs {
 
 	private:
 		Device* device;
-		Renderer* renderer;
+		VoxelRenderer* voxelRenderer;
 
 		size_t initialVertexBufferSize = 4096;
 		size_t initialIndexBufferSize = 4096;

@@ -20,11 +20,17 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
     EventManager::fire(event);
 }
 
-void Engine::run(World* initialWorld) {
+Engine::Engine() {
     initWindow();
     initVulkan();
-    renderer = new Renderer(device, surface, window, initialWorld);
-    setupWorld(initialWorld);
+}
+
+void Engine::setupWorld(World* world) {
+    this->world = world;
+    world->init(device, surface, window);
+}
+
+void Engine::run() {
     mainLoop();
     cleanup();
 }
@@ -53,11 +59,11 @@ void Engine::initWindow() {
 
 void Engine::initVulkan() {
     createInstance();
-    debugger.setupDebugMessenger(instance);
     createSurface();
 
+    debugger.setupDebugMessenger(instance);
+
     device = new Device(instance, surface);
-    //renderer.init(candidate.indices, candidate.swapChainSupport);
 }
 
 void Engine::createInstance() {
@@ -117,14 +123,6 @@ void Engine::createSurface() {
     }
 }
 
-void Engine::setupWorld(World* world) {
-    this->world = world;
-    renderer->world = world;
-    world->init();
-    world->addQuery(&renderer->pushConstants);
-    world->addQuery(&renderer->meshes);
-}
-
 std::vector<const char*> Engine::getRequiredExtensions() {
     // Add the GLFW extensions, which are always required for this engine to work
     uint32_t glfwExtensionCount = 0;
@@ -159,9 +157,6 @@ void Engine::cleanup() {
     if (preCleanup != nullptr) {
         preCleanup();
     }
-
-    // Destroy our renderer
-    renderer->cleanup();
 
     // If we're in debug mode, destroy our debug messenger
     if (debugger.enableValidationLayers) {

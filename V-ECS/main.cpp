@@ -3,14 +3,14 @@
 #include "voxel/VoxelWorld.h"
 #include "voxel/components/ChunkComponent.h"
 #include "voxel/components/BlockComponent.h"
-#include "rendering/MeshComponent.h"
+#include "voxel/rendering/MeshComponent.h"
 
 using namespace vecs;
 
 Engine app;
 
-World title(&app);
-VoxelWorld game(&app);
+World title;
+VoxelWorld game;
 
 void preCleanup() {
     // Cleanup our worlds
@@ -29,8 +29,11 @@ int main() {
     uint32_t block = game.createEntity();
     game.addComponent(block, new BlockComponent);
 
+    // Set initial world
+    app.setupWorld(&game);
+
     try {
-        app.run(&game);
+        app.run();
     } catch (const std::exception & e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;

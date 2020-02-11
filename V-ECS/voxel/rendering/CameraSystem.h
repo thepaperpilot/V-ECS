@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../ecs/System.h"
-#include "../ecs/EntityQuery.h"
+#include "../../ecs/System.h"
+#include "../../ecs/EntityQuery.h"
 
 namespace vecs {
 

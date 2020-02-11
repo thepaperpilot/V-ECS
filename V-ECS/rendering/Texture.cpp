@@ -44,24 +44,6 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	descriptor.sampler = sampler;
 }
 
-void Texture::initDepthTexture(Device* device, VkQueue copyQueue, VkExtent2D extent) {
-	this->device = device;
-	width = extent.width;
-	height = extent.height;
-
-	// Create our VkImage and VkDeviceMemory objects to store this file in
-	format = findSupportedFormat(
-		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-	);
-	createImage(format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-	// Create our image view
-	view = Texture::createImageView(device, image, format, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-	// Depth textures don't need samplers nor a specified imageLayout
-}
-
 void Texture::cleanup() {
 	vkDestroySampler(*device, sampler, nullptr);
 	vkDestroyImageView(*device, view, nullptr);
@@ -233,27 +215,4 @@ void Texture::createTextureSampler(VkFilter filter) {
 	if (vkCreateSampler(*device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture sampler!");
 	}
-}
-
-VkFormat Texture::findSupportedFormat(const std::vector<VkFormat>& candidates,
-	VkImageTiling tiling, VkFormatFeatureFlags features) {
-
-	for (VkFormat format : candidates) {
-		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(device->physical, format, &props);
-
-		if (tiling == VK_IMAGE_TILING_LINEAR &&
-			(props.linearTilingFeatures & features) == features) {
-			return format;
-		} else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-			(props.optimalTilingFeatures & features) == features) {
-			return format;
-		}
-	}
-
-	throw std::runtime_error("failed to find supported format!");
-}
-
-bool Texture::hasStencilComponent(VkFormat format) {
-	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }

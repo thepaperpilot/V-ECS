@@ -1,10 +1,9 @@
 #pragma once
 
-constexpr auto PRE_RENDERING_PRIORITY = 1000;
-constexpr auto POST_RENDERING_PRIORITY = 2000;
+#include "../ecs/World.h"
+#include "rendering/VoxelRenderer.h"
 
 #include <vulkan/vulkan.h>
-#include "../ecs/World.h"
 
 // TODO implementation:
 // It should add a component filter to find entities with BlockComponents
@@ -50,16 +49,12 @@ namespace vecs {
 	class ControllerSystem;
 	class CameraSystem;
 	class MovementSystem;
-	class PreRenderSystem;
 	class MeshRendererSystem;
-	class PostRenderSystem;
 
 	// This is a type of World that comes with several built-in
 	// systems for rendering a voxel-based world
 	class VoxelWorld : public World {
 	public:
-		VoxelWorld(Engine* engine) : World(engine) {}
-
 		// Overidden to setup up and cleanup our required systems
 		void init() override;
 		void cleanup() override;
@@ -67,12 +62,12 @@ namespace vecs {
 	private:
 		uint32_t player = 0;
 
+		VoxelRenderer voxelRenderer;
+
 		ChunkSystem* chunkSystem = nullptr;
 		ControllerSystem* controllerSystem = nullptr;
 		MovementSystem* movementSystem = nullptr;
 		CameraSystem* cameraSystem = nullptr;
-		PreRenderSystem* preRenderSystem = nullptr;
 		MeshRendererSystem* meshRendererSystem = nullptr;
-		PostRenderSystem* postRenderSystem = nullptr;
 	};		
 }

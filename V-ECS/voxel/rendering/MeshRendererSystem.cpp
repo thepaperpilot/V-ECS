@@ -1,6 +1,6 @@
 #include "MeshRendererSystem.h"
-#include "Renderer.h"
-#include "../engine/Device.h"
+#include "VoxelRenderer.h"
+#include "../../engine/Device.h"
 
 #include <vulkan/vulkan.h>
 
@@ -24,7 +24,6 @@ void MeshRendererSystem::init() {
 
 void MeshRendererSystem::update() {
     // Check if we need to rebuild any vertex and index buffers
-    bool isDirty = false;
     for (const uint32_t entity : meshes.entities) {
         MeshComponent* mesh = world->getComponent<MeshComponent>(entity);
         if (mesh->dirtyVertices) {
@@ -93,8 +92,8 @@ void MeshRendererSystem::update() {
             }
             fillIndexBuffer(mesh);
 
-            isDirty = true;
             mesh->dirtyVertices = false;
+            voxelRenderer->markAllBuffersDirty();
         }
     }
 }
@@ -122,7 +121,7 @@ void MeshRendererSystem::fillVertexBuffer(MeshComponent* mesh) {
     // Copy between the buffers
     VkBufferCopy copyRegion = {};
     copyRegion.size = verticesSize;
-    device->copyBuffer(&mesh->stagingVertexBuffer, &mesh->vertexBuffer, renderer->graphicsQueue, &copyRegion);
+    device->copyBuffer(&mesh->stagingVertexBuffer, &mesh->vertexBuffer, voxelRenderer->renderer->graphicsQueue, &copyRegion);
 }
 
 void MeshRendererSystem::fillIndexBuffer(MeshComponent* mesh) {
@@ -141,5 +140,5 @@ void MeshRendererSystem::fillIndexBuffer(MeshComponent* mesh) {
     // Copy between the buffers
     VkBufferCopy copyRegion = {};
     copyRegion.size = indicesSize;
-    device->copyBuffer(&mesh->stagingIndexBuffer, &mesh->indexBuffer, renderer->graphicsQueue, &copyRegion);
+    device->copyBuffer(&mesh->stagingIndexBuffer, &mesh->indexBuffer, voxelRenderer->renderer->graphicsQueue, &copyRegion);
 }

@@ -1,6 +1,6 @@
 #include "ControllerSystem.h"
 #include "ControlledComponent.h"
-#include "../rendering/CameraComponent.h"
+#include "../voxel/rendering/CameraComponent.h"
 #include "../movement/VelocityComponent.h"
 #include "../movement/PositionComponent.h"
 #include "../events/EventManager.h"

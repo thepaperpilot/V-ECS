@@ -1,40 +1,34 @@
 #pragma once
 
-#include "Vertex.h"
-#include "Texture.h"
-#include "../engine/Device.h"
-#include "../ecs/EntityQuery.h"
+#include "DepthTexture.h"
+#include "SubRenderer.h"
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <vector>
 
+const uint32_t maxFramesInFlight = 2;
+const int START_RENDERING_PRIORITY = 2000;
+
 namespace vecs {
 
 	// Forward Declarations
-	struct QueueFamilyIndices;
 	class Device;
-	class World;
+	struct RefreshWindowEvent;
 
 	class Renderer {
-		friend class Engine;
 	public:
-		Renderer(Device* device, VkSurfaceKHR surface, GLFWwindow* window, World* world);
-
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
-		VkSwapchainKHR swapChain;
-		std::vector<VkImage> swapChainImages;
-		// swapChainExtent contains the current width and height values of our rendered images
+		uint32_t imageCount = 0;
 		VkExtent2D swapChainExtent;
-		std::vector<VkCommandBuffer> commandBuffers;
 
-		EntityQuery pushConstants;
-		EntityQuery meshes;
+		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window);
+		void acquireImage();
+		void presentImage();
 
-		void recreateSwapChain();
-		void createCommandBuffer(int i);
+		void registerSubRenderer(SubRenderer* subrenderer);
 
 		void cleanup();
 
@@ -42,42 +36,41 @@ namespace vecs {
 		Device* device;
 		VkSurfaceKHR surface;
 		GLFWwindow* window;
-		World* world;
-
-		Texture texture;
-		Texture depthTexture;
 
 		VkSurfaceFormatKHR surfaceFormat;
+		VkFormat swapChainImageFormat;
 		VkPresentModeKHR presentMode;
 
-		VkFormat swapChainImageFormat;
+		DepthTexture depthTexture;
+		VkRenderPass renderPass;
 
+		VkSwapchainKHR swapChain;
+		std::vector<VkImage> swapChainImages;
 		std::vector<VkImageView> swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
+		std::vector<VkCommandBuffer> commandBuffers;
 
-		VkDescriptorPool descriptorPool;
-		std::vector<VkDescriptorSet> descriptorSets;
+		size_t currentFrame = 0;
+		uint32_t imageIndex;
+		std::vector<VkSemaphore> imageAvailableSemaphores;
+		std::vector<VkSemaphore> renderFinishedSemaphores;
+		std::vector<VkFence> inFlightFences;
+		std::vector<VkFence> imagesInFlight;
 
-		VkRenderPass renderPass;
-		VkDescriptorSetLayout descriptorSetLayout;
-		VkPipelineLayout pipelineLayout;
-		VkPipeline graphicsPipeline;
+		std::vector<SubRenderer*> subrenderers;
 
-		void cleanupSwapChain();
-
-		void initQueueHandles();
-		void createSwapChain();
-		void createImageViews();
 		void createRenderPass();
-		void createDescriptorSetLayout();
-		void createGraphicsPipeline();
-		VkShaderModule createShaderModule(const std::vector<char>& code);
-		void createDescriptorPool();
-		void createDescriptorSets();
+
+		void refreshWindow(RefreshWindowEvent* ignored);
+		bool createSwapChain();
 		void createFramebuffers();
+		void createImageViews();
+
+		void buildCommandBuffer();
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
 	};
 }

@@ -21,7 +21,6 @@ namespace vecs {
     // I also used this as a reference for structuring some of the vulkan things:
     // https://github.com/SaschaWillems/Vulkan
     class Engine {
-        friend class Renderer;
     public:
         // These values are used for the initial size of the window,
         // but the window may be resizable (or changed via code later on)
@@ -32,11 +31,14 @@ namespace vecs {
         const char* applicationName = "A V-ECS Application";
         uint32_t applicationVersion;
 
-        Renderer* renderer;
         Device* device;
         GLFWwindow* window;
 
-        void run(World* initialWorld);
+        Engine();
+
+        void setupWorld(World* world);
+
+        void run();
 
         // This is an optional function pointer to run before the cleanup step
         // intended to be used for cleaning up anything external to the engine
@@ -56,7 +58,6 @@ namespace vecs {
 
         void createInstance();
         void createSurface();
-        void setupWorld(World* world);
 
         std::vector<const char*> getRequiredExtensions();
 

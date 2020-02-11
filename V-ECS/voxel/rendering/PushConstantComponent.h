@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../engine/Device.h"
-#include "../engine/Buffer.h"
-#include "../ecs/World.h"
-#include "../rendering/Vertex.h"
+#include "Vertex.h"
+#include "../../engine/Device.h"
+#include "../../engine/Buffer.h"
+#include "../../ecs/World.h"
 
 #include <vector>
 

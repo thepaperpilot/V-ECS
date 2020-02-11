@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <iostream>
 
-#include "../engine/Engine.h"
+#include "../rendering/Renderer.h"
 #include "EntityQuery.h"
 #include "System.h"
 
@@ -16,6 +16,7 @@ namespace vecs {
 	struct Component {
 		// Optional function to cleanup any necessary fields a component may have
 		virtual void cleanup(VkDevice* device) {}
+		// TODO serialize and deserialize functions
 	};
 
 	// The World contains all of the program's Systems
@@ -23,10 +24,6 @@ namespace vecs {
 	class World {
 		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
 	public:
-		World(Engine* engine) {
-			this->engine = engine;
-		}
-
 		double deltaTime = 0;
 		bool cancelUpdate = false;
 
@@ -66,7 +63,7 @@ namespace vecs {
 			// Mark entity dirty since it has had a structural change
 			dirtyEntities.insert(entity);
 			// Remove component value for this entity
-			components[typeid(Component)][entity]->cleanup(engine->device);
+			components[typeid(Component)][entity]->cleanup(device);
 			components[typeid(Component)].erase(entity);
 		}
 		// Reserves an additional n components of the specified type
@@ -81,11 +78,16 @@ namespace vecs {
 		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
 
+		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
+			this->device = device;
+			this->window = window;
+			this->renderer.init(device, surface, window);
+			init();
+		};
+
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
-		virtual void init() {
-			std::cout << "init NOT overriden" << std::endl;
-		};
+		virtual void init() {};
 		void update(double deltaTime);
 		// Optional function for child classes to cleanup anything they need to
 		// This won't get called automatically by the Engine because Worlds may
@@ -93,21 +95,28 @@ namespace vecs {
 		virtual void cleanup() {};
 
 	protected:
-		Engine* engine;
+		Device* device;
+		GLFWwindow* window;
+
+		Renderer renderer;
 
 	private:
 		uint32_t nextEntity = 0;
+
 		// We use a map for the systems because it can sort on insert very quickly
 		// and allow us to run our systems in order by "priority"
 		std::multimap<int, System*> systems;
+		
 		// This set tracks any entities with structural changes,
 		// so that listeners can be triggered in the next update() call
 		// This way structural changes can be batched for each frame
 		std::set<uint32_t> dirtyEntities;
+		
 		// The type index of the component struct (which is guaranteed unique) gets mapped
 		// to a map of entities to their instances of those components
 		// This should have a decent performance improvement due to data locality
 		std::unordered_map<std::type_index, std::unordered_map<uint32_t, Component*>> components;
+		
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions
 		// to run whenever an entity is added to or removed from the filtered entity list
