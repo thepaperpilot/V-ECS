@@ -43,39 +43,51 @@ void ControllerSystem::init() {
 void ControllerSystem::update() {
 	for (uint32_t entity : controlled.entities) {
 		ControlledComponent* controller = world->getComponent<ControlledComponent>(entity);
-		if (!controller->dirty) continue;
+		if (controller->dirty) {
 
-		// Calculate forward and right vectors based on yaw and pitch
-		glm::vec3 forward;
-		forward.x = cos(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
-		forward.y = sin(glm::radians(controller->pitch));
-		forward.z = sin(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
-		forward = glm::normalize(forward);
-		glm::vec3 right = glm::normalize(glm::cross(forward, up));
+			// Calculate forward and right vectors based on yaw and pitch
+			glm::vec3 forward;
+			forward.x = cos(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
+			forward.y = sin(glm::radians(controller->pitch));
+			forward.z = sin(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
+			forward = glm::normalize(forward);
+			glm::vec3 right = glm::normalize(glm::cross(forward, up));
 
-		// Calculate the direction we're moving
-		glm::vec3 velocity{ 0.0,0.0,0.0 };
-		if ((controller->inputs & 1) == 1) // Moving forward
-			velocity += forward;
-		if ((controller->inputs & 2) == 2) // Moving left
-			velocity -= right;
-		if ((controller->inputs & 4) == 4) // Moving backward
-			velocity -= forward;
-		if ((controller->inputs & 8) == 8) // Moving right
-			velocity += right;
-		if ((controller->inputs & 16) == 16) // Moving up
-			velocity += up;
-		if ((controller->inputs & 32) == 32) // Moving down
-			velocity -= up;
-		// Make sure we're going the right speed in that direction
-		if (glm::length(velocity) > 0)
-			velocity = glm::normalize(velocity) * controller->speed;
-		// Save velocity
-		world->getComponent<VelocityComponent>(entity)->velocity = velocity;
+			// Calculate the direction we're moving
+			glm::vec3 velocity{ 0.0,0.0,0.0 };
+			if ((controller->inputs & 1) == 1) // Moving forward
+				velocity += forward;
+			if ((controller->inputs & 2) == 2) // Moving left
+				velocity -= right;
+			if ((controller->inputs & 4) == 4) // Moving backward
+				velocity -= forward;
+			if ((controller->inputs & 8) == 8) // Moving right
+				velocity += right;
+			if ((controller->inputs & 16) == 16) // Moving up
+				velocity += up;
+			if ((controller->inputs & 32) == 32) // Moving down
+				velocity -= up;
+			// Make sure we're going the right speed in that direction
+			if (glm::length(velocity) > 0)
+				velocity = glm::normalize(velocity) * controller->speed;
+			// Save velocity
+			world->getComponent<VelocityComponent>(entity)->velocity = velocity;
 
-		// Store view matrix in camera component using position and forward vector
-		glm::vec3 position = world->getComponent<PositionComponent>(entity)->position + velocity * (float)world->deltaTime;
-		world->getComponent<CameraComponent>(entity)->view = glm::lookAt(position, position + forward, up);
+			// Store view matrix in camera component using position and forward vector
+			glm::vec3 position = world->getComponent<PositionComponent>(entity)->position + velocity * (float)world->deltaTime;
+			CameraComponent* camera = world->getComponent<CameraComponent>(entity);
+			camera->view = glm::lookAt(position, position + forward, up);
+			camera->isDirty = true;
+
+			controller->dirty = false;
+		} else {
+			glm::vec3 velocity = world->getComponent<VelocityComponent>(entity)->velocity;
+			if (velocity.length == 0) return;
+			// If our velocity is non-zero, we should still update the camera
+			CameraComponent* camera = world->getComponent<CameraComponent>(entity);
+			camera->view = glm::translate(camera->view, velocity * -(float)world->deltaTime);
+			camera->isDirty = true;
+		}
 	}
 }
 

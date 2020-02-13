@@ -1,7 +1,6 @@
 #include "CameraSystem.h"
 #include "CameraComponent.h"
-#include "PushConstantComponent.h"
-#include "../../rendering/Renderer.h"
+#include "VoxelRenderer.h"
 #include "../../engine/GLFWEvents.h"
 #include "../../events/EventManager.h"
 
@@ -16,7 +15,6 @@ void CameraSystem::init() {
 
     // Create entity query so we can get our cameras
     cameras.filter.with(typeid(CameraComponent));
-    cameras.filter.with(typeid(PushConstantComponent));
     cameras.onEntityAdded = EntityQuery::bind(this, &CameraSystem::onCameraAdded);
     world->addQuery(&cameras);
 }
@@ -27,12 +25,17 @@ void CameraSystem::update() {
         
         // Re-calculate projection matrices if necessary
         if (camera->projDirty) {
-            float aspectRatio = renderer->swapChainExtent.width /
-                         (float)renderer->swapChainExtent.height;
+            float aspectRatio = voxelRenderer->renderer->swapChainExtent.width /
+                         (float)voxelRenderer->renderer->swapChainExtent.height;
             camera->projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
             // Flip projection's yy component because opengl has is flipped compared to vulkan and glm assumes opengl
             camera->projection[1][1] *= -1;
             camera->projDirty = false;
+        }
+
+        if (camera->isDirty) {
+            voxelRenderer->markAllBuffersDirty();
+            camera->isDirty = false;
         }
     }
 }
@@ -45,16 +48,8 @@ void CameraSystem::windowResize(WindowResizeEvent* event) {
 
 void CameraSystem::onCameraAdded(uint32_t entity) {
     // Point our push constants to the camera's data points
-    PushConstantComponent* pushConstant = world->getComponent<PushConstantComponent>(entity);
     CameraComponent* camera = world->getComponent<CameraComponent>(entity);
-    pushConstant->constants.resize(3);
-    pushConstant->constants[0].data = &camera->model;
-    pushConstant->constants[0].size = sizeof(glm::mat4);
-    pushConstant->constants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    pushConstant->constants[1].data = &camera->view;
-    pushConstant->constants[1].size = sizeof(glm::mat4);
-    pushConstant->constants[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    pushConstant->constants[2].data = &camera->projection;
-    pushConstant->constants[2].size = sizeof(glm::mat4);
-    pushConstant->constants[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    voxelRenderer->model = &camera->model;
+    voxelRenderer->view = &camera->view;
+    voxelRenderer->projection = &camera->projection;
 }

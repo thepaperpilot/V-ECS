@@ -17,6 +17,7 @@ namespace vecs {
 	struct RefreshWindowEvent;
 
 	class Renderer {
+	friend class SubRenderer;
 	public:
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
@@ -71,6 +72,5 @@ namespace vecs {
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-
 	};
 }

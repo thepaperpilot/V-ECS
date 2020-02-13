@@ -19,7 +19,7 @@ namespace vecs {
 		VkDescriptorImageInfo descriptor;
 		VkSampler sampler;
 
-		static VkImageView createImageView(Device* device, VkImage image, VkFormat format,
+		static void createImageView(Device* device, VkImage image, VkFormat format, VkImageView* view,
 			VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT) {
 
 			VkImageViewCreateInfo viewInfo = {};
@@ -33,12 +33,9 @@ namespace vecs {
 			viewInfo.subresourceRange.baseArrayLayer = 0;
 			viewInfo.subresourceRange.layerCount = 1;
 
-			VkImageView view;
-			if (vkCreateImageView(device->logical, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+			if (vkCreateImageView(device->logical, &viewInfo, nullptr, view) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create texture image view!");
 			}
-
-			return view;
 		}
 
 		void init(Device* device, VkQueue copyQueue, const char* filename,
@@ -46,8 +43,6 @@ namespace vecs {
 			VkFormat format = VK_FORMAT_R8G8B8A8_SRGB,
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
 			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		void initDepthTexture(Device* device, VkQueue copyQueue, VkExtent2D extent);
 
 		void cleanup();
 
@@ -59,9 +54,5 @@ namespace vecs {
 		void transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 		void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer);
 		void createTextureSampler(VkFilter filter);
-
-		// Functions for creating depth textures
-		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-		bool hasStencilComponent(VkFormat format);
 	};
 }

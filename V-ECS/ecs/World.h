@@ -19,6 +19,14 @@ namespace vecs {
 		// TODO serialize and deserialize functions
 	};
 
+	struct StartRenderingSystem : public System {
+		Renderer* renderer;
+
+		StartRenderingSystem(Renderer* renderer) { this->renderer = renderer; }
+
+		virtual void update() override { renderer->acquireImage(); }
+	};
+
 	// The World contains all of the program's Systems
 	// and handles updating each system as appropriate
 	class World {
@@ -26,6 +34,10 @@ namespace vecs {
 	public:
 		double deltaTime = 0;
 		bool cancelUpdate = false;
+
+		World() : startRenderingSystem(&renderer) {
+			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
+		};
 
 		uint32_t createEntity();
 		void deleteEntity(uint32_t entity);
@@ -81,18 +93,17 @@ namespace vecs {
 		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
 			this->device = device;
 			this->window = window;
-			this->renderer.init(device, surface, window);
+
 			init();
+
+			this->renderer.init(device, surface, window);
 		};
 
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
 		virtual void init() {};
 		void update(double deltaTime);
-		// Optional function for child classes to cleanup anything they need to
-		// This won't get called automatically by the Engine because Worlds may
-		// be switched around and re-used 
-		virtual void cleanup() {};
+		void cleanup();
 
 	protected:
 		Device* device;
@@ -100,8 +111,15 @@ namespace vecs {
 
 		Renderer renderer;
 
+		// Optional function for child classes to cleanup anything they need to
+		// This won't get called automatically by the Engine because Worlds may
+		// be switched around and re-used 
+		virtual void cleanupSystems() {};
+
 	private:
 		uint32_t nextEntity = 0;
+
+		StartRenderingSystem startRenderingSystem;
 
 		// We use a map for the systems because it can sort on insert very quickly
 		// and allow us to run our systems in order by "priority"

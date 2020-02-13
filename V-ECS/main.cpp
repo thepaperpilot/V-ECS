@@ -9,12 +9,10 @@ using namespace vecs;
 
 Engine app;
 
-World title;
 VoxelWorld game;
 
 void preCleanup() {
     // Cleanup our worlds
-    title.cleanup();
     game.cleanup();
 }
 

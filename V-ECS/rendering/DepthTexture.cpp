@@ -16,7 +16,7 @@ void DepthTexture::init(Device* device, VkQueue copyQueue, VkExtent2D extent) {
 	);
 	createImage(format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 	// Create our image view
-	view = Texture::createImageView(device, image, format, VK_IMAGE_ASPECT_DEPTH_BIT);
+	Texture::createImageView(device, image, format, &view, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	// Depth textures don't need samplers nor a specified imageLayout
 }

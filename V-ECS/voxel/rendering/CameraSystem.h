@@ -6,20 +6,20 @@
 namespace vecs {
 
 	// Forward declarations
-	class Renderer;
+	class VoxelRenderer;
 	struct WindowResizeEvent;
 
 	class CameraSystem : public System {
 	public:
-		CameraSystem(Renderer* renderer) {
-			this->renderer = renderer;
+		CameraSystem(VoxelRenderer* voxelRenderer) {
+			this->voxelRenderer = voxelRenderer;
 		}
 
 		void init() override;
 		void update() override;
 
 	private:
-		Renderer* renderer;
+		VoxelRenderer* voxelRenderer;
 
 		EntityQuery cameras;
 

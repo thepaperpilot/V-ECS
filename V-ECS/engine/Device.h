@@ -47,6 +47,7 @@ namespace vecs {
 
 		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 		void beginCommandBuffer(VkCommandBuffer buffer);
+		void beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info);
 		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
 		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool = nullptr, bool begin = true);
 		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool = nullptr, bool begin = false);

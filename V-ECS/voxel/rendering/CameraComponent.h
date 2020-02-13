@@ -22,5 +22,6 @@ namespace vecs {
 		float far = 10;
 
 		bool projDirty = true;
+		bool isDirty = true;
 	};
 }

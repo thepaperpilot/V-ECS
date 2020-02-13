@@ -75,4 +75,11 @@ void World::update(double deltaTime) {
 		if (cancelUpdate) break;
 	}
 	cancelUpdate = false;
+
+	renderer.presentImage();
+}
+
+void World::cleanup() {
+	renderer.cleanup();
+	cleanupSystems();
 }

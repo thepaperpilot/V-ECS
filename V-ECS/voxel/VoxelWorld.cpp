@@ -7,7 +7,6 @@
 #include "../input/ControllerSystem.h"
 #include "../input/ControlledComponent.h"
 #include "rendering/CameraComponent.h"
-#include "rendering/PushConstantComponent.h"
 #include "rendering/MeshRendererSystem.h"
 #include "rendering/CameraSystem.h"
 
@@ -20,7 +19,7 @@ void VoxelWorld::init() {
 	addSystem(this->chunkSystem = new ChunkSystem, 100);
 	addSystem(this->controllerSystem = new ControllerSystem(window), 200); // Happens after chunk system
 	addSystem(this->movementSystem = new MovementSystem, 300); // Happens after controller system
-	addSystem(this->cameraSystem = new CameraSystem(&renderer), 400);
+	addSystem(this->cameraSystem = new CameraSystem(&voxelRenderer), 400);
 	addSystem(this->meshRendererSystem = new MeshRendererSystem(device, &voxelRenderer), START_RENDERING_PRIORITY + 100); // Draws all our mesh components
 
 	// Add player entity
@@ -29,14 +28,13 @@ void VoxelWorld::init() {
 	addComponent(player, new PositionComponent);
 	addComponent(player, new ControlledComponent);
 	addComponent(player, new CameraComponent);
-	addComponent(player, new PushConstantComponent);
 
 	// Register out voxel renderer
 	voxelRenderer.init(this);
 	renderer.registerSubRenderer(&voxelRenderer);
 }
 
-void VoxelWorld::cleanup() {
+void VoxelWorld::cleanupSystems() {
 	// Cleanup each system that needs it
 	meshRendererSystem->cleanup();
 }

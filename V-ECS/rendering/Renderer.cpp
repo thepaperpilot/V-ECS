@@ -22,20 +22,23 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
     vkGetDeviceQueue(*device, device->queueFamilyIndices.graphics.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(*device, device->queueFamilyIndices.present.value(), 0, &presentQueue);
 
-    // Set window resize event listener so we know to recreate our swap chain
-    EventManager::addListener(this, &Renderer::refreshWindow);
-
     // Initialize everything for our render pass
     createSwapChain();
     depthTexture.init(device, graphicsQueue, swapChainExtent);
-    createFramebuffers();
     createImageViews();
     createRenderPass();
+    createFramebuffers();
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+
+    // Initialize our sub-renderers
+    for (auto subrenderer : subrenderers)
+        subrenderer->init(device, this);
 
     // Create semaphores and fences for asynchronous rendering
     imageAvailableSemaphores.resize(maxFramesInFlight);
     renderFinishedSemaphores.resize(maxFramesInFlight);
     inFlightFences.resize(maxFramesInFlight);
+    imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
 
     // Semaphores need an info struct but it doesn't actually contain any info lol
     VkSemaphoreCreateInfo semaphoreInfo = {};
@@ -54,6 +57,9 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
             throw std::runtime_error("failed to create synchronization objects for a frame!");
         }
     }
+
+    // Set window resize event listener so we know to recreate our swap chain
+    EventManager::addListener(this, &Renderer::refreshWindow);
 }
 
 void Renderer::acquireImage() {
@@ -140,7 +146,8 @@ void Renderer::presentImage() {
 
 void Renderer::registerSubRenderer(SubRenderer* subrenderer) {
     subrenderers.emplace_back(subrenderer);
-    subrenderer->init(device, this, &renderPass);
+    // Don't intialize it here, because it needs to be done after we've determined, e.g., the size
+    // of our swapchain. TODO if we are initialized, then init subrenderer immediately
 }
 
 void Renderer::cleanup() {
@@ -268,7 +275,8 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // Destroy our current resources
     vkDestroySwapchainKHR(*device, swapChain, nullptr);
     if (depthTexture.image) depthTexture.cleanup();
-    for (int i = swapChainFramebuffers.size(); i >= 0; i--) {
+    for (int i = swapChainFramebuffers.size() - 1; i >= 0; i--) {
+        vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
         vkDestroyFramebuffer(*device, swapChainFramebuffers[i], nullptr);
     }
 
@@ -278,21 +286,14 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     bool numImagesChanged = createSwapChain();
     // Other resources always need to be updated when the window size changes
     depthTexture.init(device, graphicsQueue, swapChainExtent);
+    createImageViews();
     createFramebuffers();
 
     // Only update image views and primary command buffers if the number of swap images changed
     if (numImagesChanged) {
-        imageCount = swapChainImages.size();
-
-        // Image views
-        for (uint32_t i = 0; i < imageCount; i++) {
-            vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
-        }
-        createImageViews();
-
         // Command Buffers
         vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
 
         // Sync objects
         imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
@@ -359,7 +360,9 @@ bool Renderer::createSwapChain() {
     swapChainExtent = extent;
 
     // Return true if the number of swap images changed
-    return imageCount != this->imageCount;
+    bool imageCountChanged = imageCount != this->imageCount;
+    this->imageCount = imageCount;
+    return imageCountChanged;
 }
 
 void Renderer::createFramebuffers() {
@@ -393,7 +396,7 @@ void Renderer::createImageViews() {
     swapChainImageViews.resize(imageCount);
 
     for (uint32_t i = 0; i < imageCount; i++) {
-        swapChainImageViews[i] = Texture::createImageView(device, swapChainImages[i], swapChainImageFormat);
+        Texture::createImageView(device, swapChainImages[i], swapChainImageFormat, &swapChainImageViews[i]);
     }
 }
 
@@ -417,7 +420,7 @@ void Renderer::buildCommandBuffer() {
 
     // Make sure all our secondary command buffers are up to date
     std::vector<VkCommandBuffer> secondaryBuffers(subrenderers.size());
-    for (size_t i = subrenderers.size() - 1; i >= 0; i--) {
+    for (int i = subrenderers.size() - 1; i >= 0; i--) {
         if (subrenderers[i]->dirtyBuffers.count(imageIndex))
             subrenderers[i]->buildCommandBuffer(imageIndex);
         secondaryBuffers[i] = subrenderers[i]->commandBuffers[imageIndex];
@@ -427,7 +430,7 @@ void Renderer::buildCommandBuffer() {
     device->beginCommandBuffer(commandBuffers[imageIndex]);
 
     // Begin the render pass
-    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
     // Run our secondary command buffers
     vkCmdExecuteCommands(commandBuffers[imageIndex], secondaryBuffers.size(), secondaryBuffers.data());

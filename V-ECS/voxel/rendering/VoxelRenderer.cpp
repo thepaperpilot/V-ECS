@@ -1,10 +1,11 @@
 #include "VoxelRenderer.h"
-#include "Vertex.h"
-#include "PushConstantComponent.h"
 #include "MeshComponent.h"
 #include "../../ecs/World.h"
 
 #include <glm/glm.hpp>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 using namespace vecs;
 
@@ -12,30 +13,30 @@ VoxelRenderer::VoxelRenderer() {
 	// Configure shaders
 	vertShaderFile = "shaders/shader-vert.spv";
 	fragShaderFile = "shaders/shader-frag.spv";
-
-	getBindingDescription = Vertex::getBindingDescription;
-	getAttributeDescriptions = Vertex::getAttributeDescriptions;
 }
 
 void VoxelRenderer::init(World* world) {
 	this->world = world;
-	// Add entity queries so we know what to render
-	pushConstants.filter.with(typeid(PushConstantComponent));
+	// Add entity query so we know what to render
 	meshes.filter.with(typeid(MeshComponent));
-	world->addQuery(&pushConstants);
 	world->addQuery(&meshes);
 }
 
+void VoxelRenderer::init() {
+	// Create our texture and 
+	texture.init(device, renderer->graphicsQueue, "textures/rgb.png");
+
+	// Create the imageinfo we'll need for our descriptor writes
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = texture.view;
+	imageInfo.sampler = texture.sampler;
+}
+
 void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
-	// TODO Push constants probably shouldn't be components. They should be explicitly set by the sub-renderer
-	uint32_t offset = 0;
-	for (auto const entity : pushConstants.entities) {
-		PushConstantComponent* pushConstant = world->getComponent<PushConstantComponent>(entity);
-		for (auto constant : pushConstant->constants) {
-			vkCmdPushConstants(commandBuffer, pipelineLayout, constant.stageFlags, offset, constant.size, constant.data);
-			offset += constant.size;
-		}
-	}
+	uint32_t size = sizeof(glm::mat4);
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, size, model);
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, size, size, view);
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, size * 2, size, projection);
 
 	// TODO I don't think this is how to render multiple "meshes"
 	for (auto const entity : meshes.entities) {
@@ -53,6 +54,10 @@ void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
 	}
 }
 
+void VoxelRenderer::preCleanup() {
+	texture.cleanup();
+}
+
 std::vector<VkDescriptorSetLayoutBinding> VoxelRenderer::getDescriptorLayoutBindings() {
 	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
 	samplerLayoutBinding.binding = 1;
@@ -64,11 +69,6 @@ std::vector<VkDescriptorSetLayoutBinding> VoxelRenderer::getDescriptorLayoutBind
 }
 
 std::vector<VkWriteDescriptorSet> VoxelRenderer::getDescriptorWrites(VkDescriptorSet descriptorSet) {
-	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = texture.view;
-	imageInfo.sampler = texture.sampler;
-
 	VkWriteDescriptorSet descriptorWrite = {};
 	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrite.dstSet = descriptorSet;

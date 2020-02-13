@@ -33,7 +33,7 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	stagingBuffer.cleanup();
 
 	// Create our image view
-	view = Texture::createImageView(device, image, format);
+	Texture::createImageView(device, image, format, &view);
 
 	// Create our 2D Sampler
 	createTextureSampler(filter);

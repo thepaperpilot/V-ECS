@@ -395,3 +395,15 @@ void Device::beginCommandBuffer(VkCommandBuffer buffer) {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
 }
+
+void Device::beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info) {
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    beginInfo.pInheritanceInfo = info;
+
+    // Being the command buffer
+    if (vkBeginCommandBuffer(buffer, &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer!");
+    }
+}
