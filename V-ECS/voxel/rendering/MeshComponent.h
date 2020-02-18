@@ -25,22 +25,44 @@ namespace vecs {
 
 		bool dirtyVertices = true;
 
-		// Logic? In my component!
-		// I think this ECS impurity is okay since its nearly a setter
-		void addVertex(Vertex vertex) {
-			// Search the list of current vertices for the vertex being added
-			auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) { return vertex == other; });
+		void addFace(glm::vec3 p0, glm::vec2 uv0, glm::vec3 p1, glm::vec2 uv1, bool isClockWise) {
+			Vertex v0 = { p0, uv0 };
+			Vertex v1 = {};
+			Vertex v2 = { p1, uv1 };
+			Vertex v3 = {};
 
-			if (iter == vertices.end()) {
-				// If the vertex is unique, add it to our list of vertices
-				indices.emplace_back(static_cast<uint16_t>(vertices.size()));
-				vertices.emplace_back(vertex);
+			// Find the positions of v1 and v3 by checking which axis plane they're both on
+			if (p0.x == p1.x) {
+				v1.pos = glm::vec3(p0.x, p1.y, p0.z);
+				v3.pos = glm::vec3(p0.x, p0.y, p1.z);
+			} else if (p0.y == p1.y) {
+				v1.pos = glm::vec3(p0.x, p0.y, p1.z);
+				v3.pos = glm::vec3(p1.x, p0.y, p0.z);
+			} else if (p0.z == p1.z) {
+				v1.pos = glm::vec3(p0.x, p1.y, p0.z);
+				v3.pos = glm::vec3(p1.x, p0.y, p0.z);
+			} else return;
+
+			v1.texCoord = glm::vec2(uv0.x, uv1.y);
+			v3.texCoord = glm::vec2(uv1.x, uv0.y);
+
+			uint16_t index = vertices.size();
+			vertices.insert(vertices.end(), { v0, v1, v2, v3 });
+			if (isClockWise) {
+				indices.insert(indices.end(), {
+					// First Trianlge
+					(uint16_t)(index + 0), (uint16_t)(index + 1), (uint16_t)(index + 2),
+					// Second Triangle
+					(uint16_t)(index + 2), (uint16_t)(index + 3), (uint16_t)(index + 0)
+				});
 			} else {
-				// Add the index of the vertex to our indices list
-				indices.emplace_back(std::distance(vertices.begin(), iter));
+				indices.insert(indices.end(), {
+					// First Trianlge
+					(uint16_t)(index + 0), (uint16_t)(index + 2), (uint16_t)(index + 1),
+					// Second Triangle
+					(uint16_t)(index + 2), (uint16_t)(index + 0), (uint16_t)(index + 3)
+				});
 			}
-
-			dirtyVertices = true;
 		}
 
 		void removeVertices(std::vector<Vertex> vertices) {
@@ -48,7 +70,7 @@ namespace vecs {
 			std::vector<uint16_t> vertexIndices;
 			vertexIndices.resize(vertices.size());
 			std::transform(vertices.begin(), vertices.end(), vertexIndices.begin(), [&vertices](Vertex vertex) {
-				auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) { return vertex == other; });
+				auto iter = std::find_if(vertices.begin(), vertices.end(), [&vertex](Vertex other) { return vertex.samePosition(other); });
 				return std::distance(vertices.begin(), iter);
 			});
 
@@ -62,7 +84,21 @@ namespace vecs {
 			}
 		}
 
+		void removeFace(glm::vec3 p0, glm::vec3 p1, bool isClockWise) {
+			Vertex v0 = { p0 };
+			Vertex v1 = {};
+			Vertex v2 = { p1 };
+			Vertex v3 = {};
+
+			if (isClockWise) {
+				//removeVertices({ v0, v1, v2, v2, v3, v0 });
+			} else {
+				//removeVertices({ v0, v2, v1, v2, v0, v3 });
+			}
+		}
+
 		void createVertexBuffer(Device* device, size_t size) {
+			vertexBufferSize = size;
 			VkDeviceSize bufferSize = sizeof(Vertex) * size;
 
 			// Create a staging buffer with the given size
@@ -81,7 +117,8 @@ namespace vecs {
 		}
 
 		void createIndexBuffer(Device* device, size_t size) {
-			VkDeviceSize bufferSize = sizeof(Vertex) * size;
+			indexBufferSize = size;
+			VkDeviceSize bufferSize = sizeof(uint16_t) * size;
 
 			// Create a staging buffer with the given size
 			// This size should be more than we currently need,

@@ -55,7 +55,9 @@ namespace vecs {
 	// systems for rendering a voxel-based world
 	class VoxelWorld : public World {
 	public:
-		// Overidden to setup up and cleanup our required systems
+		VoxelWorld(uint16_t chunkSize);
+
+		// Overidden to cleanup our required systems
 		void init() override;
 		void cleanupSystems() override;
 

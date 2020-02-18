@@ -4,13 +4,13 @@
 using namespace vecs;
 
 uint32_t World::createEntity() {
-	dirtyEntities.insert(nextEntity);
+	dirtyEntities->insert(nextEntity);
 	// TODO handle overflow
 	return nextEntity++;
 }
 
 void World::deleteEntity(uint32_t entity) {
-	dirtyEntities.insert(entity);
+	dirtyEntities->insert(entity);
 	// Iterate over each type of component
 	for (auto& kvp : components) {
 		// Attempt to erase the entity from the list of component values
@@ -40,11 +40,11 @@ void World::update(double deltaTime) {
 	// Copy our list of dirty entities so that we can clear it before handling the dirty entities
 	// That's because, whilst handling our dirty entities, a system may dirty more
 	// and we want to make sure we don't to erase the fact it was dirtied
-	std::set<uint32_t> entitiesToClean = dirtyEntities;
-	dirtyEntities.clear();
+	std::unordered_set<uint32_t>* entitiesToClean = dirtyEntities;
+	dirtyEntities = new std::unordered_set<uint32_t>;
 	std::vector<std::pair<EntityQuery*, uint32_t>> addCallbacks;
 	std::vector<std::pair<EntityQuery*, uint32_t>> removeCallbacks;
-	for (auto const& entity : entitiesToClean) {
+	for (auto const& entity : *entitiesToClean) {
 		for (auto const& query : queries) {
 			if (query->entities.count(entity)) {
 				// Check if its been removed
@@ -52,7 +52,8 @@ void World::update(double deltaTime) {
 					query->entities.erase(entity);
 					if (query->onEntityRemoved) removeCallbacks.emplace_back(std::make_pair(query, entity));
 				}
-			} else {
+			}
+			else {
 				// Check if its been added
 				if (query->filter.checkEntity(this, entity)) {
 					query->entities.insert(entity);

@@ -27,7 +27,7 @@ void CameraSystem::update() {
         if (camera->projDirty) {
             float aspectRatio = voxelRenderer->renderer->swapChainExtent.width /
                          (float)voxelRenderer->renderer->swapChainExtent.height;
-            camera->projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+            camera->projection = glm::perspective(glm::radians(45.0f), aspectRatio, camera->near, camera->far);
             // Flip projection's yy component because opengl has is flipped compared to vulkan and glm assumes opengl
             camera->projection[1][1] *= -1;
             camera->projDirty = false;

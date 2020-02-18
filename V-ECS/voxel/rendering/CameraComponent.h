@@ -19,7 +19,7 @@ namespace vecs {
 		// the flag automatically on window resize
 		float fieldOfView = glm::radians(45.0f);
 		float near = 0.1;
-		float far = 10;
+		float far = 1000;
 
 		bool projDirty = true;
 		bool isDirty = true;

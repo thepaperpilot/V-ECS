@@ -14,9 +14,16 @@
 
 using namespace vecs;
 
+VoxelWorld::VoxelWorld(uint16_t chunkSize) {
+	// We add this system immediately so we can use our chunk archetype builder
+	// before starting the game. Technically that's a temporary thing until I
+	// make the proc gen system, but even then since this is the only system
+	// that cares about chunk size, I might still register this system here
+	addSystem(this->chunkSystem = new ChunkSystem(chunkSize), 100);
+}
+
 void VoxelWorld::init() {
 	// Add necessary systems
-	addSystem(this->chunkSystem = new ChunkSystem, 100);
 	addSystem(this->controllerSystem = new ControllerSystem(window), 200); // Happens after chunk system
 	addSystem(this->movementSystem = new MovementSystem, 300); // Happens after controller system
 	addSystem(this->cameraSystem = new CameraSystem(&voxelRenderer), 400);

@@ -13,6 +13,9 @@
 
 namespace vecs {
 
+	// Forward Declarations
+	class ArchetypeBuilder;
+
 	struct Component {
 		// Optional function to cleanup any necessary fields a component may have
 		virtual void cleanup(VkDevice* device) {}
@@ -29,28 +32,27 @@ namespace vecs {
 
 	// The World contains all of the program's Systems
 	// and handles updating each system as appropriate
+	// TODO other ECS implementations have a class for each component
+	// type that handles storing data for that component (e.g. SOA instead of AOS).
 	class World {
 		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
+		friend class ArchetypeBuilder;
 	public:
 		double deltaTime = 0;
 		bool cancelUpdate = false;
 
 		World() : startRenderingSystem(&renderer) {
+			dirtyEntities = new std::unordered_set<uint32_t>;
 			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
 		};
 
 		uint32_t createEntity();
 		void deleteEntity(uint32_t entity);
 
-		// I don't know enough about c++ to figure out why,
-		// but I can't define templated functions in a separate .cpp file
 		template <class Component>
 		void addComponent(uint32_t entity, Component* component) {
-#ifndef NDEBUG
-			std::cout << "Adding " << typeid(Component).name() << " to entity " << entity << std::endl;
-#endif
 			// Mark entity dirty since it has had a structural change
-			dirtyEntities.insert(entity);
+			dirtyEntities->insert(entity);
 			// Add component as this entity's value for this component type
 			components[typeid(Component)][entity] = component;
 		};
@@ -64,28 +66,29 @@ namespace vecs {
 			// have a structural change. Therefore we need to check if
 			// it has that component already, so we can mark it dirty if necessary
 			if (!hasComponentType(entity, typeid(Component)))
-				dirtyEntities.insert(entity);
+				dirtyEntities->insert(entity);
 			return static_cast<Component*>(components[typeid(Component)][entity]);
 		}
 		template <class Component>
 		void removeComponent(uint32_t entity) {
-#ifndef NDEBUG
-			std::cout << "Removing " << typeid(Component).name() << " from entity " << entity << std::endl;
-#endif
 			// Mark entity dirty since it has had a structural change
-			dirtyEntities.insert(entity);
+			dirtyEntities->insert(entity);
 			// Remove component value for this entity
 			components[typeid(Component)][entity]->cleanup(device);
 			components[typeid(Component)].erase(entity);
 		}
-		// Reserves an additional n components of the specified type
-		// that way we can add components without needing to rehash
-		// multiple times
-		template <class Component>
-		void reserveComponents(int n) {
-			std::unordered_map<uint32_t, Component*> componentList = components[typeid(Component)];
-			componentList.reserve(componentList.size() + n);
+		// Reserve the next n entities. Doesn't ensure you get the next
+		// consecutive n entities, just prepares dirtyEntities to accept
+		// n more entities more efficiently
+		void reserveEntities(int n) {
+			dirtyEntities->reserve(dirtyEntities->size() + n);
 		}
+		// Used to cache specific component lists so systems don't need
+		// to perform as many lookups when iterating over many entities
+		template <class C>
+		std::map<uint32_t, Component*>* getComponentList() {
+			return &components[typeid(C)];
+		};
 
 		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
@@ -127,13 +130,13 @@ namespace vecs {
 		
 		// This set tracks any entities with structural changes,
 		// so that listeners can be triggered in the next update() call
-		// This way structural changes can be batched for each frame
-		std::set<uint32_t> dirtyEntities;
+		// This way structural changes can be batched for each frame.
+		std::unordered_set<uint32_t>* dirtyEntities;
 		
 		// The type index of the component struct (which is guaranteed unique) gets mapped
 		// to a map of entities to their instances of those components
 		// This should have a decent performance improvement due to data locality
-		std::unordered_map<std::type_index, std::unordered_map<uint32_t, Component*>> components;
+		std::unordered_map<std::type_index, std::map<uint32_t, Component*>> components;
 		
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions

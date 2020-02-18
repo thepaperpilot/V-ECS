@@ -29,3 +29,14 @@ bool ComponentFilter::checkEntity(World* world, uint32_t entity) {
 			return false;
 	return true;
 }
+
+bool ComponentFilter::checkArchetype(std::set<std::type_index> componentTypes) {
+	for (auto const& component_t : required) {
+		if (componentTypes.find(component_t) == componentTypes.end())
+			return false;
+	}
+	for (auto const& component_t : disallowed)
+		if (componentTypes.find(component_t) != componentTypes.end())
+			return false;
+	return true;
+}

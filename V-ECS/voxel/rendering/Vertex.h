@@ -14,6 +14,10 @@ namespace vecs {
             return pos == other.pos && texCoord == other.texCoord;
         }
 
+        bool samePosition(const Vertex& other) {
+            return pos == other.pos;
+        }
+
         static VkVertexInputBindingDescription getBindingDescription() {
             VkVertexInputBindingDescription bindingDescription = {};
             bindingDescription.binding = 0;

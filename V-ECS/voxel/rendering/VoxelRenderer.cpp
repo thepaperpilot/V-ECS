@@ -24,7 +24,7 @@ void VoxelRenderer::init(World* world) {
 
 void VoxelRenderer::init() {
 	// Create our texture and 
-	texture.init(device, renderer->graphicsQueue, "textures/rgb.png");
+	texture.init(device, renderer->graphicsQueue, "textures/goodCat.png");
 
 	// Create the imageinfo we'll need for our descriptor writes
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

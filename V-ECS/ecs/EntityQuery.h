@@ -25,6 +25,8 @@ namespace vecs {
 
 		// Checks if an entity matches the query
 		bool checkEntity(World* world, uint32_t entity);
+		bool checkArchetype(std::set<std::type_index> componentTypes);
+
 	private:
 		std::set<std::type_index> required;
 		std::set<std::type_index> disallowed;
