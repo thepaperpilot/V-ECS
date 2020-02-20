@@ -23,8 +23,6 @@ void ControllerSystem::init() {
 	controlled.filter.with(typeid(PositionComponent));
 	controlled.filter.with(typeid(VelocityComponent));
 	controlled.filter.with(typeid(CameraComponent));
-	controlled.onEntityAdded = EntityQuery::bind(this, &ControllerSystem::onControlledAdded);
-	controlled.onEntityRemoved = EntityQuery::bind(this, &ControllerSystem::onControlledRemoved);
 	world->addQuery(&controlled);
 
 	// Setup our event listeners
@@ -38,64 +36,74 @@ void ControllerSystem::init() {
 
 	// Get our initial cursor position so we can calculate delta movement later
 	glfwGetCursorPos(window, &lastX, &lastY);
+	onControlledAdded();
 }
 
 void ControllerSystem::update() {
-	for (uint32_t entity : controlled.entities) {
-		ControlledComponent* controller = world->getComponent<ControlledComponent>(entity);
-		if (controller->dirty) {
+	for (auto archetype : controlled.matchingArchetypes) {
+		auto controlledComponents = archetype->getComponentList(typeid(ControlledComponent));
+		auto velocityComponents = archetype->getComponentList(typeid(VelocityComponent));
+		auto positionComponents = archetype->getComponentList(typeid(PositionComponent));
+		auto cameraComponents = archetype->getComponentList(typeid(CameraComponent));
 
-			// Calculate forward and right vectors based on yaw and pitch
-			glm::vec3 forward;
-			forward.x = cos(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
-			forward.y = sin(glm::radians(controller->pitch));
-			forward.z = sin(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
-			forward = glm::normalize(forward);
-			glm::vec3 right = glm::normalize(glm::cross(forward, up));
+		for (size_t i = 0; i < controlledComponents->size(); i++) {
+			ControlledComponent* controller = static_cast<ControlledComponent*>(controlledComponents->at(i));
 
-			// Calculate the direction we're moving
-			glm::vec3 velocity{ 0.0,0.0,0.0 };
-			if ((controller->inputs & 1) == 1) // Moving forward
-				velocity += forward;
-			if ((controller->inputs & 2) == 2) // Moving left
-				velocity -= right;
-			if ((controller->inputs & 4) == 4) // Moving backward
-				velocity -= forward;
-			if ((controller->inputs & 8) == 8) // Moving right
-				velocity += right;
-			if ((controller->inputs & 16) == 16) // Moving up
-				velocity += up;
-			if ((controller->inputs & 32) == 32) // Moving down
-				velocity -= up;
-			// Make sure we're going the right speed in that direction
-			if (glm::length(velocity) > 0)
-				velocity = glm::normalize(velocity) * controller->speed;
-			// Save velocity
-			world->getComponent<VelocityComponent>(entity)->velocity = velocity;
+			if (controller->dirty) {
 
-			// Store view matrix in camera component using position and forward vector
-			glm::vec3 position = world->getComponent<PositionComponent>(entity)->position + velocity * (float)world->deltaTime;
-			CameraComponent* camera = world->getComponent<CameraComponent>(entity);
-			camera->view = glm::lookAt(position, position + forward, up);
-			camera->isDirty = true;
+				// Calculate forward and right vectors based on yaw and pitch
+				glm::vec3 forward;
+				forward.x = cos(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
+				forward.y = sin(glm::radians(controller->pitch));
+				forward.z = sin(glm::radians(controller->yaw)) * cos(glm::radians(controller->pitch));
+				forward = glm::normalize(forward);
+				glm::vec3 right = glm::normalize(glm::cross(forward, up));
 
-			controller->dirty = false;
-		} else {
-			glm::vec3 velocity = world->getComponent<VelocityComponent>(entity)->velocity;
-			if (velocity.length == 0) return;
-			// If our velocity is non-zero, we should still update the camera
-			CameraComponent* camera = world->getComponent<CameraComponent>(entity);
-			camera->view = glm::translate(camera->view, velocity * -(float)world->deltaTime);
-			camera->isDirty = true;
+				// Calculate the direction we're moving
+				glm::vec3 velocity{ 0.0,0.0,0.0 };
+				if ((controller->inputs & 1) == 1) // Moving forward
+					velocity += forward;
+				if ((controller->inputs & 2) == 2) // Moving left
+					velocity -= right;
+				if ((controller->inputs & 4) == 4) // Moving backward
+					velocity -= forward;
+				if ((controller->inputs & 8) == 8) // Moving right
+					velocity += right;
+				if ((controller->inputs & 16) == 16) // Moving up
+					velocity += up;
+				if ((controller->inputs & 32) == 32) // Moving down
+					velocity -= up;
+				// Make sure we're going the right speed in that direction
+				if (glm::length(velocity) > 0)
+					velocity = glm::normalize(velocity) * controller->speed;
+				// Save velocity
+				static_cast<VelocityComponent*>(velocityComponents->at(i))->velocity = velocity;
+
+				// Store view matrix in camera component using position and forward vector
+				glm::vec3 position = static_cast<PositionComponent*>(positionComponents->at(i))->position + velocity * (float)world->deltaTime;
+				CameraComponent* camera = static_cast<CameraComponent*>(cameraComponents->at(i));
+				camera->view = glm::lookAt(position, position + forward, up);
+				camera->isDirty = true;
+
+				controller->dirty = false;
+			} else {
+				glm::vec3 velocity = static_cast<VelocityComponent*>(velocityComponents->at(i))->velocity;
+				if (velocity.length == 0) return;
+				// If our velocity is non-zero, we should still update the camera
+				CameraComponent* camera = static_cast<CameraComponent*>(cameraComponents->at(i));
+				camera->view = glm::translate(camera->view, velocity * -(float)world->deltaTime);
+				camera->isDirty = true;
+			}
 		}
 	}
 }
 
-void ControllerSystem::onControlledAdded(uint32_t entity) {
+void ControllerSystem::onControlledAdded() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
-void ControllerSystem::onControlledRemoved(uint32_t entity) {
+void ControllerSystem::onControlledRemoved() {
+	/*
 	if (controlled.entities.size() == 0)
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
@@ -107,85 +115,92 @@ void ControllerSystem::onControlledRemoved(uint32_t entity) {
 		VelocityComponent* velocity = world->getComponent<VelocityComponent>(entity);
 		velocity->velocity = glm::vec3(0);
 	}
+	*/
 }
 
 void ControllerSystem::onMouseMove(MouseMoveEvent* event) {
-	if (controlled.entities.size() == 0) return;
+	if (controlled.matchingArchetypes.size() == 0) return;
+	for (auto component : *(*controlled.matchingArchetypes.begin())->getComponentList(typeid(ControlledComponent))) {
 
-	ControlledComponent* controller = world->getComponent<ControlledComponent>(*controlled.entities.begin());
+		ControlledComponent* controller = static_cast<ControlledComponent*>(component);
 
-	// Add our delta mouse movement to our pitch and yaw
-	controller->yaw += ((float)event->xPos - lastX) * controller->lookSpeed;
-	controller->pitch -= ((float)event->yPos - lastY) * controller->lookSpeed;
-	lastX = event->xPos;
-	lastY = event->yPos;
+		// Add our delta mouse movement to our pitch and yaw
+		controller->yaw += ((float)event->xPos - lastX) * controller->lookSpeed;
+		controller->pitch -= ((float)event->yPos - lastY) * controller->lookSpeed;
+		lastX = event->xPos;
+		lastY = event->yPos;
 
-	if (controller->pitch > 89.0f)
-		controller->pitch = 89.0f;
-	if (controller->pitch < -89.0f)
-		controller->pitch = -89.0f;
+		if (controller->pitch > 89.0f)
+			controller->pitch = 89.0f;
+		if (controller->pitch < -89.0f)
+			controller->pitch = -89.0f;
 
-	controller->dirty = true;
+		controller->dirty = true;
+	}
 }
 
 void ControllerSystem::onKeyPress(KeyPressEvent* event) {
-	if (controlled.entities.size() == 0) return;
+	if (controlled.matchingArchetypes.size() == 0) return;
+	for (auto component : *(*controlled.matchingArchetypes.begin())->getComponentList(typeid(ControlledComponent))) {
 
-	ControlledComponent* controller = world->getComponent<ControlledComponent>(*controlled.entities.begin());
+		ControlledComponent* controller = static_cast<ControlledComponent*>(component);
 
-	switch (event->key) {
-	case GLFW_KEY_W:
-		controller->inputs = controller->inputs | 1;
-		break;
-	case GLFW_KEY_A:
-		controller->inputs = controller->inputs | 2;
-		break;
-	case GLFW_KEY_S:
-		controller->inputs = controller->inputs | 4;
-		break;
-	case GLFW_KEY_D:
-		controller->inputs = controller->inputs | 8;
-		break;
-	case GLFW_KEY_SPACE:
-		controller->inputs = controller->inputs | 16;
-		break;
-	case GLFW_KEY_LEFT_SHIFT:
-		controller->inputs = controller->inputs | 32;
-		break;
-	default:
-		return;
+		switch (event->key) {
+		case GLFW_KEY_W:
+			controller->inputs = controller->inputs | 1;
+			break;
+		case GLFW_KEY_A:
+			controller->inputs = controller->inputs | 2;
+			break;
+		case GLFW_KEY_S:
+			controller->inputs = controller->inputs | 4;
+			break;
+		case GLFW_KEY_D:
+			controller->inputs = controller->inputs | 8;
+			break;
+		case GLFW_KEY_SPACE:
+			controller->inputs = controller->inputs | 16;
+			break;
+		case GLFW_KEY_LEFT_SHIFT:
+			controller->inputs = controller->inputs | 32;
+			break;
+		default:
+			return;
+		}
+
+		controller->dirty = true;
 	}
-
-	controller->dirty = true;
 }
 
 void ControllerSystem::onKeyRelease(KeyReleaseEvent* event) {
-	if (controlled.entities.size() == 0) return;
+	if (controlled.matchingArchetypes.size() == 0) return;
+	for (auto component : *(*controlled.matchingArchetypes.begin())->getComponentList(typeid(ControlledComponent))) {
 
-	ControlledComponent* controller = world->getComponent<ControlledComponent>(*controlled.entities.begin());
+		ControlledComponent* controller = static_cast<ControlledComponent*>(component);
 
-	switch (event->key) {
-	case GLFW_KEY_W:
-		controller->inputs = controller->inputs & ~1;
-		break;
-	case GLFW_KEY_A:
-		controller->inputs = controller->inputs & ~2;
-		break;
-	case GLFW_KEY_S:
-		controller->inputs = controller->inputs & ~4;
-		break;
-	case GLFW_KEY_D:
-		controller->inputs = controller->inputs & ~8;
-		break;
-	case GLFW_KEY_SPACE:
-		controller->inputs = controller->inputs & ~16;
-		break;
-	case GLFW_KEY_LEFT_SHIFT:
-		controller->inputs = controller->inputs & ~32;
-		break;
-	default:
-		return;
+		switch (event->key) {
+		case GLFW_KEY_W:
+			controller->inputs = controller->inputs & ~1;
+			break;
+		case GLFW_KEY_A:
+			controller->inputs = controller->inputs & ~2;
+			break;
+		case GLFW_KEY_S:
+			controller->inputs = controller->inputs & ~4;
+			break;
+		case GLFW_KEY_D:
+			controller->inputs = controller->inputs & ~8;
+			break;
+		case GLFW_KEY_SPACE:
+			controller->inputs = controller->inputs & ~16;
+			break;
+		case GLFW_KEY_LEFT_SHIFT:
+			controller->inputs = controller->inputs & ~32;
+			break;
+		default:
+			return;
+		}
+
+		controller->dirty = true;
 	}
-
-	controller->dirty = true;
 }

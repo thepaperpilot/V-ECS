@@ -30,18 +30,19 @@ void VoxelWorld::init() {
 	addSystem(this->meshRendererSystem = new MeshRendererSystem(device, &voxelRenderer), START_RENDERING_PRIORITY + 100); // Draws all our mesh components
 
 	// Add player entity
-	player = createEntity();
-	addComponent(player, new VelocityComponent);
-	addComponent(player, new PositionComponent);
-	addComponent(player, new ControlledComponent);
-	addComponent(player, new CameraComponent);
+	Archetype* archetype = getArchetype({ typeid(PositionComponent), typeid(VelocityComponent), typeid(ControlledComponent), typeid(CameraComponent) });
+	std::pair<uint32_t, size_t> player = archetype->createEntities(1);
+	this->player = player.first;
+	archetype->getComponentList(typeid(PositionComponent))->at(player.second) = new PositionComponent;
+	archetype->getComponentList(typeid(VelocityComponent))->at(player.second) = new VelocityComponent;
+	archetype->getComponentList(typeid(ControlledComponent))->at(player.second) = new ControlledComponent;
+	CameraComponent* camera = new CameraComponent;
+	voxelRenderer.model = &camera->model;
+	voxelRenderer.view = &camera->view;
+	voxelRenderer.projection = &camera->projection;
+	archetype->getComponentList(typeid(CameraComponent))->at(player.second) = camera;
 
 	// Register out voxel renderer
 	voxelRenderer.init(this);
 	renderer.registerSubRenderer(&voxelRenderer);
-}
-
-void VoxelWorld::cleanupSystems() {
-	// Cleanup each system that needs it
-	meshRendererSystem->cleanup();
 }

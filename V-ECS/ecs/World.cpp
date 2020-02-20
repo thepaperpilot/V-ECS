@@ -3,24 +3,53 @@
 
 using namespace vecs;
 
-uint32_t World::createEntity() {
-	dirtyEntities->insert(nextEntity);
-	// TODO handle overflow
-	return nextEntity++;
+uint32_t World::createEntities(uint32_t amount) {
+	uint32_t firstEntity = nextEntity;
+	nextEntity += amount;
+	return firstEntity;
 }
 
 void World::deleteEntity(uint32_t entity) {
-	dirtyEntities->insert(entity);
-	// Iterate over each type of component
-	for (auto& kvp : components) {
-		// Attempt to erase the entity from the list of component values
-		kvp.second.erase(entity);
+	for (auto archetype : archetypes) {
+		if (archetype->hasEntity(entity)) {
+			archetype->removeEntities({ entity });
+			return;
+		}			
+	}
+}
+
+Archetype* World::getArchetype(std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents) {
+	auto itr = std::find_if(archetypes.begin(), archetypes.end(), [&componentTypes, &sharedComponents](Archetype* archetype) {
+		return archetype->componentTypes == componentTypes && (sharedComponents == nullptr || &archetype->sharedComponents == sharedComponents);
+	});
+
+	if (itr == archetypes.end()) {
+		// Create a new archetype
+		Archetype* archetype = archetypes.emplace_back(new Archetype(this, componentTypes, sharedComponents));
+
+		// Add it to any entity queries it matches
+		for (auto query : queries) {
+			if (query->filter.checkArchetype(componentTypes))
+				query->matchingArchetypes.push_back(archetype);
+		}
+
+		return archetype;
+	}
+
+	return *itr;
+}
+
+Archetype* World::getArchetype(uint32_t entity) {
+	for (auto archetype : archetypes) {
+		if (archetype->hasEntity(entity)) {
+			return archetype;
+		}
 	}
 }
 
 bool World::hasComponentType(uint32_t entity, std::type_index component_t) {
-	// count will return 1 iff entity has a value for this component
-	return components[component_t].count(entity);
+	Archetype* archetype = getArchetype(entity);
+	return archetype->componentTypes.count(component_t);
 }
 
 void World::addSystem(System* system, int priority) {
@@ -32,42 +61,16 @@ void World::addSystem(System* system, int priority) {
 
 void World::addQuery(EntityQuery* query) {
 	queries.push_back(query);
+
+	// Check what archetypes match this query
+	for (auto archetype : archetypes) {
+		if (query->filter.checkArchetype(archetype->componentTypes))
+			query->matchingArchetypes.push_back(archetype);
+	}
 }
 
 void World::update(double deltaTime) {
 	this->deltaTime = deltaTime;
-
-	// Copy our list of dirty entities so that we can clear it before handling the dirty entities
-	// That's because, whilst handling our dirty entities, a system may dirty more
-	// and we want to make sure we don't to erase the fact it was dirtied
-	std::unordered_set<uint32_t>* entitiesToClean = dirtyEntities;
-	dirtyEntities = new std::unordered_set<uint32_t>;
-	std::vector<std::pair<EntityQuery*, uint32_t>> addCallbacks;
-	std::vector<std::pair<EntityQuery*, uint32_t>> removeCallbacks;
-	for (auto const& entity : *entitiesToClean) {
-		for (auto const& query : queries) {
-			if (query->entities.count(entity)) {
-				// Check if its been removed
-				if (!query->filter.checkEntity(this, entity)) {
-					query->entities.erase(entity);
-					if (query->onEntityRemoved) removeCallbacks.emplace_back(std::make_pair(query, entity));
-				}
-			}
-			else {
-				// Check if its been added
-				if (query->filter.checkEntity(this, entity)) {
-					query->entities.insert(entity);
-					if (query->onEntityAdded) addCallbacks.emplace_back(std::make_pair(query, entity));
-				}
-			}
-		}
-	}
-
-	// Only call the callbacks after we've updated all the queries' entities lists
-	for (auto const& pair : addCallbacks)
-		pair.first->onEntityAdded(pair.second);
-	for (auto const& pair : removeCallbacks)
-		pair.first->onEntityRemoved(pair.second);
 
 	// Update each system in priority-order
 	for (auto& kvp : systems) {
@@ -83,4 +86,7 @@ void World::update(double deltaTime) {
 void World::cleanup() {
 	renderer.cleanup();
 	cleanupSystems();
+
+	for (auto archetype : archetypes)
+		archetype->cleanup(&device->logical);
 }

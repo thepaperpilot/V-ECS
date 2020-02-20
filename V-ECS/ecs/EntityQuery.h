@@ -4,12 +4,14 @@
 #include <typeindex>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 
 namespace vecs {
 
 	// Forward Declarations
 	class World;
+	class Archetype;
 	struct Component;
 
 	// This class describes a filter for finding only specific entities
@@ -25,7 +27,7 @@ namespace vecs {
 
 		// Checks if an entity matches the query
 		bool checkEntity(World* world, uint32_t entity);
-		bool checkArchetype(std::set<std::type_index> componentTypes);
+		bool checkArchetype(std::unordered_set<std::type_index> componentTypes);
 
 	private:
 		std::set<std::type_index> required;
@@ -35,13 +37,7 @@ namespace vecs {
 	// This struct becomes a container to track entities matching the filter
 	struct EntityQuery {
 		ComponentFilter filter;
-		std::set<uint32_t> entities;
-		std::function<void(uint32_t)> onEntityAdded;
-		std::function<void(uint32_t)> onEntityRemoved;
 
-		template <class T>
-		static std::function<void(uint32_t)> bind(T* const object, void(T::* const mf)(uint32_t)) {
-			return std::bind(mf, object, std::placeholders::_1);
-		}
+		std::vector<Archetype*> matchingArchetypes;
 	};
 }

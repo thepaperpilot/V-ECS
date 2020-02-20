@@ -23,8 +23,8 @@ namespace vecs {
 		double lastX = 0;
 		double lastY = 0;
 
-		void onControlledAdded(uint32_t entity);
-		void onControlledRemoved(uint32_t entity);
+		void onControlledAdded();
+		void onControlledRemoved();
 
 		void onMouseMove(MouseMoveEvent* event);
 		void onLeftMousePress(LeftMousePressEvent* event) {};

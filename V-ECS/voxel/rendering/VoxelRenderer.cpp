@@ -1,5 +1,6 @@
 #include "VoxelRenderer.h"
 #include "MeshComponent.h"
+#include "FrustumCull.h"
 #include "../../ecs/World.h"
 
 #include <glm/glm.hpp>
@@ -33,24 +34,34 @@ void VoxelRenderer::init() {
 }
 
 void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
-	uint32_t size = sizeof(glm::mat4);
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, size, model);
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, size, size, view);
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, size * 2, size, projection);
+	// Calculate our model-projection-view matrix
+	// Remember that matrix multiplication order is reversed
+	MVP = *projection * *view * *model;
 
-	// TODO I don't think this is how to render multiple "meshes"
-	for (auto const entity : meshes.entities) {
-		MeshComponent mesh = *world->getComponent<MeshComponent>(entity);
-		if (mesh.vertices.empty()) continue;
+	// Send our MVP matrix to the GPU as a push constant
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &MVP);
+	// Calculate our frustum for culling purposes
+	Frustum frustum(MVP);
 
-		// Bind our vertex and index buffers
-		VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+	for (auto archetype : meshes.matchingArchetypes) {
+		for (auto component : *archetype->getComponentList(typeid(MeshComponent))) {
+			MeshComponent* mesh = static_cast<MeshComponent*>(component);
 
-		// Draw our vertices
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+			// Exit early if our mesh is empty
+			if (mesh->vertices.empty()) continue;
+
+			// Skip this mesh if its outside our frustum
+			if (!frustum.IsBoxVisible(mesh->minBounds, mesh->maxBounds)) continue;
+
+			// Bind our vertex and index buffers
+			VkBuffer vertexBuffers[] = { mesh->vertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+			vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+			// Draw our vertices
+			vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
+		}
 	}
 }
 
@@ -85,7 +96,7 @@ std::vector<VkPushConstantRange> VoxelRenderer::getPushConstantRanges() {
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = 3 * sizeof(glm::mat4);
+	pushConstantRange.size = sizeof(glm::mat4);
 
 	return { pushConstantRange };
 }

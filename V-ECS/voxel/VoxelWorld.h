@@ -59,7 +59,6 @@ namespace vecs {
 
 		// Overidden to cleanup our required systems
 		void init() override;
-		void cleanupSystems() override;
 
 	private:
 		uint32_t player = 0;

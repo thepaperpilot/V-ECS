@@ -42,5 +42,7 @@ namespace vecs {
 		EntityQuery meshes;
 
 		VkDescriptorImageInfo imageInfo;
+
+		glm::mat4 MVP;
 	};
 }

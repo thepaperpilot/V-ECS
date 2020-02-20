@@ -22,7 +22,6 @@ namespace vecs {
 
 		void init() override;
 		void update() override;
-		void cleanup();
 
 	private:
 		Device* device;
@@ -32,7 +31,6 @@ namespace vecs {
 		size_t initialIndexBufferSize = 4096;
 
 		EntityQuery meshes;
-		void onMeshAdded(uint32_t entity);
 
 		void fillVertexBuffer(MeshComponent* mesh);
 		void fillIndexBuffer(MeshComponent* mesh);

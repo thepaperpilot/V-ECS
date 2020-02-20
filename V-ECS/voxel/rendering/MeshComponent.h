@@ -17,11 +17,15 @@ namespace vecs {
 
 		Buffer vertexBuffer;
 		Buffer stagingVertexBuffer;
-		size_t vertexBufferSize;
+		size_t vertexBufferSize = 0;
 
 		Buffer indexBuffer;
 		Buffer stagingIndexBuffer;
-		size_t indexBufferSize;
+		size_t indexBufferSize = 0;
+
+		// Used for frustum culling
+		glm::vec3 minBounds;
+		glm::vec3 maxBounds;
 
 		bool dirtyVertices = true;
 

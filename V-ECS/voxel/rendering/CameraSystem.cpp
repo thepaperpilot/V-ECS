@@ -15,41 +15,38 @@ void CameraSystem::init() {
 
     // Create entity query so we can get our cameras
     cameras.filter.with(typeid(CameraComponent));
-    cameras.onEntityAdded = EntityQuery::bind(this, &CameraSystem::onCameraAdded);
     world->addQuery(&cameras);
 }
 
 void CameraSystem::update() {
-    for (uint32_t entity : cameras.entities) {
-        CameraComponent* camera = world->getComponent<CameraComponent>(entity);
-        
-        // Re-calculate projection matrices if necessary
-        if (camera->projDirty) {
-            float aspectRatio = voxelRenderer->renderer->swapChainExtent.width /
-                         (float)voxelRenderer->renderer->swapChainExtent.height;
-            camera->projection = glm::perspective(glm::radians(45.0f), aspectRatio, camera->near, camera->far);
-            // Flip projection's yy component because opengl has is flipped compared to vulkan and glm assumes opengl
-            camera->projection[1][1] *= -1;
-            camera->projDirty = false;
-        }
+    for (auto archetypes : cameras.matchingArchetypes) {
+        for (auto component : *archetypes->getComponentList(typeid(CameraComponent))) {
+            CameraComponent* camera = static_cast<CameraComponent*>(component);
 
-        if (camera->isDirty) {
-            voxelRenderer->markAllBuffersDirty();
-            camera->isDirty = false;
+            // Re-calculate projection matrices if necessary
+            if (camera->projDirty) {
+                // TODO not all cameras may be attached to voxel renderer
+                float aspectRatio = voxelRenderer->renderer->swapChainExtent.width /
+                    (float)voxelRenderer->renderer->swapChainExtent.height;
+                camera->projection = glm::perspective(glm::radians(45.0f), aspectRatio, camera->near, camera->far);
+                // Flip projection's yy component because opengl has is flipped compared to vulkan and glm assumes opengl
+                camera->projection[1][1] *= -1;
+                camera->projDirty = false;
+            }
+
+            if (camera->isDirty) {
+                // TODO not all cameras may be attached to voxel renderer
+                voxelRenderer->markAllBuffersDirty();
+                camera->isDirty = false;
+            }
         }
     }
 }
 
 void CameraSystem::windowResize(WindowResizeEvent* event) {
-    for (uint32_t entity : cameras.entities) {
-        world->getComponent<CameraComponent>(entity)->projDirty = true;
+    for (auto archetypes : cameras.matchingArchetypes) {
+        for (auto component : *archetypes->getComponentList(typeid(CameraComponent))) {
+            static_cast<CameraComponent*>(component)->projDirty = true;
+        }
     }
-}
-
-void CameraSystem::onCameraAdded(uint32_t entity) {
-    // Point our push constants to the camera's data points
-    CameraComponent* camera = world->getComponent<CameraComponent>(entity);
-    voxelRenderer->model = &camera->model;
-    voxelRenderer->view = &camera->view;
-    voxelRenderer->projection = &camera->projection;
 }

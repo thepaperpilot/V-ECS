@@ -10,11 +10,9 @@
 #include "../rendering/Renderer.h"
 #include "EntityQuery.h"
 #include "System.h"
+#include "Archetype.h"
 
 namespace vecs {
-
-	// Forward Declarations
-	class ArchetypeBuilder;
 
 	struct Component {
 		// Optional function to cleanup any necessary fields a component may have
@@ -42,53 +40,66 @@ namespace vecs {
 		bool cancelUpdate = false;
 
 		World() : startRenderingSystem(&renderer) {
-			dirtyEntities = new std::unordered_set<uint32_t>;
 			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
 		};
 
-		uint32_t createEntity();
+		uint32_t createEntities(uint32_t amount = 1);
 		void deleteEntity(uint32_t entity);
 
-		template <class Component>
-		void addComponent(uint32_t entity, Component* component) {
-			// Mark entity dirty since it has had a structural change
-			dirtyEntities->insert(entity);
-			// Add component as this entity's value for this component type
-			components[typeid(Component)][entity] = component;
+		Archetype* getArchetype(std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr);
+		Archetype* getArchetype(uint32_t entity);
+
+		Archetype* addComponents(uint32_t entity, std::unordered_set<std::type_index> components) {
+			Archetype* oldArchetype = getArchetype(entity);
+			ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
+
+			// Make new list of components
+			components.insert(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end());
+			// Find/create archetype for this set of components
+			Archetype* newArchetype = getArchetype(components, &oldArchetype->sharedComponents);
+			// Add entity to new archetype
+			size_t newIndex = newArchetype->addEntities({ entity });
+
+			// Copy components over to new archetype
+			for (auto component : oldArchetype->componentTypes) {
+				// How slow is this?
+				// Concerned about performance when needing to add components to many entities at once
+				newArchetype->getComponentList(component)[newIndex] = oldArchetype->getComponentList(component)[oldIndex];
+			}
+
+			// Remove entity from old archetype
+			oldArchetype->removeEntities({ entity });
+
+			// Return new archetype so it can be used to set the values of the new components
+			return newArchetype;
 		};
 		bool hasComponentType(uint32_t entity, std::type_index component_t);
-		// This function will create a component with default values
-		// if it didn't exist already
 		template <class Component>
-		Component* getComponent(uint32_t entity) {
-			// If it doesn't already have a value, the map will create one
-			// automatically on access. If that happens, our entity will
-			// have a structural change. Therefore we need to check if
-			// it has that component already, so we can mark it dirty if necessary
-			if (!hasComponentType(entity, typeid(Component)))
-				dirtyEntities->insert(entity);
-			return static_cast<Component*>(components[typeid(Component)][entity]);
+		Archetype* removeComponents(uint32_t entity, std::unordered_set<std::type_index> components) {
+			Archetype* oldArchetype = getArchetype(entity);
+			ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
+
+			// Make new list of components
+			std::unordered_set<std::type_index> newComponents;
+			std::copy_if(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end(), std::back_inserter(newComponents),
+				[&components](int needle) { return !components.count(needle); });
+			// Find/create archetype for this set of components
+			Archetype* newArchetype = getArchetype(newComponents, &oldArchetype->sharedComponents);
+			// Add entity to new archetype
+			size_t newIndex = newArchetype->addEntities({ entity });
+
+			// Copy components over to new archetype
+			for (auto component : oldArchetype->componentTypes) {
+				if (!components.count(component))
+					newArchetype->getComponentList(component)[newIndex] = oldArchetype->getComponentList(component)[oldIndex];
+			}
+
+			// Remove entity from old archetype
+			oldArchetype->removeEntities({ entity });
+
+			// Return new archetype
+			return newArchetype;
 		}
-		template <class Component>
-		void removeComponent(uint32_t entity) {
-			// Mark entity dirty since it has had a structural change
-			dirtyEntities->insert(entity);
-			// Remove component value for this entity
-			components[typeid(Component)][entity]->cleanup(device);
-			components[typeid(Component)].erase(entity);
-		}
-		// Reserve the next n entities. Doesn't ensure you get the next
-		// consecutive n entities, just prepares dirtyEntities to accept
-		// n more entities more efficiently
-		void reserveEntities(int n) {
-			dirtyEntities->reserve(dirtyEntities->size() + n);
-		}
-		// Used to cache specific component lists so systems don't need
-		// to perform as many lookups when iterating over many entities
-		template <class C>
-		std::map<uint32_t, Component*>* getComponentList() {
-			return &components[typeid(C)];
-		};
 
 		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
@@ -120,7 +131,8 @@ namespace vecs {
 		virtual void cleanupSystems() {};
 
 	private:
-		uint32_t nextEntity = 0;
+		// Start at 1 so that 0 can be used to represent an invalid entity
+		uint32_t nextEntity = 1;
 
 		StartRenderingSystem startRenderingSystem;
 
@@ -128,19 +140,12 @@ namespace vecs {
 		// and allow us to run our systems in order by "priority"
 		std::multimap<int, System*> systems;
 		
-		// This set tracks any entities with structural changes,
-		// so that listeners can be triggered in the next update() call
-		// This way structural changes can be batched for each frame.
-		std::unordered_set<uint32_t>* dirtyEntities;
-		
-		// The type index of the component struct (which is guaranteed unique) gets mapped
-		// to a map of entities to their instances of those components
-		// This should have a decent performance improvement due to data locality
-		std::unordered_map<std::type_index, std::map<uint32_t, Component*>> components;
-		
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions
 		// to run whenever an entity is added to or removed from the filtered entity list
 		std::vector<EntityQuery*> queries;
+
+		// Each unique set of components is managed by an archetype
+		std::vector<Archetype*> archetypes;
 	};
 }

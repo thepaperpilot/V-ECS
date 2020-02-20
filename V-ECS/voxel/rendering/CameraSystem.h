@@ -24,6 +24,5 @@ namespace vecs {
 		EntityQuery cameras;
 
 		void windowResize(WindowResizeEvent* event);
-		void onCameraAdded(uint32_t entity);
 	};
 }
