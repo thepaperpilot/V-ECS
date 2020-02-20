@@ -12,8 +12,8 @@ using namespace vecs;
 
 VoxelRenderer::VoxelRenderer() {
 	// Configure shaders
-	vertShaderFile = "shaders/shader-vert.spv";
-	fragShaderFile = "shaders/shader-frag.spv";
+	vertShaderFile = "resources/shaders/shader-vert.spv";
+	fragShaderFile = "resources/shaders/shader-frag.spv";
 }
 
 void VoxelRenderer::init(World* world) {
@@ -25,7 +25,7 @@ void VoxelRenderer::init(World* world) {
 
 void VoxelRenderer::init() {
 	// Create our texture and 
-	texture.init(device, renderer->graphicsQueue, "textures/goodCat.png");
+	texture.init(device, renderer->graphicsQueue, "resources/textures/goodCat.png");
 
 	// Create the imageinfo we'll need for our descriptor writes
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

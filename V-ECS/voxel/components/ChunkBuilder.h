@@ -26,14 +26,16 @@ namespace vecs {
 			MeshComponent* meshComponent = new MeshComponent;
 			meshComponent->minBounds = { x * chunkSize, y * chunkSize, z * chunkSize };
 			meshComponent->maxBounds = { (x + 1) * chunkSize, (y + 1) * chunkSize, (z + 1) * chunkSize };
-			std::cout << x << ", " << y << ", " << z << "             " << glm::to_string(meshComponent->minBounds) << std::endl;
 			meshComponents->at(chunk) = meshComponent;
-			
-			Archetype* blockArchetype = world->getArchetype({ typeid(BlockComponent) });
-			std::vector<Component*>* blockComponents = blockArchetype->getComponentList(typeid(BlockComponent));
 
-			// TODO load blocks in and create an archetype for each type
-			BlockComponent* blockComponent = new BlockComponent;
+			if (y > 0) {
+				// Sky doesn't have blocks!
+				return;
+			}
+			
+			std::unordered_map<std::type_index, Component*> sharedComponents;
+			sharedComponents.insert({ typeid(BlockComponent), new BlockComponent });
+			Archetype* blockArchetype = world->getArchetype({}, &sharedComponents);
 
 			std::pair<uint32_t, size_t> block = blockArchetype->createEntities(chunkSize * chunkSize * chunkSize / 8);
 			//chunkComponent->addedBlocks.reserve(chunkSize * chunkSize * chunkSize / 8);
@@ -41,8 +43,6 @@ namespace vecs {
 			for (uint16_t x = chunkSize / 4; x < 3 * chunkSize / 4; x++) {
 				for (uint16_t y = chunkSize / 4; y < 3 * chunkSize / 4; y++) {
 					for (uint16_t z = chunkSize / 4; z < 3 * chunkSize / 4; z++) {
-						blockComponents->at(block.second) = blockComponent;
-
 						chunkComponent->blocks.set(x, y, z, block.first);
 						//chunkComponent->addedBlocks.insert({ x, y, z });
 

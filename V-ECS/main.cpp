@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+#endif
+
 #include "engine/Engine.h"
 #include "ecs/World.h"
 #include "voxel/VoxelWorld.h"
@@ -10,7 +14,7 @@ using namespace vecs;
 
 Engine app;
 
-uint16_t chunksPerAxis = 16;
+uint16_t chunksPerAxis = 8;
 uint16_t chunkSize = 16;
 
 VoxelWorld game(chunkSize);
