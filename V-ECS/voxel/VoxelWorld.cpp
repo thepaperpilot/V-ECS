@@ -22,13 +22,18 @@ VoxelWorld::VoxelWorld(uint16_t chunkSize) {
 	addSystem(this->chunkSystem = new ChunkSystem(chunkSize), 100);
 }
 
-void VoxelWorld::init() {
+void VoxelWorld::preInit() {
 	// Add necessary systems
 	addSystem(this->controllerSystem = new ControllerSystem(window), 200); // Happens after chunk system
 	addSystem(this->movementSystem = new MovementSystem, 300); // Happens after controller system
 	addSystem(this->cameraSystem = new CameraSystem(&voxelRenderer), 400);
 	addSystem(this->meshRendererSystem = new MeshRendererSystem(device, &voxelRenderer), START_RENDERING_PRIORITY + 100); // Draws all our mesh components
 
+	// Prewarm our chunk system
+	this->chunkSystem->update();
+}
+
+void VoxelWorld::init() {
 	// Add player entity
 	Archetype* archetype = getArchetype({ typeid(PositionComponent), typeid(VelocityComponent), typeid(ControlledComponent), typeid(CameraComponent) });
 	std::pair<uint32_t, size_t> player = archetype->createEntities(1);

@@ -26,8 +26,25 @@ Engine::Engine() {
 }
 
 void Engine::setupWorld(World* world) {
+    // TODO improve loading thread so this is not necessary
+    if (window == nullptr) return;
+    world->preInit(device, window);
+}
+
+void Engine::setWorld(World* world, bool init, bool cleanupWorld) {
+    // TODO improve loading thread so this is not necessary
+    if (window == nullptr) return;
+
+    if (init)
+        setupWorld(world);
+
+    world->init(surface);
+    if (this->world != nullptr)
+        this->world->activeWorld = false;
+
+    this->cleanupWorld = cleanupWorld;
     this->world = world;
-    world->init(device, surface, window);
+    this->world->activeWorld = true;
 }
 
 void Engine::run() {
@@ -146,7 +163,10 @@ void Engine::mainLoop() {
         glfwPollEvents();
 
         double currentTime = glfwGetTime();
+        World* world = this->world;
         world->update(currentTime - lastFrameTime);
+        if (world != this->world && cleanupWorld)
+            world->cleanup();
         lastFrameTime = currentTime;
     }
     vkDeviceWaitIdle(*device);
@@ -172,6 +192,7 @@ void Engine::cleanup() {
 
     // Destroy our GLFW window
     glfwDestroyWindow(window);
+    window = nullptr;
 
     glfwTerminate();
 }

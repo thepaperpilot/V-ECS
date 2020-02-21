@@ -64,11 +64,6 @@ void MeshRendererSystem::fillVertexBuffer(MeshComponent* mesh) {
     unsigned long long verticesSize = sizeof(Vertex) * mesh->vertices.size();
     mesh->stagingVertexBuffer.copyTo(mesh->vertices.data(), (VkDeviceSize)verticesSize);
 
-    // Retrieve a command buffer we'll use to copy data from the staging to vertex buffer
-    // TODO create an optimized command pool in our constructor after getting the graphics queue family index
-    // Optimizing in this case means giving it the VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag
-    device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-
     // Copy between the buffers
     VkBufferCopy copyRegion = {};
     copyRegion.size = verticesSize;
@@ -82,11 +77,6 @@ void MeshRendererSystem::fillIndexBuffer(MeshComponent* mesh) {
     // Note indicesSize will often be less than bufferSize
     unsigned long long indicesSize = sizeof(uint16_t) * mesh->indices.size();
     mesh->stagingIndexBuffer.copyTo(mesh->indices.data(), (VkDeviceSize)indicesSize);
-
-    // Retrieve a command buffer we'll use to copy data from the staging to index buffer
-    // TODO create an optimized command pool in our constructor after getting the graphics queue family index
-    // Optimizing in this case means giving it the VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag
-    device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
     // Copy between the buffers
     VkBufferCopy copyRegion = {};

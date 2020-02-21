@@ -44,15 +44,26 @@ namespace vecs {
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
 			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
+		void init(Device* device, VkQueue copyQueue, unsigned char* pixels,
+			int width, int height,
+			VkFilter filter = VK_FILTER_LINEAR,
+			VkFormat format = VK_FORMAT_R8G8B8A8_UNORM,
+			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
+			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 		void cleanup();
 
 	private:
 		Device* device;
 
+		void init(Buffer* buffer, VkQueue copyQueue, VkFilter filter,
+			VkImageUsageFlags usageFlags, VkImageLayout imageLayout);
+
 		Buffer readImageData(const char* filename);
+		Buffer readPixels(unsigned char* pixels, int width, int height);
 		void createImage(VkFormat format, VkImageUsageFlags usageFlags);
 		void transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-		void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer);
+		void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer);
 		void createTextureSampler(VkFilter filter);
 	};
 }

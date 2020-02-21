@@ -28,8 +28,10 @@ namespace vecs {
 	protected:
 		Device* device;
 
+		// Settings each subrenderer should probably set in its constructor
 		std::string vertShaderFile;
 		std::string fragShaderFile;
+		bool alwaysDirty = false;
 
 		// This is made accessible to implementations so it can be used for sending push constants
 		VkPipelineLayout pipelineLayout;
@@ -37,7 +39,8 @@ namespace vecs {
 		// Optional method for implementations to prepare anything they need to
 		// This is called after getting references to the device, renderer, and renderPass
 		// but before all the values needed for the graphics pipeline are queried
-		virtual void init() = 0;
+		// Return true if you created the graphics pipeline yourself
+		virtual void init() {};
 
 		// This method must be overidden by an implementation that tells it how to render this
 		// Prior to being run a command buffer is started, a render pass started, and the pipeline
@@ -49,10 +52,10 @@ namespace vecs {
 		// the shader will be expecting
 		// Note that pointers to objects returned in any of these functions MUST remain
 		// allocated, generally by making them class members. 
-		virtual std::vector<VkDescriptorSetLayoutBinding> getDescriptorLayoutBindings() = 0;
-		virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites(VkDescriptorSet descriptorSet) = 0;
-		virtual VkVertexInputBindingDescription getBindingDescription() = 0;
-		virtual std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() = 0;
+		virtual std::vector<VkDescriptorSetLayoutBinding> getDescriptorLayoutBindings() { return {}; };
+		virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites(VkDescriptorSet descriptorSet) { return {}; };
+		virtual VkVertexInputBindingDescription getBindingDescription() { return {}; };
+		virtual std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() { return {}; };
 
 		// These all can be overidden for more advanced control over the subrenderer
 		// By default they'll handle things the recommended way, using the protected
@@ -72,7 +75,8 @@ namespace vecs {
 
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 
-		virtual void preCleanup() = 0;
+		virtual void preRender() {};
+		virtual void preCleanup() {};
 
 	private:
 		std::vector<VkDescriptorSetLayoutBinding> bindings;

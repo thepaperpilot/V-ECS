@@ -29,6 +29,7 @@ namespace vecs {
         Engine();
 
         void setupWorld(World* world);
+        void setWorld(World* world, bool init = true, bool cleanupWorld = false);
 
         void run();
 
@@ -45,6 +46,7 @@ namespace vecs {
         Manifest manifest;
 
         double lastFrameTime;
+        bool cleanupWorld;
 
         void initWindow();
         void initVulkan();

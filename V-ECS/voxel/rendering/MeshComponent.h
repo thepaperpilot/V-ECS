@@ -101,6 +101,7 @@ namespace vecs {
 			}
 		}
 
+		// TODO remove coherent bits and flush memory manually?
 		void createVertexBuffer(Device* device, size_t size) {
 			vertexBufferSize = size;
 			VkDeviceSize bufferSize = sizeof(Vertex) * size;

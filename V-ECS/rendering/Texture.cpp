@@ -14,6 +14,30 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
+	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+}
+
+void Texture::init(Device* device, VkQueue copyQueue, unsigned char* pixels, int width, int height,
+	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+
+	this->device = device;
+	this->format = format;
+
+	// Read our texture data from file into a buffer
+	Buffer stagingBuffer = readPixels(pixels, width, height);
+
+	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+}
+
+void Texture::cleanup() {
+	vkDestroySampler(*device, sampler, nullptr);
+	vkDestroyImageView(*device, view, nullptr);
+
+	vkDestroyImage(*device, image, nullptr);
+	vkFreeMemory(*device, deviceMemory, nullptr);
+}
+
+void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 	// Creating our image is going to require several commands, so we'll create a buffer for them
 	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
@@ -22,7 +46,7 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	// Transition our image layout
 	transitionImageLayout(commandBuffer, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	// Copy the image data from our staging buffer to our image
-	copyBufferToImage(commandBuffer, stagingBuffer);
+	copyBufferToImage(commandBuffer, buffer);
 	// Transition our image layout again to prepare it for shader access
 	transitionImageLayout(commandBuffer, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageLayout);
 
@@ -30,7 +54,7 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	device->submitCommandBuffer(commandBuffer, copyQueue);
 
 	// Destroy our staging buffer now that we're done with it
-	stagingBuffer.cleanup();
+	buffer->cleanup();
 
 	// Create our image view
 	Texture::createImageView(device, image, format, &view);
@@ -44,25 +68,27 @@ void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
 	descriptor.sampler = sampler;
 }
 
-void Texture::cleanup() {
-	vkDestroySampler(*device, sampler, nullptr);
-	vkDestroyImageView(*device, view, nullptr);
-
-	vkDestroyImage(*device, image, nullptr);
-	vkFreeMemory(*device, deviceMemory, nullptr);
-}
-
 Buffer Texture::readImageData(const char* filename) {
 	// Read our image from file
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	width = texWidth;
-	height = texHeight;
-	VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
+
+	Buffer stagingBuffer = readPixels(pixels, texWidth, texHeight);
+
+	// Free the image data now that we've copied it the buffer
+	stbi_image_free(pixels);
+
+	return stagingBuffer;
+}
+
+Buffer Texture::readPixels(unsigned char* pixels, int width, int height) {
+	this->width = width;
+	this->height = height;
+	VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
 	// Create a staging buffer to transfer the image to the GPU
 	Buffer stagingBuffer = device->createBuffer(imageSize,
@@ -71,9 +97,6 @@ Buffer Texture::readImageData(const char* filename) {
 
 	// Copy our image data to the staging buffer
 	stagingBuffer.copyTo(pixels, imageSize);
-
-	// Free the image data now that we've copied it the buffer
-	stbi_image_free(pixels);
 
 	return stagingBuffer;
 }
@@ -164,7 +187,7 @@ void Texture::transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat form
 	);
 }
 
-void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer) {
+void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer) {
 	VkBufferImageCopy region = {};
 	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
@@ -185,7 +208,7 @@ void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer) {
 	// Add our copy command to our buffer
 	vkCmdCopyBufferToImage(
 		commandBuffer,
-		buffer,
+		buffer->buffer,
 		image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,

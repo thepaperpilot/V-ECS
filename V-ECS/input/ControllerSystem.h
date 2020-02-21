@@ -22,9 +22,7 @@ namespace vecs {
 
 		double lastX = 0;
 		double lastY = 0;
-
-		void onControlledAdded();
-		void onControlledRemoved();
+		bool firstUpdate = true;
 
 		void onMouseMove(MouseMoveEvent* event);
 		void onLeftMousePress(LeftMousePressEvent* event) {};

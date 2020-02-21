@@ -41,6 +41,8 @@ void SubRenderer::markAllBuffersDirty() {
 }
 
 void SubRenderer::buildCommandBuffer(uint32_t imageIndex) {
+    preRender();
+
     // Begin the command buffer
     device->beginSecondaryCommandBuffer(commandBuffers[imageIndex], &inheritanceInfo[imageIndex]);
 
@@ -76,7 +78,8 @@ void SubRenderer::buildCommandBuffer(uint32_t imageIndex) {
     vkEndCommandBuffer(commandBuffers[imageIndex]);
 
     // Mark this buffer not dirty
-    dirtyBuffers.erase(imageIndex);
+    if (!alwaysDirty)
+        dirtyBuffers.erase(imageIndex);
 }
 
 void SubRenderer::windowRefresh(bool numImagesChanged, size_t imageCount) {

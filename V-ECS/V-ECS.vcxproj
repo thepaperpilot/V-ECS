@@ -161,7 +161,13 @@
     <ClCompile Include="engine\Device.cpp" />
     <ClCompile Include="engine\Manifest.cpp" />
     <ClCompile Include="events\EventManager.cpp" />
+    <ClCompile Include="gui\GUIRenderer.cpp" />
     <ClCompile Include="input\ControllerSystem.cpp" />
+    <ClCompile Include="libs\imgui\examples\imgui_impl_glfw.cpp" />
+    <ClCompile Include="libs\imgui\imgui.cpp" />
+    <ClCompile Include="libs\imgui\imgui_demo.cpp" />
+    <ClCompile Include="libs\imgui\imgui_draw.cpp" />
+    <ClCompile Include="libs\imgui\imgui_widgets.cpp" />
     <ClCompile Include="movement\MovementSystem.cpp" />
     <ClCompile Include="rendering\DepthTexture.cpp" />
     <ClCompile Include="rendering\SubRenderer.cpp" />
@@ -170,7 +176,6 @@
     <ClCompile Include="voxel\rendering\MeshRendererSystem.cpp" />
     <ClCompile Include="voxel\rendering\VoxelRenderer.cpp" />
     <ClCompile Include="voxel\systems\ChunkSystem.cpp" />
-    <ClCompile Include="ui\Display.cpp" />
     <ClCompile Include="engine\Engine.cpp" />
     <ClCompile Include="ecs\EntityQuery.cpp" />
     <ClCompile Include="main.cpp" />
@@ -189,10 +194,14 @@
     <ClInclude Include="events\AddVerticesEvent.h" />
     <ClInclude Include="events\RemoveVerticesEvent.h" />
     <ClInclude Include="events\WindowResizeEvent.h" />
+    <ClInclude Include="gui\GUIComponent.h" />
+    <ClInclude Include="gui\GUIRenderer.h" />
     <ClInclude Include="input\ControlledComponent.h" />
     <ClInclude Include="input\ControllerSystem.h" />
     <ClInclude Include="input\InputEvents.h" />
     <ClInclude Include="libs\FrustumCull.h" />
+    <ClInclude Include="libs\imgui\examples\imgui_impl_glfw.h" />
+    <ClInclude Include="libs\imgui\imgui.h" />
     <ClInclude Include="libs\octree\array.h" />
     <ClInclude Include="libs\octree\array2d.h" />
     <ClInclude Include="libs\octree\numtraits.h" />
@@ -222,7 +231,6 @@
     <ClInclude Include="voxel\rendering\Vertex.h" />
     <ClInclude Include="voxel\rendering\VoxelRenderer.h" />
     <ClInclude Include="voxel\systems\ChunkSystem.h" />
-    <ClInclude Include="ui\Display.h" />
     <ClInclude Include="engine\Engine.h" />
     <ClInclude Include="ecs\EntityQuery.h" />
     <ClInclude Include="events\EventManager.h" />
@@ -264,5 +272,31 @@
     <Content Include="resources\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\imgui.frag">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\imgui.vert">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
+    </CustomBuild>
   </ItemGroup>
 </Project>

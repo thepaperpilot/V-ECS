@@ -20,12 +20,18 @@ namespace vecs {
 		// TODO serialize and deserialize functions
 	};
 
+	// Forward declare World because we're just about to define it
+	class World;
 	struct StartRenderingSystem : public System {
 		Renderer* renderer;
+		World* world;
 
-		StartRenderingSystem(Renderer* renderer) { this->renderer = renderer; }
+		StartRenderingSystem(Renderer* renderer, World* world) {
+			this->renderer = renderer;
+			this->world = world;
+		}
 
-		virtual void update() override { renderer->acquireImage(); }
+		virtual void update() override;
 	};
 
 	// The World contains all of the program's Systems
@@ -34,12 +40,14 @@ namespace vecs {
 	// type that handles storing data for that component (e.g. SOA instead of AOS).
 	class World {
 		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
-		friend class ArchetypeBuilder;
 	public:
+		Renderer renderer;
+
 		double deltaTime = 0;
 		bool cancelUpdate = false;
+		bool activeWorld = false;
 
-		World() : startRenderingSystem(&renderer) {
+		World() : startRenderingSystem(&renderer, this) {
 			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
 		};
 
@@ -104,10 +112,14 @@ namespace vecs {
 		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
 
-		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
+		void preInit(Device* device, GLFWwindow* window) {
 			this->device = device;
 			this->window = window;
 
+			preInit();
+		}
+
+		void init(VkSurfaceKHR surface) {
 			init();
 
 			this->renderer.init(device, surface, window);
@@ -115,6 +127,7 @@ namespace vecs {
 
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
+		virtual void preInit() {};
 		virtual void init() {};
 		void update(double deltaTime);
 		void cleanup();
@@ -122,8 +135,6 @@ namespace vecs {
 	protected:
 		Device* device;
 		GLFWwindow* window;
-
-		Renderer renderer;
 
 		// Optional function for child classes to cleanup anything they need to
 		// This won't get called automatically by the Engine because Worlds may

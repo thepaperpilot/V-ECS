@@ -9,6 +9,9 @@
 #include "voxel/components/BlockComponent.h"
 #include "voxel/rendering/MeshComponent.h"
 #include "voxel/components/ChunkBuilder.h"
+#include "gui/GUIRenderer.h"
+
+#include <thread>
 
 using namespace vecs;
 
@@ -18,15 +21,17 @@ uint16_t chunksPerAxis = 8;
 uint16_t chunkSize = 16;
 
 VoxelWorld game(chunkSize);
+World loading;
 
 void preCleanup() {
     // Cleanup our worlds
-    game.cleanup();
+    if (loading.activeWorld) loading.cleanup();
+    else {
+        game.cleanup();
+    }
 }
 
-int main() {
-    app.preCleanup = preCleanup;
-
+void loadGame() {
     // Set up temporary chunks
     int totalChunks = chunksPerAxis * chunksPerAxis * chunksPerAxis;
     int totalBlocks = totalChunks * chunkSize * chunkSize * chunkSize;
@@ -39,8 +44,24 @@ int main() {
         }
     }
 
-    // Set initial world
+    // Setup world and run first update so the meshes are generated,
+    // and only then do we switch the world to the new one
     app.setupWorld(&game);
+
+    // Change world and cleanup loading world
+    app.setWorld(&game, false, true);
+}
+
+int main() {
+    app.preCleanup = preCleanup;
+
+    // Create thread to load our chunks
+    std::thread loadingThread(loadGame);
+
+    // Create loading screen world
+    GUIRenderer loadingScreenRenderer;
+    loading.renderer.registerSubRenderer(&loadingScreenRenderer);
+    app.setWorld(&loading);
 
     try {
         app.run();
@@ -48,6 +69,9 @@ int main() {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
+
+    if (loadingThread.joinable())
+        loadingThread.join();
 
     return EXIT_SUCCESS;
 }

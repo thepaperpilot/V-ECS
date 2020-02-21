@@ -2,8 +2,11 @@
 
 using namespace vecs;
 
-VkResult Buffer::map(VkDeviceSize size, VkDeviceSize offset) {
-	return vkMapMemory(*device, memory, offset, size, 0, &mapped);
+void* Buffer::map(VkDeviceSize size, VkDeviceSize offset) {
+	if (vkMapMemory(*device, memory, offset, size, 0, &mapped) != VK_SUCCESS) {
+		throw std::runtime_error("failed to map memory!");
+	}
+	return mapped;
 }
 
 void Buffer::unmap() {
@@ -14,11 +17,19 @@ void Buffer::unmap() {
 }
 
 void Buffer::copyTo(void* data, VkDeviceSize size) {
-	if (mapped) memcpy(mapped, data, size);
+	if (mapped) {
+		memcpy(mapped, data, size);
+	}
 	else {
 		map(size);
 		memcpy(mapped, data, size);
 		unmap();
+	}
+}
+
+void Buffer::copyTo(void* position, void* data, VkDeviceSize size) {
+	if (mapped) {
+		memcpy(position, data, size);
 	}
 }
 

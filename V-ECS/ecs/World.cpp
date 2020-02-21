@@ -80,7 +80,8 @@ void World::update(double deltaTime) {
 	}
 	cancelUpdate = false;
 
-	renderer.presentImage();
+	if (activeWorld)
+		renderer.presentImage();
 }
 
 void World::cleanup() {
@@ -90,3 +91,5 @@ void World::cleanup() {
 	for (auto archetype : archetypes)
 		archetype->cleanup(&device->logical);
 }
+
+void StartRenderingSystem::update() { if (world->activeWorld) renderer->acquireImage(); }

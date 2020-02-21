@@ -19,6 +19,8 @@ namespace vecs {
 	class Renderer {
 	friend class SubRenderer;
 	public:
+		GLFWwindow* window;
+
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
@@ -36,7 +38,6 @@ namespace vecs {
 	private:
 		Device* device;
 		VkSurfaceKHR surface;
-		GLFWwindow* window;
 
 		VkSurfaceFormatKHR surfaceFormat;
 		VkFormat swapChainImageFormat;

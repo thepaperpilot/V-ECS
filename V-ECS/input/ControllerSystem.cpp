@@ -24,22 +24,28 @@ void ControllerSystem::init() {
 	controlled.filter.with(typeid(VelocityComponent));
 	controlled.filter.with(typeid(CameraComponent));
 	world->addQuery(&controlled);
-
-	// Setup our event listeners
-	EventManager::addListener(this, &ControllerSystem::onMouseMove);
-	EventManager::addListener(this, &ControllerSystem::onLeftMousePress);
-	EventManager::addListener(this, &ControllerSystem::onLeftMouseRelease);
-	EventManager::addListener(this, &ControllerSystem::onRightMousePress);
-	EventManager::addListener(this, &ControllerSystem::onVerticalScroll);
-	EventManager::addListener(this, &ControllerSystem::onKeyPress);
-	EventManager::addListener(this, &ControllerSystem::onKeyRelease);
-
-	// Get our initial cursor position so we can calculate delta movement later
-	glfwGetCursorPos(window, &lastX, &lastY);
-	onControlledAdded();
 }
 
 void ControllerSystem::update() {
+	if (!world->activeWorld) return;
+	if (firstUpdate) {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		
+		// Get our initial cursor position so we can calculate delta movement later
+		glfwGetCursorPos(window, &lastX, &lastY);
+		
+		// Setup our event listeners
+		EventManager::addListener(this, &ControllerSystem::onMouseMove);
+		EventManager::addListener(this, &ControllerSystem::onLeftMousePress);
+		EventManager::addListener(this, &ControllerSystem::onLeftMouseRelease);
+		EventManager::addListener(this, &ControllerSystem::onRightMousePress);
+		EventManager::addListener(this, &ControllerSystem::onVerticalScroll);
+		EventManager::addListener(this, &ControllerSystem::onKeyPress);
+		EventManager::addListener(this, &ControllerSystem::onKeyRelease);
+
+		firstUpdate = false;
+		return;
+	}
 	for (auto archetype : controlled.matchingArchetypes) {
 		auto controlledComponents = archetype->getComponentList(typeid(ControlledComponent));
 		auto velocityComponents = archetype->getComponentList(typeid(VelocityComponent));
@@ -96,26 +102,6 @@ void ControllerSystem::update() {
 			}
 		}
 	}
-}
-
-void ControllerSystem::onControlledAdded() {
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-}
-
-void ControllerSystem::onControlledRemoved() {
-	/*
-	if (controlled.entities.size() == 0)
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-
-	// Reset inputs and velocity, so they don't move if they're just paused
-	if (world->hasComponentType(entity, typeid(ControlledComponent)) &&
-		world->hasComponentType(entity, typeid(VelocityComponent))) {
-		ControlledComponent* controller = world->getComponent<ControlledComponent>(entity);
-		controller->inputs = 0;
-		VelocityComponent* velocity = world->getComponent<VelocityComponent>(entity);
-		velocity->velocity = glm::vec3(0);
-	}
-	*/
 }
 
 void ControllerSystem::onMouseMove(MouseMoveEvent* event) {

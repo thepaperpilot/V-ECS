@@ -30,9 +30,10 @@ namespace vecs {
 			this->propertiesFlags = propertiesFlags;
 		}
 		
-		VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+		void* map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 		void unmap();
         void copyTo(void* data, VkDeviceSize size);
+		void copyTo(void* position, void* data, VkDeviceSize size);
         void cleanup();
 
         operator VkBuffer() { return buffer; };
