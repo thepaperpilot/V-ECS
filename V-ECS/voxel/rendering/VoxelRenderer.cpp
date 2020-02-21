@@ -1,6 +1,6 @@
 #include "VoxelRenderer.h"
 #include "MeshComponent.h"
-#include "FrustumCull.h"
+#include "../../libs/FrustumCull.h"
 #include "../../ecs/World.h"
 
 #include <glm/glm.hpp>

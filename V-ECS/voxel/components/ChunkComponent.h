@@ -4,7 +4,7 @@
 
 #include "../../ecs/World.h"
 
-#include "../../octree/octree.h"
+#include "../../libs/octree/octree.h"
 
 namespace vecs {
 

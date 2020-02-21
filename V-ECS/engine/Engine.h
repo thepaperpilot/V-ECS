@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #include "Debugger.h"
+#include "Manifest.h"
 
 // Forward Declarations
 struct GLFWwindow;
@@ -22,15 +23,6 @@ namespace vecs {
     // https://github.com/SaschaWillems/Vulkan
     class Engine {
     public:
-        // These values are used for the initial size of the window,
-        // but the window may be resizable (or changed via code later on)
-        int windowWidth = 1280;
-        int windowHeight = 720;
-
-        // This value is used for the intial title of the window
-        const char* applicationName = "A V-ECS Application";
-        uint32_t applicationVersion;
-
         Device* device;
         GLFWwindow* window;
 
@@ -50,6 +42,7 @@ namespace vecs {
         VkSurfaceKHR surface;
         World* world;
         Debugger debugger;
+        Manifest manifest;
 
         double lastFrameTime;
 

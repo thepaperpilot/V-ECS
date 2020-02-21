@@ -159,6 +159,7 @@
     <ClCompile Include="engine\Buffer.cpp" />
     <ClCompile Include="engine\Debugger.cpp" />
     <ClCompile Include="engine\Device.cpp" />
+    <ClCompile Include="engine\Manifest.cpp" />
     <ClCompile Include="events\EventManager.cpp" />
     <ClCompile Include="input\ControllerSystem.cpp" />
     <ClCompile Include="movement\MovementSystem.cpp" />
@@ -184,12 +185,21 @@
     <ClInclude Include="engine\Debugger.h" />
     <ClInclude Include="engine\Device.h" />
     <ClInclude Include="engine\GLFWEvents.h" />
+    <ClInclude Include="engine\Manifest.h" />
     <ClInclude Include="events\AddVerticesEvent.h" />
     <ClInclude Include="events\RemoveVerticesEvent.h" />
     <ClInclude Include="events\WindowResizeEvent.h" />
     <ClInclude Include="input\ControlledComponent.h" />
     <ClInclude Include="input\ControllerSystem.h" />
     <ClInclude Include="input\InputEvents.h" />
+    <ClInclude Include="libs\FrustumCull.h" />
+    <ClInclude Include="libs\octree\array.h" />
+    <ClInclude Include="libs\octree\array2d.h" />
+    <ClInclude Include="libs\octree\numtraits.h" />
+    <ClInclude Include="libs\octree\octree.h" />
+    <ClInclude Include="libs\octree\point3d.h" />
+    <ClInclude Include="libs\octree\shareddata.h" />
+    <ClInclude Include="libs\octree\tinyvector.h" />
     <ClInclude Include="movement\MovementSystem.h" />
     <ClInclude Include="movement\PositionComponent.h" />
     <ClInclude Include="movement\VelocityComponent.h" />
@@ -201,6 +211,7 @@
     <ClInclude Include="rendering\SubRenderer.h" />
     <ClInclude Include="rendering\Texture.h" />
     <ClInclude Include="rendering\Vertex.h" />
+    <ClInclude Include="util\LuaUtils.h" />
     <ClInclude Include="voxel\components\BlockComponent.h" />
     <ClInclude Include="voxel\components\ChunkBuilder.h" />
     <ClInclude Include="voxel\components\ChunkComponent.h" />
@@ -223,12 +234,12 @@
   <ItemGroup>
     <CustomBuild Include="shaders\shader.vert">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-vert.spv"</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RootDir)%(Directory)%(Filename)-vert.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-vert.spv"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)-vert.spv</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-vert.spv"</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)-vert.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-vert.spv</Outputs>
     </CustomBuild>
@@ -236,12 +247,12 @@
   <ItemGroup>
     <CustomBuild Include="shaders\shader.frag">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-frag.spv"</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RootDir)%(Directory)%(Filename)-frag.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-frag.spv"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)-frag.spv</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)-frag.spv"</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)-frag.spv</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslc.exe "%(FullPath)" -o "%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(DefiningProjectDirectory)resources\%(RelativeDir)%(Filename)-frag.spv</Outputs>
     </CustomBuild>
@@ -251,7 +262,7 @@
   </ImportGroup>
   <ItemGroup>
     <Content Include="resources\**">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-</ItemGroup>
+  </ItemGroup>
 </Project>

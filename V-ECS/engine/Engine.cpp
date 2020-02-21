@@ -41,7 +41,7 @@ void Engine::initWindow() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    window = glfwCreateWindow(windowWidth, windowHeight, applicationName, nullptr, nullptr);
+    window = glfwCreateWindow(manifest.windowWidth, manifest.windowHeight, manifest.applicationName.c_str(), nullptr, nullptr);
 
     // Enable raw mouse motion when cursor is disabled
     if (glfwRawMouseMotionSupported())
@@ -79,8 +79,8 @@ void Engine::createInstance() {
     // as well as the engine version, name, etc. (hardcoded)
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = applicationName;
-    appInfo.applicationVersion = applicationVersion || VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pApplicationName = manifest.applicationName.c_str();
+    appInfo.applicationVersion = manifest.applicationVersion || nullptr;
     appInfo.pEngineName = "Voxel-ECS";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
