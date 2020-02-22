@@ -4,6 +4,7 @@
 
 #include "Debugger.h"
 #include "Manifest.h"
+#include "../rendering/Renderer.h"
 
 // Forward Declarations
 struct GLFWwindow;
@@ -11,7 +12,6 @@ struct GLFWwindow;
 namespace vecs {
 
     // Forward Declarations
-    class Renderer;
     class Device;
     class World;
 
@@ -25,10 +25,16 @@ namespace vecs {
     public:
         Device* device;
         GLFWwindow* window;
+        World* world;
 
-        Engine();
+        Renderer renderer;
 
-        void setupWorld(World* world);
+        Engine() : renderer(this) {
+            initWindow();
+            initVulkan();
+            renderer.init(device, surface, window);
+        };
+
         void setWorld(World* world, bool init = true, bool cleanupWorld = false);
 
         void run();
@@ -41,7 +47,7 @@ namespace vecs {
     private:
         VkInstance instance;
         VkSurfaceKHR surface;
-        World* world;
+        World* nextWorld;
         Debugger debugger;
         Manifest manifest;
 

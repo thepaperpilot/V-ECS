@@ -20,31 +20,20 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
     EventManager::fire(event);
 }
 
-Engine::Engine() {
-    initWindow();
-    initVulkan();
-}
-
-void Engine::setupWorld(World* world) {
-    // TODO improve loading thread so this is not necessary
-    if (window == nullptr) return;
-    world->preInit(device, window);
-}
-
 void Engine::setWorld(World* world, bool init, bool cleanupWorld) {
     // TODO improve loading thread so this is not necessary
     if (window == nullptr) return;
 
     if (init)
-        setupWorld(world);
+        world->init(device, window);
 
-    world->init(surface);
-    if (this->world != nullptr)
-        this->world->activeWorld = false;
-
-    this->cleanupWorld = cleanupWorld;
-    this->world = world;
-    this->world->activeWorld = true;
+    if (this->world == nullptr) {
+        world->activeWorld = true;
+        this->world = world;
+    } else {
+        this->cleanupWorld = cleanupWorld;
+        this->nextWorld = world;
+    }
 }
 
 void Engine::run() {
@@ -165,8 +154,20 @@ void Engine::mainLoop() {
         double currentTime = glfwGetTime();
         World* world = this->world;
         world->update(currentTime - lastFrameTime);
-        if (world != this->world && cleanupWorld)
-            world->cleanup();
+
+        if (nextWorld != nullptr) {
+            vkDeviceWaitIdle(*device);
+            // Handle world trade-off
+            if (cleanupWorld)
+                this->world->cleanup();
+            this->world->activeWorld = false;
+            this->world = nextWorld;
+            this->world->activeWorld = true;
+            for (auto subrenderer : this->world->subrenderers) {
+                subrenderer->windowRefresh(true, renderer.imageCount);
+            }
+            nextWorld = nullptr;
+        }
         lastFrameTime = currentTime;
     }
     vkDeviceWaitIdle(*device);
@@ -182,6 +183,8 @@ void Engine::cleanup() {
     if (debugger.enableValidationLayers) {
         debugger.cleanup(instance);
     }
+
+    renderer.cleanup();
 
     // Destroy our logical device
     device->cleanup();

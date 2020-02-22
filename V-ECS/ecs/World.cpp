@@ -81,13 +81,17 @@ void World::update(double deltaTime) {
 	cancelUpdate = false;
 
 	if (activeWorld)
-		renderer.presentImage();
+		renderer->presentImage(&subrenderers);
 }
 
 void World::cleanup() {
-	renderer.cleanup();
 	cleanupSystems();
 
+	// Destroy our sub-renderers
+	for (auto subrenderer : subrenderers)
+		subrenderer->cleanup();
+
+	// Destroy all our entities
 	for (auto archetype : archetypes)
 		archetype->cleanup(&device->logical);
 }

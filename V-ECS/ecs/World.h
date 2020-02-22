@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "../rendering/Renderer.h"
+#include "../rendering/SubRenderer.h"
 #include "EntityQuery.h"
 #include "System.h"
 #include "Archetype.h"
@@ -41,13 +42,16 @@ namespace vecs {
 	class World {
 		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
 	public:
-		Renderer renderer;
+		Renderer* renderer;
 
 		double deltaTime = 0;
 		bool cancelUpdate = false;
 		bool activeWorld = false;
 
-		World() : startRenderingSystem(&renderer, this) {
+		std::vector<SubRenderer*> subrenderers;
+
+		World(Renderer* renderer) : startRenderingSystem(renderer, this) {
+			this->renderer = renderer;
 			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
 		};
 
@@ -112,23 +116,20 @@ namespace vecs {
 		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
 
-		void preInit(Device* device, GLFWwindow* window) {
+		void init(Device* device, GLFWwindow* window) {
 			this->device = device;
 			this->window = window;
 
 			preInit();
+
+			// Initialize our sub-renderers
+			for (auto subrenderer : subrenderers)
+				subrenderer->init(device, renderer);
 		}
-
-		void init(VkSurfaceKHR surface) {
-			init();
-
-			this->renderer.init(device, surface, window);
-		};
 
 		// Optional function for child classes to setup anything they need to
 		// whenever setting the world up
 		virtual void preInit() {};
-		virtual void init() {};
 		void update(double deltaTime);
 		void cleanup();
 

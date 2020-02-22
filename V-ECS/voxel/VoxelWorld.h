@@ -55,13 +55,17 @@ namespace vecs {
 	// systems for rendering a voxel-based world
 	class VoxelWorld : public World {
 	public:
-		VoxelWorld(uint16_t chunkSize);
+		VoxelWorld(Renderer* renderer, uint16_t chunkSize) : World(renderer) {
+			this->chunkSize = chunkSize;
+		};
 
-		// Overidden to cleanup our required systems
-		void init() override;
 		void preInit() override;
 
+		void prewarm();
+
 	private:
+		uint16_t chunkSize;
+
 		uint32_t player = 0;
 
 		VoxelRenderer voxelRenderer;

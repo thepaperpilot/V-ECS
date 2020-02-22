@@ -18,16 +18,16 @@ using namespace vecs;
 Engine app;
 
 uint16_t chunksPerAxis = 8;
-uint16_t chunkSize = 16;
+uint16_t chunkSize = 32;
 
-VoxelWorld game(chunkSize);
-World loading;
+VoxelWorld* game;
+World* loading;
 
 void preCleanup() {
     // Cleanup our worlds
-    if (loading.activeWorld) loading.cleanup();
+    if (loading->activeWorld) loading->cleanup();
     else {
-        game.cleanup();
+        game->cleanup();
     }
 }
 
@@ -35,7 +35,7 @@ void loadGame() {
     // Set up temporary chunks
     int totalChunks = chunksPerAxis * chunksPerAxis * chunksPerAxis;
     int totalBlocks = totalChunks * chunkSize * chunkSize * chunkSize;
-    ChunkBuilder chunkBuilder(&game, chunkSize);
+    ChunkBuilder chunkBuilder(game, chunkSize);
     for (int32_t x = -chunksPerAxis / 2; x < chunksPerAxis / 2; x++) {
         for (int32_t y = -chunksPerAxis / 2; y < chunksPerAxis / 2; y++) {
             for (int32_t z = -chunksPerAxis / 2; z < chunksPerAxis / 2; z++) {
@@ -44,24 +44,29 @@ void loadGame() {
         }
     }
 
-    // Setup world and run first update so the meshes are generated,
-    // and only then do we switch the world to the new one
-    app.setupWorld(&game);
+    // Call prewarm while we're still in the background thread so we're as ready as
+    // possible for rendering the first frame of voxel world.
+    // Ideally there is no freeze while switching from loading screen to game screen
+    game->prewarm();
 
     // Change world and cleanup loading world
-    app.setWorld(&game, false, true);
+    app.setWorld(game, false, true);
 }
 
 int main() {
     app.preCleanup = preCleanup;
 
-    // Create thread to load our chunks
+    // Create thread to load our game screen
+    // TODO move this to the other thread once you can give the thread its own VkQeueu
+    game = new VoxelWorld(&app.renderer, chunkSize);
+    game->init(app.device, app.window);
     std::thread loadingThread(loadGame);
 
     // Create loading screen world
     GUIRenderer loadingScreenRenderer;
-    loading.renderer.registerSubRenderer(&loadingScreenRenderer);
-    app.setWorld(&loading);
+    loading = new World(&app.renderer);
+    loading->subrenderers.push_back(&loadingScreenRenderer);
+    app.setWorld(loading);
 
     try {
         app.run();
@@ -70,8 +75,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    if (loadingThread.joinable())
-        loadingThread.join();
+    loadingThread.join();
 
     return EXIT_SUCCESS;
 }

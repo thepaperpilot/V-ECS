@@ -1,8 +1,10 @@
 #include "Renderer.h"
 #include "Texture.h"
+#include "../engine/Engine.h"
 #include "../engine/Device.h"
 #include "../events/EventManager.h"
 #include "../engine/GLFWEvents.h"
+#include "../ecs/World.h"
 
 #include <algorithm>
 #include <array>
@@ -29,10 +31,6 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
     createRenderPass();
     createFramebuffers();
     commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
-
-    // Initialize our sub-renderers
-    for (auto subrenderer : subrenderers)
-        subrenderer->init(device, this);
 
     // Create semaphores and fences for asynchronous rendering
     imageAvailableSemaphores.resize(maxFramesInFlight);
@@ -91,8 +89,8 @@ void Renderer::acquireImage() {
     imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 }
 
-void Renderer::presentImage() {
-    buildCommandBuffer();
+void Renderer::presentImage(std::vector<SubRenderer*>* subrenderers) {
+    buildCommandBuffer(subrenderers);
 
     // Create our info to submit an image to the buffers
     VkSubmitInfo submitInfo = {};
@@ -144,17 +142,7 @@ void Renderer::presentImage() {
     currentFrame = (currentFrame + 1) % maxFramesInFlight;
 }
 
-void Renderer::registerSubRenderer(SubRenderer* subrenderer) {
-    subrenderers.emplace_back(subrenderer);
-    // Don't intialize it here, because it needs to be done after we've determined, e.g., the size
-    // of our swapchain. TODO if we are initialized, then init subrenderer immediately
-}
-
 void Renderer::cleanup() {
-    // Destroy our sub-renderers
-    for (auto subrenderer : subrenderers)
-        subrenderer->cleanup();
-
     for (uint32_t i = 0; i < imageCount; i++) {
         // Destroy our swap chain images
         vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
@@ -273,7 +261,6 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     vkDeviceWaitIdle(*device);
 
     // Destroy our current resources
-    vkDestroySwapchainKHR(*device, swapChain, nullptr);
     if (depthTexture.image) depthTexture.cleanup();
     for (int i = swapChainFramebuffers.size() - 1; i >= 0; i--) {
         vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
@@ -283,7 +270,7 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // Create new ones
     // createSwapChain may (rarely) result in a new number of swap images
     // If it returns true we'll need to reconstruct a bunch of other stuff to
-    bool numImagesChanged = createSwapChain();
+    bool numImagesChanged = createSwapChain(&swapChain);
     // Other resources always need to be updated when the window size changes
     depthTexture.init(device, graphicsQueue, swapChainExtent);
     createImageViews();
@@ -300,12 +287,12 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     }
 
     // Tell sub-renderers the window size changed as well
-    for (auto subrenderer : subrenderers) {
+    for (auto subrenderer : engine->world->subrenderers) {
         subrenderer->windowRefresh(numImagesChanged, imageCount);
     }
 }
 
-bool Renderer::createSwapChain() {
+bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
     VkSurfaceCapabilitiesKHR capabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, surface, &capabilities);
     VkExtent2D extent = chooseSwapExtent(capabilities);
@@ -347,7 +334,7 @@ bool Renderer::createSwapChain() {
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : *oldSwapChain;
 
     if (vkCreateSwapchainKHR(*device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
@@ -400,7 +387,7 @@ void Renderer::createImageViews() {
     }
 }
 
-void Renderer::buildCommandBuffer() {
+void Renderer::buildCommandBuffer(std::vector<SubRenderer*>* subrenderers) {
     // Describe our render pass
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -419,11 +406,11 @@ void Renderer::buildCommandBuffer() {
     renderPassInfo.pClearValues = clearValues.data();
 
     // Make sure all our secondary command buffers are up to date
-    std::vector<VkCommandBuffer> secondaryBuffers(subrenderers.size());
-    for (int i = subrenderers.size() - 1; i >= 0; i--) {
-        if (subrenderers[i]->dirtyBuffers.count(imageIndex))
-            subrenderers[i]->buildCommandBuffer(imageIndex);
-        secondaryBuffers[i] = subrenderers[i]->commandBuffers[imageIndex];
+    std::vector<VkCommandBuffer> secondaryBuffers(subrenderers->size());
+    for (int i = subrenderers->size() - 1; i >= 0; i--) {
+        if (subrenderers->at(i)->dirtyBuffers.count(imageIndex))
+            subrenderers->at(i)->buildCommandBuffer(imageIndex);
+        secondaryBuffers[i] = subrenderers->at(i)->commandBuffers[imageIndex];
     }
 
     // Begin recording our command buffer

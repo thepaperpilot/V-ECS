@@ -13,6 +13,7 @@ const int START_RENDERING_PRIORITY = 2000;
 namespace vecs {
 
 	// Forward Declarations
+	class Engine;
 	class Device;
 	struct RefreshWindowEvent;
 
@@ -27,15 +28,18 @@ namespace vecs {
 		uint32_t imageCount = 0;
 		VkExtent2D swapChainExtent;
 
+		Renderer(Engine* engine) {
+			this->engine = engine;
+		}
+
 		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window);
 		void acquireImage();
-		void presentImage();
-
-		void registerSubRenderer(SubRenderer* subrenderer);
+		void presentImage(std::vector<SubRenderer*>* subrenderers);
 
 		void cleanup();
 
 	private:
+		Engine* engine;
 		Device* device;
 		VkSurfaceKHR surface;
 
@@ -59,16 +63,14 @@ namespace vecs {
 		std::vector<VkFence> inFlightFences;
 		std::vector<VkFence> imagesInFlight;
 
-		std::vector<SubRenderer*> subrenderers;
-
 		void createRenderPass();
 
 		void refreshWindow(RefreshWindowEvent* ignored);
-		bool createSwapChain();
+		bool createSwapChain(VkSwapchainKHR* oldSwapChain = nullptr);
 		void createFramebuffers();
 		void createImageViews();
 
-		void buildCommandBuffer();
+		void buildCommandBuffer(std::vector<SubRenderer*>* subrenderers);
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
