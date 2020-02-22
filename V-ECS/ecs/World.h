@@ -61,53 +61,80 @@ namespace vecs {
 		Archetype* getArchetype(std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr);
 		Archetype* getArchetype(uint32_t entity);
 
-		Archetype* addComponents(uint32_t entity, std::unordered_set<std::type_index> components) {
-			Archetype* oldArchetype = getArchetype(entity);
-			ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
-
+		Archetype* addComponents(std::vector<uint32_t> entities, std::unordered_set<std::type_index> components) {
+			Archetype* oldArchetype = getArchetype(*entities.begin());
 			// Make new list of components
 			components.insert(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end());
 			// Find/create archetype for this set of components
 			Archetype* newArchetype = getArchetype(components, &oldArchetype->sharedComponents);
-			// Add entity to new archetype
-			size_t newIndex = newArchetype->addEntities({ entity });
 
-			// Copy components over to new archetype
-			for (auto component : oldArchetype->componentTypes) {
-				// How slow is this?
-				// Concerned about performance when needing to add components to many entities at once
-				newArchetype->getComponentList(component)[newIndex] = oldArchetype->getComponentList(component)[oldIndex];
+			uint16_t numComponents = components.size();
+			std::vector<std::vector<Component*>*> oldComponents(numComponents);
+			std::vector<std::vector<Component*>*> newComponents(numComponents);
+			uint16_t i = 0;
+			for (auto type : oldArchetype->componentTypes) {
+				oldComponents[i] = oldArchetype->getComponentList(type);
+				newComponents[i] = newArchetype->getComponentList(type);
+				i++;
 			}
 
-			// Remove entity from old archetype
-			oldArchetype->removeEntities({ entity });
+			// Add entities to new archetype
+			size_t newIndex = newArchetype->addEntities(entities);
+
+			// Copy components over to new archetype
+			for (uint32_t entity : entities) {
+				ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
+
+				for (uint16_t i = 0; i < numComponents; i++) {
+					newComponents[i][newIndex] = oldComponents[i][oldIndex];
+				}
+
+				newIndex++;
+			}
+
+			// Remove entities from old archetype
+			oldArchetype->removeEntities(entities);
 
 			// Return new archetype so it can be used to set the values of the new components
 			return newArchetype;
 		};
 		bool hasComponentType(uint32_t entity, std::type_index component_t);
 		template <class Component>
-		Archetype* removeComponents(uint32_t entity, std::unordered_set<std::type_index> components) {
-			Archetype* oldArchetype = getArchetype(entity);
-			ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
-
+		Archetype* removeComponents(std::vector<uint32_t> entities, std::unordered_set<std::type_index> components) {
+			Archetype* oldArchetype = getArchetype(*entities.begin());
 			// Make new list of components
 			std::unordered_set<std::type_index> newComponents;
 			std::copy_if(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end(), std::back_inserter(newComponents),
 				[&components](int needle) { return !components.count(needle); });
 			// Find/create archetype for this set of components
 			Archetype* newArchetype = getArchetype(newComponents, &oldArchetype->sharedComponents);
-			// Add entity to new archetype
-			size_t newIndex = newArchetype->addEntities({ entity });
-
-			// Copy components over to new archetype
-			for (auto component : oldArchetype->componentTypes) {
-				if (!components.count(component))
-					newArchetype->getComponentList(component)[newIndex] = oldArchetype->getComponentList(component)[oldIndex];
+			
+			uint16_t numComponents = newComponents.size();
+			std::vector<std::vector<Component*>*> oldComponents(numComponents);
+			std::vector<std::vector<Component*>*> newComponents(numComponents);
+			uint16_t i = 0;
+			for (auto type : components) {
+				oldComponents[i] = oldArchetype->getComponentList(type);
+				newComponents[i] = newArchetype->getComponentList(type);
+				i++;
 			}
 
-			// Remove entity from old archetype
-			oldArchetype->removeEntities({ entity });
+			// Add entities to new archetype
+			size_t newIndex = newArchetype->addEntities(entities);
+
+			// Copy components over to new archetype
+			for (uint32_t entity : entities) {
+				ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
+
+				for (auto component : components) {
+					newComponents[newIndex] = oldComponents[oldIndex];
+				}
+
+				newIndex++;
+			}
+
+			// Remove entities from old archetype
+			oldArchetype->removeEntities(entities);
 
 			// Return new archetype
 			return newArchetype;
