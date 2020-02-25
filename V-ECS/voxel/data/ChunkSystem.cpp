@@ -50,12 +50,12 @@ void ChunkSystem::update() {
 					if (otherChunk->x == chunk->x) {
 						if (otherChunk->y == chunk->y) {
 							if (otherChunk->z == chunk->z + 1) {
-								front = otherChunk;
-								frontMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
-							}
-							else if (otherChunk->z == chunk->z - 1) {
 								back = otherChunk;
 								backMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
+							}
+							else if (otherChunk->z == chunk->z - 1) {
+								front = otherChunk;
+								frontMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
 							}
 						}
 						else if (otherChunk->z == chunk->z) {
@@ -71,12 +71,12 @@ void ChunkSystem::update() {
 					}
 					else if (otherChunk->y == chunk->y && otherChunk->z == chunk->z) {
 						if (otherChunk->x == chunk->x + 1) {
-							right = otherChunk;
-							rightMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
-						}
-						else if (otherChunk->x == chunk->x - 1) {
 							left = otherChunk;
 							leftMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
+						}
+						else if (otherChunk->x == chunk->x - 1) {
+							right = otherChunk;
+							rightMesh = static_cast<MeshComponent*>(otherMeshComponents->at(i));
 						}
 					}
 				}
@@ -144,32 +144,32 @@ void ChunkSystem::checkAddedBlock(uint32_t entity, glm::u16vec3 internalPos, Chu
 
 	// Top Face
 	checkFace({ x, y + 1, z }, { x + 1, y + 1, z + 1 }, blockComponent->top, true, internalPos.y == chunkSize - 1,
-		internalPos + glm::u16vec3{ 0, 1, 0 }, internalPos + glm::u16vec3{ 0, -chunkSize + 1, 0 },
+		internalPos + glm::u16vec3{ 0, 1, 0 }, { internalPos.x, 0, internalPos.z },
 		chunk, mesh, top, topMesh, { x + 1, 0, z + 1 }, { x, 0, z });
 
 	// Bottom Face
 	checkFace({ x, y, z }, { x + 1, y, z + 1 }, blockComponent->bottom, false, internalPos.y == 0,
-		internalPos + glm::u16vec3{ 0, -1, 0 }, internalPos + glm::u16vec3{ 0, chunkSize - 1, 0 },
+		internalPos + glm::u16vec3{ 0, -1, 0 }, { internalPos.x, chunkSize - 1, internalPos.z },
 		chunk, mesh, bottom, bottomMesh, { x + 1, chunkSize - 1, z + 1 }, { x, chunkSize - 1, z });
 
 	// Back Face
 	checkFace({ x + 1, y + 1, z + 1 }, { x, y, z + 1 }, blockComponent->back, false, internalPos.z == chunkSize - 1,
-		internalPos + glm::u16vec3{ 0, 0, 1 }, internalPos + glm::u16vec3{ 0, 0, -chunkSize + 1 },
+		internalPos + glm::u16vec3{ 0, 0, 1 }, { internalPos.x, internalPos.y, 0 },
 		chunk, mesh, back, backMesh, { x, y, 0 }, { x + 1, y + 1, 0 });
 
 	// Front Face
 	checkFace({ x, y, z }, { x + 1, y + 1, z }, blockComponent->front, true, internalPos.z == 0,
-		internalPos + glm::u16vec3{ 0, 0, -1 }, internalPos + glm::u16vec3{ 0, 0, chunkSize - 1 },
+		internalPos + glm::u16vec3{ 0, 0, -1 }, { internalPos.x, internalPos.y, chunkSize - 1 },
 		chunk, mesh, front, frontMesh, { x + 1, y + 1, chunkSize - 1 }, { x, y, chunkSize - 1 });
 
 	// Left Face
 	checkFace({ x + 1, y, z }, { x + 1, y + 1, z + 1 }, blockComponent->left, true, internalPos.x == chunkSize - 1,
-		internalPos + glm::u16vec3{ 1, 0, 0 }, internalPos + glm::u16vec3{ -chunkSize + 1, 0, 0 },
+		internalPos + glm::u16vec3{ 1, 0, 0 }, { 0, internalPos.y, internalPos.z },
 		chunk, mesh, left, leftMesh, { 0, y + 1, z + 1 }, { 0, y, z });
 
 	// Right Face
 	checkFace({ x, y, z + 1 }, { x, y + 1, z }, blockComponent->right, true, internalPos.x == 0,
-		internalPos + glm::u16vec3{ -1, 0, 0 }, internalPos + glm::u16vec3{ chunkSize - 1, 0, 0 },
+		internalPos + glm::u16vec3{ -1, 0, 0 }, { chunkSize - 1, internalPos.y, internalPos.z },
 		chunk, mesh, right, rightMesh, { chunkSize - 1, y + 1, z }, { chunkSize - 1, y, z + 1 });
 }
 
@@ -192,7 +192,6 @@ void ChunkSystem::checkFace(glm::vec3 p0, glm::vec3 p1, glm::vec4 uvs, bool cloc
 
 		// If neither if statement triggers it means we just added this block and the one next to it, so
 		//  there's no face to remove, we just won't add it in the first place
-		mesh->addFace(p0, p1, uvs, clockWise);
 	} else {
 		// If there's no block next to us, then add a new face to our geometry
 		mesh->addFace(p0, p1, uvs, clockWise);
