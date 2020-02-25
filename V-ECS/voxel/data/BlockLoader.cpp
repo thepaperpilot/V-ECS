@@ -56,8 +56,8 @@ VkDescriptorImageInfo BlockLoader::loadBlocks(Device* device, VkQueue copyQueue)
 	blocks.reserve(resources.size());
 	for (auto resource : resources) {
 		if (luaL_loadfile(L, resource.c_str()) || lua_pcall(L, 0, 0, 0)) {
-			// TODO how to get the errors from luabridge?
-			std::cout << "Failed to load block " << resource << std::endl;
+			std::cout << "Failed to load block " << resource << ":" << std::endl;
+			std::cout << lua_tostring(L, -1) << std::endl;
 			continue;
 		}
 
