@@ -18,7 +18,7 @@ using namespace vecs;
 Engine app;
 
 uint16_t chunksPerAxis = 8;
-uint16_t chunkSize = 8;
+uint16_t chunkSize = 16;
 
 VoxelWorld* game;
 World* loading;

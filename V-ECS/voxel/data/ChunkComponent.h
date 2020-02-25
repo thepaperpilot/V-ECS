@@ -19,7 +19,5 @@ namespace vecs {
 		Octree<uint32_t> blocks;
 		std::unordered_set<glm::u16vec3> addedBlocks;
 		std::unordered_set<glm::u16vec3> removedBlocks;
-
-		bool justCreated = true;
 	};
 }

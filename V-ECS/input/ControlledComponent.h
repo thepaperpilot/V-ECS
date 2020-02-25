@@ -5,7 +5,7 @@
 namespace vecs {
 
 	struct ControlledComponent : public Component {
-		float speed = 2;
+		float speed = 5;
 		float lookSpeed = 0.1;
 
 		// Inputs is a set of bitwise flags

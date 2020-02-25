@@ -41,7 +41,6 @@ struct SubTexture {
 // you could add things like normal maps and stuff completely through lua
 VkDescriptorImageInfo BlockLoader::loadBlocks(Device* device, VkQueue copyQueue) {
 	auto L = getState();
-	getGlobalNamespace(L);
 
 	using spaces_type = empty_spaces<false, default_empty_spaces>;
 	using rect_type = output_rect_t<spaces_type>;

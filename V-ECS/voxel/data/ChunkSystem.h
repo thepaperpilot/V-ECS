@@ -15,6 +15,9 @@ namespace vecs {
 
 	class ChunkSystem : public System {
 	public:
+		static void addBlockFaces(BlockComponent* blockComponent, glm::u16vec3 internalPos,
+			uint16_t chunkSize, glm::i32vec3 chunkPos, Octree<uint32_t>* blocks, MeshComponent* mesh);
+
 		ChunkSystem(uint16_t chunkSize) {
 			this->chunkSize = chunkSize;
 		}
@@ -26,17 +29,5 @@ namespace vecs {
 		uint16_t chunkSize;
 
 		EntityQuery chunks;
-
-		void checkAddedBlock(uint32_t entity, glm::u16vec3 internalPos, ChunkComponent* chunk, MeshComponent* mesh,
-			ChunkComponent* top, MeshComponent* topMesh, ChunkComponent* bottom, MeshComponent* bottomMesh,
-			ChunkComponent* back, MeshComponent* backMesh, ChunkComponent* front, MeshComponent* frontMesh,
-			ChunkComponent* left, MeshComponent* leftMesh, ChunkComponent* right, MeshComponent* rightMesh);
-
-		// Internal offset is the blockPos difference between this block and a theoretical one next to this one
-		// inside this chunk along the correct axis
-		// External offset is for the theoretical block next to this one in an adjacent chunk
-		void checkFace(glm::vec3 p0, glm::vec3 p1, glm::vec4 uvs, bool clockWise, bool isOnEdge,
-			glm::u16vec3 internalPos, glm::u16vec3 externalPos, ChunkComponent* chunk, MeshComponent* mesh,
-			ChunkComponent* adjacentChunk, MeshComponent* adjacentMesh, glm::vec3 adjacentP0, glm::vec3 adjacentP1);
 	};
 }
