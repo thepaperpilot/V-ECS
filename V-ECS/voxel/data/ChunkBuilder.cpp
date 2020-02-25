@@ -72,9 +72,9 @@ public:
 	void setBlock(uint32_t blockPos, ArchetypeHandle* archetype) {
 		// Lua starts at 1, so we need to deal with 1 less than blockPos
 		blockPos--;
-		uint16_t z = (blockPos / (chunkSize * chunkSize));
+		uint16_t x = (blockPos / (chunkSize * chunkSize));
 		uint16_t y = blockPos % (chunkSize * chunkSize) / chunkSize;
-		uint16_t x = chunkSize - 1 - blockPos % chunkSize;
+		uint16_t z = blockPos % chunkSize;
 		
 		blocks.set(x, y, z, archetype);
 	}

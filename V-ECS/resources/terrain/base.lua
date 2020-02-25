@@ -15,7 +15,7 @@ terrain = {
 		local noiseSet = terrainNoise:getNoiseSet(x, y, z, blocks.chunkSize)
 		for point,density in pairs(noiseSet) do
 			local internalY = (point - 1) % (blocks.chunkSize * blocks.chunkSize) / blocks.chunkSize
-			local archetype = biomes["Plain"].getArchetype(density, y * blocks.chunkSize + internalY)
+			local archetype = biomes["Plain"].getArchetype(density, y * blocks.chunkSize + internalY + z)
 			
 			if archetype ~= false then
 				chunk:setBlock(point, archetype)
