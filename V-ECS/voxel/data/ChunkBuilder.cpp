@@ -41,14 +41,35 @@ LuaNoiseHandle createCellularNoise(int seed) {
 	return noise;
 }
 
+struct ArchetypeHandle {
+public:
+	ArchetypeHandle(std::string id) {
+		this->id = id;
+	};
+
+	Archetype* getArchetype(BlockLoader* blockLoader) {
+		if (archetype == nullptr)
+			archetype = blockLoader->getArchetype(id);
+		return archetype;
+	}
+
+private:
+	std::string id;
+	Archetype* archetype = nullptr;
+};
+
+ArchetypeHandle* getArchetype(std::string id) {
+	return new ArchetypeHandle(id);
+}
+
 struct LuaChunkHandle {
 public:
-	LuaChunkHandle(uint16_t chunkSize, BlockLoader* blockLoader) : blocks(chunkSize, "") {
+	LuaChunkHandle(uint16_t chunkSize, BlockLoader* blockLoader) : blocks(chunkSize) {
 		this->chunkSize = chunkSize;
 		this->blockLoader = blockLoader;
 	}
 
-	void setBlock(uint32_t blockPos, std::string archetype) {
+	void setBlock(uint32_t blockPos, ArchetypeHandle* archetype) {
 		// Lua starts at 1, so we need to deal with 1 less than blockPos
 		blockPos--;
 		uint16_t z = (blockPos / (chunkSize * chunkSize));
@@ -62,9 +83,9 @@ public:
 		for (uint16_t z = 0; z < chunkSize; z++) {
 			for (uint16_t y = 0; y < chunkSize; y++) {
 				for (uint16_t x = 0; x < chunkSize; x++) {
-					std::string archetype = blocks.at(x, y, z);
-					if (archetype != "") {
-						chunk->blocks.set(x, y, z, blockLoader->getArchetype(archetype)->createEntities(1).first);
+					ArchetypeHandle* archetype = blocks.at(x, y, z);
+					if (archetype != nullptr) {
+						chunk->blocks.set(x, y, z, archetype->getArchetype(blockLoader)->createEntities(1).first);
 					}
 				}
 			}
@@ -74,7 +95,7 @@ public:
 private:
 	uint16_t chunkSize;
 	BlockLoader* blockLoader;
-	Octree<std::string> blocks;
+	Octree<ArchetypeHandle*> blocks;
 };
 
 ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uint16_t chunkSize) {
@@ -97,7 +118,7 @@ ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uin
 		.endNamespace()
 		.beginNamespace("blocks")
 			.addProperty("chunkSize", &this->chunkSize, false)
-			//.addFunction("addArchetype", )
+			.addFunction("getArchetype", &getArchetype)
 		.endNamespace()
 		.beginClass<LuaChunkHandle>("chunkHandle")
 			.addFunction("setBlock", &LuaChunkHandle::setBlock)
@@ -105,6 +126,8 @@ ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uin
 		.beginClass<LuaNoiseHandle>("noiseHandle")
 			.addFunction("getNoiseSet", &LuaNoiseHandle::getNoiseSet)
 			.addProperty("seed", &LuaNoiseHandle::seed, false)
+		.endClass()
+		.beginClass<ArchetypeHandle>("archetypeHandle")
 		.endClass();
 
 	for (auto resource : getResources("terrain", ".lua")) {
