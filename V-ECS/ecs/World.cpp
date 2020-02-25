@@ -20,7 +20,7 @@ void World::deleteEntity(uint32_t entity) {
 
 Archetype* World::getArchetype(std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents) {
 	auto itr = std::find_if(archetypes.begin(), archetypes.end(), [&componentTypes, &sharedComponents](Archetype* archetype) {
-		return archetype->componentTypes == componentTypes && (sharedComponents == nullptr || &archetype->sharedComponents == sharedComponents);
+		return archetype->componentTypes == componentTypes && (sharedComponents == nullptr || archetype->sharedComponents == sharedComponents);
 	});
 
 	if (itr == archetypes.end()) {
@@ -29,7 +29,7 @@ Archetype* World::getArchetype(std::unordered_set<std::type_index> componentType
 
 		// Add it to any entity queries it matches
 		for (auto query : queries) {
-			if (query->filter.checkArchetype(componentTypes))
+			if (archetype->checkQuery(query))
 				query->matchingArchetypes.push_back(archetype);
 		}
 
@@ -64,7 +64,7 @@ void World::addQuery(EntityQuery* query) {
 
 	// Check what archetypes match this query
 	for (auto archetype : archetypes) {
-		if (query->filter.checkArchetype(archetype->componentTypes))
+		if (archetype->checkQuery(query))
 			query->matchingArchetypes.push_back(archetype);
 	}
 }

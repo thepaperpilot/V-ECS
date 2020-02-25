@@ -5,10 +5,10 @@
 #include "engine/Engine.h"
 #include "ecs/World.h"
 #include "voxel/VoxelWorld.h"
-#include "voxel/components/ChunkComponent.h"
-#include "voxel/components/BlockComponent.h"
+#include "voxel/data/ChunkComponent.h"
+#include "voxel/data/BlockComponent.h"
+#include "voxel/data/ChunkBuilder.h"
 #include "voxel/rendering/MeshComponent.h"
-#include "voxel/components/ChunkBuilder.h"
 #include "gui/GUIRenderer.h"
 
 #include <thread>
@@ -18,7 +18,7 @@ using namespace vecs;
 Engine app;
 
 uint16_t chunksPerAxis = 8;
-uint16_t chunkSize = 32;
+uint16_t chunkSize = 4;
 
 VoxelWorld* game;
 World* loading;
@@ -35,7 +35,8 @@ void loadGame() {
     // Set up temporary chunks
     int totalChunks = chunksPerAxis * chunksPerAxis * chunksPerAxis;
     int totalBlocks = totalChunks * chunkSize * chunkSize * chunkSize;
-    ChunkBuilder chunkBuilder(game, chunkSize);
+    ChunkBuilder::init();
+    ChunkBuilder chunkBuilder(game, &game->voxelRenderer.blockLoader, 1227, chunkSize);
     for (int32_t x = -chunksPerAxis / 2; x < chunksPerAxis / 2; x++) {
         for (int32_t y = -chunksPerAxis / 2; y < chunksPerAxis / 2; y++) {
             for (int32_t z = -chunksPerAxis / 2; z < chunksPerAxis / 2; z++) {

@@ -1,6 +1,7 @@
 #include "Archetype.h"
 
 #include "World.h"
+#include "EntityQuery.h"
 
 using namespace vecs;
 
@@ -14,6 +15,24 @@ bool Archetype::hasEntity(uint32_t entity) {
 
 ptrdiff_t Archetype::getIndex(uint32_t entity) {
 	return std::distance(this->entities.begin(), std::find(this->entities.begin(), this->entities.end(), entity));
+}
+
+bool Archetype::checkQuery(EntityQuery* query) {
+	for (std::type_index component_t : query->filter.required) {
+		if (componentTypes.find(component_t) == componentTypes.end())
+			return false;
+	}
+	for (std::type_index component_t : query->filter.disallowed)
+		if (componentTypes.find(component_t) != componentTypes.end())
+			return false;
+	for (std::type_index component_t : query->sharedFilter.required) {
+		if (!sharedComponents->count(component_t))
+			return false;
+	}
+	for (std::type_index component_t : query->sharedFilter.disallowed)
+		if (sharedComponents->count(component_t))
+			return false;
+	return true;
 }
 
 // Returns pair of data representing the first entity ID, and index within the archetype

@@ -55,6 +55,8 @@ namespace vecs {
 	// systems for rendering a voxel-based world
 	class VoxelWorld : public World {
 	public:
+		VoxelRenderer voxelRenderer;
+
 		VoxelWorld(Renderer* renderer, uint16_t chunkSize) : World(renderer) {
 			this->chunkSize = chunkSize;
 		};
@@ -67,8 +69,6 @@ namespace vecs {
 		uint16_t chunkSize;
 
 		uint32_t player = 0;
-
-		VoxelRenderer voxelRenderer;
 
 		ChunkSystem* chunkSystem = nullptr;
 		ControllerSystem* controllerSystem = nullptr;

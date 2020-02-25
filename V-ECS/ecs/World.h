@@ -40,7 +40,6 @@ namespace vecs {
 	// TODO other ECS implementations have a class for each component
 	// type that handles storing data for that component (e.g. SOA instead of AOS).
 	class World {
-		friend bool ComponentFilter::checkEntity(World* world, uint32_t entity);
 	public:
 		Renderer* renderer;
 
@@ -66,7 +65,7 @@ namespace vecs {
 			// Make new list of components
 			components.insert(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end());
 			// Find/create archetype for this set of components
-			Archetype* newArchetype = getArchetype(components, &oldArchetype->sharedComponents);
+			Archetype* newArchetype = getArchetype(components, oldArchetype->sharedComponents);
 
 			uint16_t numComponents = components.size();
 			std::vector<std::vector<Component*>*> oldComponents(numComponents);
@@ -107,7 +106,7 @@ namespace vecs {
 			std::copy_if(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end(), std::back_inserter(newComponents),
 				[&components](int needle) { return !components.count(needle); });
 			// Find/create archetype for this set of components
-			Archetype* newArchetype = getArchetype(newComponents, &oldArchetype->sharedComponents);
+			Archetype* newArchetype = getArchetype(newComponents, oldArchetype->sharedComponents);
 			
 			uint16_t numComponents = newComponents.size();
 			std::vector<std::vector<Component*>*> oldComponents(numComponents);

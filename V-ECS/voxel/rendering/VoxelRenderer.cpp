@@ -18,19 +18,15 @@ VoxelRenderer::VoxelRenderer() {
 
 void VoxelRenderer::init(World* world) {
 	this->world = world;
+	blockLoader.init(world);
 	// Add entity query so we know what to render
 	meshes.filter.with(typeid(MeshComponent));
 	world->addQuery(&meshes);
 }
 
 void VoxelRenderer::init() {
-	// Create our texture and 
-	texture.init(device, renderer->graphicsQueue, "resources/textures/goodCat.png");
-
-	// Create the imageinfo we'll need for our descriptor writes
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = texture.view;
-	imageInfo.sampler = texture.sampler;
+	// Load our blocks into one big texture
+	imageInfo = blockLoader.loadBlocks(device, renderer->graphicsQueue);
 }
 
 void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
@@ -66,7 +62,7 @@ void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
 }
 
 void VoxelRenderer::preCleanup() {
-	texture.cleanup();
+	blockLoader.cleanup();
 }
 
 std::vector<VkDescriptorSetLayoutBinding> VoxelRenderer::getDescriptorLayoutBindings() {

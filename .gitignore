@@ -27,7 +27,4 @@ ipch
 *.VC.opendb
 VSWorkspaceState.json
 
-# Now that it's been added, we're going to ignore future changes
-# so each person can specify their own directories for things
-# like "additional libraries", etc.
-V-ECS/V-ECS.vcxproj
+V-ECS/simd

@@ -13,18 +13,18 @@ namespace vecs {
 	// Forward Declarations
 	class World;
 	struct Component;
+	struct EntityQuery;
 	
 	class Archetype {
 	public:
 		std::unordered_set<std::type_index> componentTypes;
 
-		std::unordered_map<std::type_index, Component*> sharedComponents;
+		std::unordered_map<std::type_index, Component*>* sharedComponents;
 
 		Archetype(World* world, std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr) {
 			this->world = world;
 			this->componentTypes = componentTypes;
-			if (sharedComponents != nullptr)
-				this->sharedComponents = *sharedComponents;
+			this->sharedComponents = sharedComponents;
 
 			for (auto component : componentTypes) {
 				components[component] = new std::vector<Component*>;
@@ -38,7 +38,7 @@ namespace vecs {
 
 		template <class C>
 		C* getSharedComponent() {
-			return static_cast<C>(sharedComponents[typeid(C)]);
+			return static_cast<C*>(sharedComponents->at(typeid(C)));
 		}
 
 		std::vector<Component*>* getComponentList(std::type_index componentType);
@@ -46,6 +46,8 @@ namespace vecs {
 		bool hasEntity(uint32_t entity);
 
 		ptrdiff_t getIndex(uint32_t entity);
+
+		bool checkQuery(EntityQuery* query);
 
 		// Returns pair of data representing the first entity ID, and index within the archetype
 		std::pair<uint32_t, size_t> createEntities(uint32_t amount);

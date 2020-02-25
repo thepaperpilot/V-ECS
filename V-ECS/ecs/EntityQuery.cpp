@@ -18,25 +18,3 @@ void ComponentFilter::without(std::type_index component) {
 void ComponentFilter::without(std::vector<std::type_index> components) {
 	disallowed.insert(components.begin(), components.end());
 }
-
-bool ComponentFilter::checkEntity(World* world, uint32_t entity) {
-	for (auto const& component_t : required) {
-		if (!world->hasComponentType(entity, component_t))
-			return false;
-	}
-	for (auto const& component_t : disallowed)
-		if (world->hasComponentType(entity, component_t))
-			return false;
-	return true;
-}
-
-bool ComponentFilter::checkArchetype(std::unordered_set<std::type_index> componentTypes) {
-	for (std::type_index component_t : required) {
-		if (componentTypes.find(component_t) == componentTypes.end())
-			return false;
-	}
-	for (std::type_index component_t : disallowed)
-		if (componentTypes.find(component_t) != componentTypes.end())
-			return false;
-	return true;
-}

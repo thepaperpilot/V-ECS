@@ -90,6 +90,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories></AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -106,6 +107,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories></AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -124,6 +126,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories></AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -144,6 +147,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\thepa\Documents\Visual Studio 2019\Libraries\stb-master;C:\VulkanSDK\1.1.130.0\Include;C:\Users\thepa\Documents\Visual Studio 2019\Libraries\glm-0.9.9.7;C:\Users\thepa\Documents\Visual Studio 2019\Libraries\glfw-3.3.1.bin.WIN64\include;%(AdditionalLibraryDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -172,10 +176,12 @@
     <ClCompile Include="rendering\DepthTexture.cpp" />
     <ClCompile Include="rendering\SubRenderer.cpp" />
     <ClCompile Include="rendering\Texture.cpp" />
+    <ClCompile Include="voxel\data\BlockLoader.cpp" />
+    <ClCompile Include="voxel\data\ChunkBuilder.cpp" />
     <ClCompile Include="voxel\rendering\CameraSystem.cpp" />
     <ClCompile Include="voxel\rendering\MeshRendererSystem.cpp" />
     <ClCompile Include="voxel\rendering\VoxelRenderer.cpp" />
-    <ClCompile Include="voxel\systems\ChunkSystem.cpp" />
+    <ClCompile Include="voxel\data\ChunkSystem.cpp" />
     <ClCompile Include="engine\Engine.cpp" />
     <ClCompile Include="ecs\EntityQuery.cpp" />
     <ClCompile Include="main.cpp" />
@@ -221,16 +227,17 @@
     <ClInclude Include="rendering\Texture.h" />
     <ClInclude Include="rendering\Vertex.h" />
     <ClInclude Include="util\LuaUtils.h" />
-    <ClInclude Include="voxel\components\BlockComponent.h" />
-    <ClInclude Include="voxel\components\ChunkBuilder.h" />
-    <ClInclude Include="voxel\components\ChunkComponent.h" />
+    <ClInclude Include="voxel\data\BlockComponent.h" />
+    <ClInclude Include="voxel\data\BlockLoader.h" />
+    <ClInclude Include="voxel\data\ChunkBuilder.h" />
+    <ClInclude Include="voxel\data\ChunkComponent.h" />
     <ClInclude Include="voxel\rendering\CameraComponent.h" />
     <ClInclude Include="voxel\rendering\CameraSystem.h" />
     <ClInclude Include="voxel\rendering\MeshComponent.h" />
     <ClInclude Include="voxel\rendering\MeshRendererSystem.h" />
     <ClInclude Include="voxel\rendering\Vertex.h" />
     <ClInclude Include="voxel\rendering\VoxelRenderer.h" />
-    <ClInclude Include="voxel\systems\ChunkSystem.h" />
+    <ClInclude Include="voxel\data\ChunkSystem.h" />
     <ClInclude Include="engine\Engine.h" />
     <ClInclude Include="ecs\EntityQuery.h" />
     <ClInclude Include="events\EventManager.h" />
@@ -270,6 +277,11 @@
   </ImportGroup>
   <ItemGroup>
     <Content Include="resources\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="simd\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

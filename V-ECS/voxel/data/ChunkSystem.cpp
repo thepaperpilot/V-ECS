@@ -1,6 +1,6 @@
 #include "ChunkSystem.h"
-#include "../components/ChunkComponent.h"
-#include "../components/BlockComponent.h"
+#include "../data/ChunkComponent.h"
+#include "../data/BlockComponent.h"
 #include "../rendering/MeshComponent.h"
 #include "../../ecs/World.h"
 
@@ -13,11 +13,6 @@ void ChunkSystem::init() {
 	chunks.filter.with(typeid(ChunkComponent));
 	chunks.filter.with(typeid(MeshComponent));
 	world->addQuery(&chunks);
-
-	// Create our query for all Blocks,
-	// so we can add them to the chunks as necessary
-	blocks.filter.with(typeid(BlockComponent));
-	world->addQuery(&blocks);
 }
 
 void ChunkSystem::update() {
@@ -89,22 +84,20 @@ void ChunkSystem::update() {
 
 			if (chunk->justCreated) {
 				for (uint16_t z = 0; z < chunkSize; z++) {
-					// Creating a zSlice allocates a default value for every empty block:
-					// try to avoid doing that!
-					//auto tmp = chunk->blocks.zSlice(z);
 					for (uint16_t y = 0; y < chunkSize; y++) {
 						for (uint16_t x = 0; x < chunkSize; x++) {
-							//if (tmp.at(x, y))
-							if (chunk->blocks.at(x, y, z))
-								checkAddedBlock({ x, y, z },
-									chunk, mesh, top, topMesh, bottom, bottomMesh, back, backMesh, front, frontMesh, left, leftMesh, right, rightMesh);
+							uint32_t entity = chunk->blocks.at(x, y, z);
+							if (entity)
+								checkAddedBlock(entity, { x, y, z }, chunk, mesh,
+									top, topMesh, bottom, bottomMesh, back, backMesh, front, frontMesh, left, leftMesh, right, rightMesh);
 						}
 					}
 				}
 			} else {
 				// For each added block, check if we need to add or remove the various faces
 				for (auto internalPos : chunk->addedBlocks) {
-					checkAddedBlock(internalPos, chunk, mesh, top, topMesh, bottom, bottomMesh, back, backMesh, front, frontMesh, left, leftMesh, right, rightMesh);
+					checkAddedBlock(chunk->blocks.at(internalPos.x, internalPos.y, internalPos.z), internalPos,
+						chunk, mesh, top, topMesh, bottom, bottomMesh, back, backMesh, front, frontMesh, left, leftMesh, right, rightMesh);
 				}
 			}
 
@@ -125,7 +118,7 @@ void ChunkSystem::update() {
 	}
 }
 
-void ChunkSystem::checkAddedBlock(glm::u16vec3 internalPos, ChunkComponent* chunk, MeshComponent* mesh,
+void ChunkSystem::checkAddedBlock(uint32_t entity, glm::u16vec3 internalPos, ChunkComponent* chunk, MeshComponent* mesh,
 	ChunkComponent* top, MeshComponent* topMesh, ChunkComponent* bottom, MeshComponent* bottomMesh,
 	ChunkComponent* back, MeshComponent* backMesh, ChunkComponent* front, MeshComponent* frontMesh,
 	ChunkComponent* left, MeshComponent* leftMesh, ChunkComponent* right, MeshComponent* rightMesh) {
@@ -145,38 +138,42 @@ void ChunkSystem::checkAddedBlock(glm::u16vec3 internalPos, ChunkComponent* chun
 	// If the adjacent block doesn't exist, then we should all our face. It doesn't matter if
 	//  the block was just removed or not.
 
+	// TODO not sure how I can better organize chunks such that I don't need to query this for every block
+	// (in theory I should just need to do it for each archetype present in the chunk)
+	BlockComponent* blockComponent = world->getArchetype(entity)->getSharedComponent<BlockComponent>();
+
 	// Top Face
-	checkFace({ x, y + 1, z }, { x + 1, y + 1, z + 1 }, { 1.0, 1.0 }, { 0.0, 0.0 }, true, internalPos.y == chunkSize - 1,
+	checkFace({ x, y + 1, z }, { x + 1, y + 1, z + 1 }, blockComponent->top, true, internalPos.y == chunkSize - 1,
 		internalPos + glm::u16vec3{ 0, 1, 0 }, internalPos + glm::u16vec3{ 0, -chunkSize + 1, 0 },
 		chunk, mesh, top, topMesh, { x + 1, 0, z + 1 }, { x, 0, z });
 
 	// Bottom Face
-	checkFace({ x, y, z }, { x + 1, y, z + 1 }, { 1.0, 0.0 }, { 0.0, 1.0 }, false, internalPos.y == 0,
+	checkFace({ x, y, z }, { x + 1, y, z + 1 }, blockComponent->bottom, false, internalPos.y == 0,
 		internalPos + glm::u16vec3{ 0, -1, 0 }, internalPos + glm::u16vec3{ 0, chunkSize - 1, 0 },
 		chunk, mesh, bottom, bottomMesh, { x + 1, chunkSize - 1, z + 1 }, { x, chunkSize - 1, z });
 
 	// Back Face
-	checkFace({ x + 1, y + 1, z + 1 }, { x, y, z + 1 }, { 1.0, 0.0 }, { 0.0, 1.0 }, false, internalPos.z == chunkSize - 1,
+	checkFace({ x + 1, y + 1, z + 1 }, { x, y, z + 1 }, blockComponent->back, false, internalPos.z == chunkSize - 1,
 		internalPos + glm::u16vec3{ 0, 0, 1 }, internalPos + glm::u16vec3{ 0, 0, -chunkSize + 1 },
 		chunk, mesh, back, backMesh, { x, y, 0 }, { x + 1, y + 1, 0 });
 
 	// Front Face
-	checkFace({ x, y, z }, { x + 1, y + 1, z }, { 1.0, 1.0 }, { 0.0, 0.0 }, true, internalPos.z == 0,
+	checkFace({ x, y, z }, { x + 1, y + 1, z }, blockComponent->front, true, internalPos.z == 0,
 		internalPos + glm::u16vec3{ 0, 0, -1 }, internalPos + glm::u16vec3{ 0, 0, chunkSize - 1 },
 		chunk, mesh, front, frontMesh, { x + 1, y + 1, chunkSize - 1 }, { x, y, chunkSize - 1 });
 
 	// Left Face
-	checkFace({ x + 1, y, z }, { x + 1, y + 1, z + 1 }, { 1.0, 1.0 }, { 0.0, 0.0 }, true, internalPos.x == chunkSize - 1,
+	checkFace({ x + 1, y, z }, { x + 1, y + 1, z + 1 }, blockComponent->left, true, internalPos.x == chunkSize - 1,
 		internalPos + glm::u16vec3{ 1, 0, 0 }, internalPos + glm::u16vec3{ -chunkSize + 1, 0, 0 },
 		chunk, mesh, left, leftMesh, { 0, y + 1, z + 1 }, { 0, y, z });
 
 	// Right Face
-	checkFace({ x, y, z + 1 }, { x, y + 1, z }, { 1.0, 1.0 }, { 0.0, 0.0 }, true, internalPos.x == 0,
+	checkFace({ x, y, z + 1 }, { x, y + 1, z }, blockComponent->right, true, internalPos.x == 0,
 		internalPos + glm::u16vec3{ -1, 0, 0 }, internalPos + glm::u16vec3{ chunkSize - 1, 0, 0 },
 		chunk, mesh, right, rightMesh, { chunkSize - 1, y + 1, z }, { chunkSize - 1, y, z + 1 });
 }
 
-void ChunkSystem::checkFace(glm::vec3 p0, glm::vec3 p1, glm::vec2 uv0, glm::vec2 uv1, bool clockWise,
+void ChunkSystem::checkFace(glm::vec3 p0, glm::vec3 p1, glm::vec4 uvs, bool clockWise,
 	bool isOnEdge, glm::u16vec3 internalPos, glm::u16vec3 externalPos, ChunkComponent* chunk, MeshComponent* mesh,
 	ChunkComponent* adjacentChunk, MeshComponent* adjacentMesh, glm::vec3 adjacentP0, glm::vec3 adjacentP1) {
 
@@ -195,8 +192,9 @@ void ChunkSystem::checkFace(glm::vec3 p0, glm::vec3 p1, glm::vec2 uv0, glm::vec2
 
 		// If neither if statement triggers it means we just added this block and the one next to it, so
 		//  there's no face to remove, we just won't add it in the first place
+		mesh->addFace(p0, p1, uvs, clockWise);
 	} else {
 		// If there's no block next to us, then add a new face to our geometry
-		mesh->addFace(p0, uv0, p1, uv1, clockWise);
+		mesh->addFace(p0, p1, uvs, clockWise);
 	}
 }

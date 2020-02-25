@@ -29,10 +29,10 @@ namespace vecs {
 
 		bool dirtyVertices = true;
 
-		void addFace(glm::vec3 p0, glm::vec2 uv0, glm::vec3 p1, glm::vec2 uv1, bool isClockWise) {
-			Vertex v0 = { p0, uv0 };
+		void addFace(glm::vec3 p0, glm::vec3 p1, glm::vec4 uvs, bool isClockWise) {
+			Vertex v0 = { p0, { uvs.s, uvs.t } };
 			Vertex v1 = {};
-			Vertex v2 = { p1, uv1 };
+			Vertex v2 = { p1, { uvs.p, uvs.q } };
 			Vertex v3 = {};
 
 			// Find the positions of v1 and v3 by checking which axis plane they're both on
@@ -47,8 +47,8 @@ namespace vecs {
 				v3.pos = glm::vec3(p1.x, p0.y, p0.z);
 			} else return;
 
-			v1.texCoord = glm::vec2(uv0.x, uv1.y);
-			v3.texCoord = glm::vec2(uv1.x, uv0.y);
+			v1.texCoord = { uvs.s, uvs.q };
+			v3.texCoord = { uvs.p, uvs.t };
 
 			uint16_t index = vertices.size();
 			vertices.insert(vertices.end(), { v0, v1, v2, v3 });
