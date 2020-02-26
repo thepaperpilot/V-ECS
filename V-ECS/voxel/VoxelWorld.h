@@ -63,8 +63,6 @@ namespace vecs {
 
 		void preInit() override;
 
-		void prewarm();
-
 	private:
 		uint16_t chunkSize;
 

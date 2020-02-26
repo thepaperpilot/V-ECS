@@ -7,7 +7,7 @@ end
 
 local seed = noise.seed
 --local biomeNoise = noise.createCellular(seed)
-local terrainNoise = noise.createSimplex(seed)
+local terrainNoise = noise.createSimplex(seed, .01)
 
 terrain = {
 	priority = 1,

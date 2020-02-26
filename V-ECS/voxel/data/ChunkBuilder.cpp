@@ -12,15 +12,23 @@
 using namespace vecs;
 using namespace luabridge;
 
+namespace luabridge {
+	template <>
+	struct luabridge::Stack <HastyNoise::CellularReturnType> : EnumWrapper <HastyNoise::CellularReturnType> {};
+	template <>
+	struct luabridge::Stack <HastyNoise::PerturbType> : EnumWrapper <HastyNoise::PerturbType> {};
+}
+
 struct LuaNoiseHandle {
 public:
 	HastyNoise::NoiseSIMD* noise;
 	int seed;
 
-	void init(int seed, size_t fastestSimd, HastyNoise::NoiseType noiseType) {
+	void init(int seed, size_t fastestSimd, HastyNoise::NoiseType noiseType, float frequency) {
 		this->seed = seed;
 		noise = HastyNoise::details::CreateNoise(seed, fastestSimd);
 		noise->SetNoiseType(noiseType);
+		noise->SetFrequency(frequency);
 	};
 
 	std::vector<float> getNoiseSet(int32_t chunkX, int32_t chunkY, int32_t chunkZ, uint16_t chunkSize) {
@@ -28,17 +36,26 @@ public:
 		std::vector<float> points(floatBuffer.get(), floatBuffer.get() + chunkSize * chunkSize * chunkSize);
 		return points;
 	};
+
+	void setCellularReturnType(HastyNoise::CellularReturnType returnType) { noise->SetCellularReturnType(returnType); }
+	void setCellularJitter(float jitter) { noise->SetCellularJitter(jitter); }
+	void setPerturbType(HastyNoise::PerturbType perturbType) { noise->SetPerturbType(perturbType); }
+	void setPerturbAmp(float amp) { noise->SetPerturbAmp(amp); }
+	void setPerturbFrequency(float frequency) { noise->SetPerturbFrequency(frequency); }
+	void setPerturbFractalOctaves(int octaves) { noise->SetPerturbFractalOctaves(octaves); }
+	void setPerturbFractalLacunarity(float lacunarity) { noise->SetPerturbFractalLacunarity(lacunarity); }
+	void setPerturbFractalGain(float gain) { noise->SetPerturbFractalGain(gain); }
 };
 
-LuaNoiseHandle createSimplexNoise(int seed) {
+LuaNoiseHandle createSimplexNoise(int seed, float frequency) {
 	LuaNoiseHandle noise;
-	noise.init(seed, ChunkBuilder::fastestSimd, HastyNoise::NoiseType::OpenSimplex2);
+	noise.init(seed, ChunkBuilder::fastestSimd, HastyNoise::NoiseType::OpenSimplex2, frequency);
 	return noise;
 }
 
-LuaNoiseHandle createCellularNoise(int seed) {
+LuaNoiseHandle createCellularNoise(int seed, float frequency) {
 	LuaNoiseHandle noise;
-	noise.init(seed, ChunkBuilder::fastestSimd, HastyNoise::NoiseType::Cellular);
+	noise.init(seed, ChunkBuilder::fastestSimd, HastyNoise::NoiseType::Cellular, frequency);
 	return noise;
 }
 
@@ -93,6 +110,15 @@ public:
 		blocks.set(x, y, z, archetype);
 	}
 
+	void clearBlock(uint32_t blockPos) {
+		blockPos--;
+		uint16_t x = (blockPos / (chunkSize * chunkSize));
+		uint16_t y = blockPos % (chunkSize * chunkSize) / chunkSize;
+		uint16_t z = blockPos % chunkSize;
+
+		blocks.set(x, y, z, nullptr);
+	}
+
 	void commit(World* world, ChunkComponent* chunk, MeshComponent* mesh) {
 		std::unordered_set<ArchetypeHandle*> archetypes;
 		for (uint16_t z = 0; z < chunkSize; z++) {
@@ -130,6 +156,10 @@ ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uin
 	chunkComponents = chunkArchetype->getComponentList(typeid(ChunkComponent));
 	meshComponents = chunkArchetype->getComponentList(typeid(MeshComponent));
 
+	int Distance2Cave = static_cast<std::size_t>(HastyNoise::CellularReturnType::Distance2Cave);
+
+	int GradientFractal = static_cast<std::size_t>(HastyNoise::PerturbType::GradientFractal);
+
 	// Build our Lua bindings for world generation
 	auto L = getState();
 	getGlobalNamespace(L)
@@ -137,6 +167,12 @@ ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uin
 			.addProperty("seed", &seed, false)
 			.addFunction("createSimplex", &createSimplexNoise)
 			.addFunction("createCellular", &createCellularNoise)
+			.beginNamespace("cellularReturnType")
+				.addProperty("Distance2Cave", &Distance2Cave, false)
+			.endNamespace()
+			.beginNamespace("perturbType")
+				.addProperty("GradientFractal", &GradientFractal, false)
+			.endNamespace()
 		.endNamespace()
 		.beginNamespace("blocks")
 			.addProperty("chunkSize", &this->chunkSize, false)
@@ -144,9 +180,18 @@ ChunkBuilder::ChunkBuilder(World* world, BlockLoader* blockLoader, int seed, uin
 		.endNamespace()
 		.beginClass<LuaChunkHandle>("chunkHandle")
 			.addFunction("setBlock", &LuaChunkHandle::setBlock)
+			.addFunction("clearBlock", &LuaChunkHandle::clearBlock)
 		.endClass()
 		.beginClass<LuaNoiseHandle>("noiseHandle")
 			.addFunction("getNoiseSet", &LuaNoiseHandle::getNoiseSet)
+			.addFunction("setCellularReturnType", &LuaNoiseHandle::setCellularReturnType)
+			.addFunction("setCellularJitter", &LuaNoiseHandle::setCellularJitter)
+			.addFunction("setPerturbType", &LuaNoiseHandle::setPerturbType)
+			.addFunction("setPerturbAmp", &LuaNoiseHandle::setPerturbAmp)
+			.addFunction("setPerturbFrequency", &LuaNoiseHandle::setPerturbFrequency)
+			.addFunction("setPerturbFractalOctaves", &LuaNoiseHandle::setPerturbFractalOctaves)
+			.addFunction("setPerturbFractalLacunarity", &LuaNoiseHandle::setPerturbFractalLacunarity)
+			.addFunction("setPerturbFractalGain", &LuaNoiseHandle::setPerturbFractalGain)
 			.addProperty("seed", &LuaNoiseHandle::seed, false)
 		.endClass()
 		.beginClass<ArchetypeHandle>("archetypeHandle")

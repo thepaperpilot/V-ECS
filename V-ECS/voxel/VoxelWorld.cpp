@@ -39,8 +39,3 @@ void VoxelWorld::preInit() {
 	voxelRenderer.init(this);
 	subrenderers.push_back(&voxelRenderer);
 }
-
-void VoxelWorld::prewarm() {
-	// Prewarm our chunk system
-	this->chunkSystem->update();
-}

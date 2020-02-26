@@ -45,11 +45,6 @@ void loadGame() {
         }
     }
 
-    // Call prewarm while we're still in the background thread so we're as ready as
-    // possible for rendering the first frame of voxel world.
-    // Ideally there is no freeze while switching from loading screen to game screen
-    game->prewarm();
-
     // Change world and cleanup loading world
     app.setWorld(game, false, true);
 }
