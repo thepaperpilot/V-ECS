@@ -60,9 +60,10 @@ find_package(HastyNoise CONFIG REQUIRED)
 target_link_libraries(vecs PRIVATE HastyNoise::hastyNoise)
 
 # imgui https://hunter.readthedocs.io/en/latest/packages/pkg/imgui.html
-hunter_add_package(imgui)
-find_package(imgui CONFIG REQUIRED)
-target_link_libraries(vecs PRIVATE imgui::imgui)
+# imgui was messing up so I'm using git to get the latest version (that doesn't mess up)
+#hunter_add_package(imgui)
+#find_package(imgui CONFIG REQUIRED)
+#target_link_libraries(vecs PRIVATE imgui::imgui)
 
 #### Add other packages ####
 
@@ -126,6 +127,13 @@ if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D)
 	execute_process(COMMAND git clone https://github.com/TeamHypersomnia/rectpack2D ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D)
 endif()
 target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D/src)
+
+# imgui
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+	execute_process(COMMAND git clone https://github.com/ocornut/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+endif()
+target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_demo.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_draw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_widgets.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/examples/imgui_impl_glfw.cpp)
 
 #### Copy non-script files to our output directory ####
 

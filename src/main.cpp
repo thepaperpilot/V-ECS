@@ -51,6 +51,7 @@ void loadGame() {
 
 int main() {
     app.preCleanup = preCleanup;
+    app.init();
 
     // Create thread to load our game screen
     // TODO move this to the other thread once you can give the thread its own VkQeueu

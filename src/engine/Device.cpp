@@ -329,7 +329,7 @@ bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
     // Create a set of all required extensions
-    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+    std::set<std::string> requiredExtensions(deviceExtensions, deviceExtensions + deviceExtensionsSize);
 
     // Go through each extension the device has. Attempt to remove its name from our
     // list of required components
@@ -371,8 +371,8 @@ void Device::createLogicalDevice() {
     createInfo.pEnabledFeatures = &deviceFeatures;
 
     // Setup our device-specific extensions
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensionsSize);
+    createInfo.ppEnabledExtensionNames = deviceExtensions;
     
     // Create the logical device and throw an error if anything goes wrong
     if (vkCreateDevice(physical, &createInfo, nullptr, &logical) != VK_SUCCESS) {

@@ -9,9 +9,10 @@ namespace vecs {
 
 	// List of physical device extensions that must be supported for a physical
 	// device to be considered at all suitable
-	static std::vector<const char*> deviceExtensions = {
+	static const char* const deviceExtensions[] {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
+	static constexpr size_t deviceExtensionsSize = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
 	
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphics;

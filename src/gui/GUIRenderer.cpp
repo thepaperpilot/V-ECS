@@ -4,11 +4,8 @@
 #include "../rendering/Renderer.h"
 #include "../ecs/World.h"
 
-// The hunter package didn't include this and I don't know how to change that
-// so I've included the file by hand in this directory, just modifying the #include statement
-// They also have a slightly older version so no using ImGuiKey_KeyPadEnter or ImGuiMouseCursor_NotAllowed
-//#include <imgui/examples/imgui_impl_glfw.h>
-#include "imgui_impl_glfw.h"
+// examples is a directory inside of imgui
+#include <examples/imgui_impl_glfw.h>
 
 #include <vulkan/vulkan.h>
 #include <thread>
@@ -181,10 +178,9 @@ void GUIRenderer::render(VkCommandBuffer buffer) {
 	ImVec2 clip_scale = draw_data->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
 
 	// Render command lists
-	// (Because we merged all buffers into a single one, we maintain our own offset into them)
-	// imgui is slightly out of date, we can use ImDrawCmd->IdxOffset and ->VtxOffset once it gets updated
-	int vtx_offset = 0;
-	int idx_offset = 0;
+    // (Because we merged all buffers into a single one, we maintain our own offset into them)
+    int global_vtx_offset = 0;
+    int global_idx_offset = 0;
 	for (int n = 0; n < draw_data->CmdListsCount; n++) {
 		const ImDrawList* cmd_list = draw_data->CmdLists[n];
 		for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
@@ -221,12 +217,12 @@ void GUIRenderer::render(VkCommandBuffer buffer) {
 					vkCmdSetScissor(buffer, 0, 1, &scissor);
 
 					// Draw
-					vkCmdDrawIndexed(buffer, pcmd->ElemCount, 1, idx_offset, vtx_offset, 0);
+					vkCmdDrawIndexed(buffer, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
 				}
-				idx_offset += pcmd->ElemCount;
 			}
-			vtx_offset += cmd_list->VtxBuffer.Size;
 		}
+        global_idx_offset += cmd_list->IdxBuffer.Size;
+        global_vtx_offset += cmd_list->VtxBuffer.Size;
 	}
 }
 

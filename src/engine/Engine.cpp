@@ -22,6 +22,14 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
     EventManager::fire(event);
 }
 
+// Moved from constructor to separate function to avoid a
+// static initialization order fiasco with EventManager
+void Engine::init() {
+    initWindow();
+    initVulkan();
+    renderer.init(device, surface, window);
+}
+
 void Engine::setWorld(World* world, bool init, bool cleanupWorld) {
     // TODO improve loading thread so this is not necessary
     if (window == nullptr) return;

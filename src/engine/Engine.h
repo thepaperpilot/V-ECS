@@ -29,11 +29,9 @@ namespace vecs {
 
         Renderer renderer;
 
-        Engine() : renderer(this) {
-            initWindow();
-            initVulkan();
-            renderer.init(device, surface, window);
-        };
+        Engine() : renderer(this) {};
+
+        void init();
 
         void setWorld(World* world, bool init = true, bool cleanupWorld = false);
 
