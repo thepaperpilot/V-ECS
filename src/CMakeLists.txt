@@ -1,0 +1,11 @@
+target_sources(vecs PRIVATE main.cpp)
+
+add_subdirectory(ecs)
+add_subdirectory(engine)
+add_subdirectory(events)
+add_subdirectory(gui)
+add_subdirectory(input)
+add_subdirectory(movement)
+add_subdirectory(rendering)
+add_subdirectory(util)
+add_subdirectory(voxel)

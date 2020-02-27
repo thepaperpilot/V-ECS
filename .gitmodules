@@ -1,6 +1,0 @@
-[submodule "V-ECS/libs/imgui"]
-	path = V-ECS/libs/imgui
-	url = https://github.com/ocornut/imgui.git
-[submodule "V-ECS/libs/HastyNoise"]
-	path = V-ECS/libs/HastyNoise
-	url = https://github.com/caseymcc/HastyNoise
