@@ -64,12 +64,47 @@ Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
     return buffer;
 }
 
+void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, Buffer* buffer) {
+    // Create a new struct to wrap around the VkBuffer
+    buffer->init(&logical, size, usage, properties);
+
+    // Create our new buffer with the given size
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer->buffer) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create vertex buffer!");
+    }
+
+    // Assign memory to our buffer
+    // First define our memory requirements
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(logical, buffer->buffer, &memRequirements);
+
+    // Define our memory allocation request
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+    // Allocate memory
+    if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer->memory) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate vertex buffer memory!");
+    }
+
+    // Bind this memory to our new buffer
+    vkBindBufferMemory(logical, buffer->buffer, buffer->memory, 0);
+}
+
 void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion) {
     // Get a command buffer to use
     VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
     // Determine how much to copy
-    VkBufferCopy bufferCopy;
+    VkBufferCopy bufferCopy = {};
     if (copyRegion == nullptr)
         bufferCopy.size = src->size;
     else

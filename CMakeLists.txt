@@ -75,6 +75,8 @@ find_package(Vulkan REQUIRED)
 target_link_libraries(vecs PRIVATE ${Vulkan_LIBRARIES})
 target_include_directories(vecs PRIVATE ${Vulkan_INCLUDE_DIRS})
 
+# TODO use ExternalProject_Add for all these git repos?
+
 # glslang
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/glslang)
 	execute_process(COMMAND git clone https://github.com/KhronosGroup/glslang ${CMAKE_CURRENT_BINARY_DIR}/glslang)
@@ -135,6 +137,12 @@ endif()
 target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui)
 target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_demo.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_draw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_widgets.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/examples/imgui_impl_glfw.cpp)
 
+# tinyobj
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tinyobj)
+	execute_process(COMMAND git clone https://github.com/tinyobjloader/tinyobjloader ${CMAKE_CURRENT_BINARY_DIR}/tinyobj)
+endif()
+target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/tinyobj)
+
 #### Copy non-script files to our output directory ####
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -144,8 +152,12 @@ endif()
 include("cmake/TargetCopyFiles.cmake")
 add_custom_target(copyResources ALL)
 # resources
-add_copy_directory(copyResources src/resources DESTINATION build/${CMAKE_BUILD_TYPE}/resources)
+add_copy_directory(copyResources default-resources DESTINATION build/${CMAKE_BUILD_TYPE}/resources)
 # hastyNoised.dll
 add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoised.dll DESTINATION build/${CMAKE_BUILD_TYPE})
 # simd
 add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/${CMAKE_BUILD_TYPE}/simd GLOB hastyNoise_*d.dll)
+
+#### Set Visual Studio specific properties ####
+
+set_property(TARGET vecs PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BUILD_TYPE}")

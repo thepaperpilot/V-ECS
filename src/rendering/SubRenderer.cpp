@@ -124,7 +124,7 @@ std::vector<VkPipelineShaderStageCreateInfo> SubRenderer::getShaderStages() {
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     shaderStages.reserve(shaders.size());
 
-    for (auto shader : shaders) {
+    for (auto& shader : shaders) {
         shader.shaderModule = getCompiledShader(&device->logical, shader.filepath);
 
         VkPipelineShaderStageCreateInfo shaderStageInfo = {};

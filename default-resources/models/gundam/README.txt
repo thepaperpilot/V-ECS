@@ -1,0 +1,1 @@
+This model was made by [Tipatat Chennavasin](https://poly.google.com/user/8ri62AdjHrC) and used under CC-BY license. The model was obtained from https://poly.google.com/view/26x_0PKFg-l

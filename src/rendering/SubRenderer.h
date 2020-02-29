@@ -16,6 +16,11 @@ namespace vecs {
 		std::string filepath;
 		VkShaderStageFlagBits shaderStage;
 		VkShaderModule shaderModule;
+
+		ShaderInfo(std::string filepath, VkShaderStageFlagBits shaderStage) {
+			this->filepath = filepath;
+			this->shaderStage = shaderStage;
+		}
 	};
 
 	class SubRenderer {

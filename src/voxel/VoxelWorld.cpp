@@ -10,6 +10,8 @@
 #include "rendering/MeshRendererSystem.h"
 #include "rendering/CameraSystem.h"
 
+#include "../rendering/LuaRenderer.h"
+
 #include <glm/gtc/matrix_transform.hpp>
 
 using namespace vecs;
@@ -38,4 +40,14 @@ void VoxelWorld::preInit() {
 	// Register our voxel renderer
 	voxelRenderer.init(this);
 	subrenderers.push_back(&voxelRenderer);
+
+	// Load all lua renderers
+	lua_State* L = LuaRenderer::getState();
+	for (auto filename : getResources("renderers", ".lua")) {
+		LuaRenderer* luaRenderer = new LuaRenderer(L, filename.c_str());
+		luaRenderer->model = &camera->model;
+		luaRenderer->view = &camera->view;
+		luaRenderer->projection = &camera->projection;
+		subrenderers.push_back(luaRenderer);
+	}
 }
