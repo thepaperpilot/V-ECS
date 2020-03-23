@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Default to debug build if not specified
+if (NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -145,18 +150,24 @@ target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/tinyobj)
 
 #### Copy non-script files to our output directory ####
 
-if (NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Debug")
-endif()
-
 include("cmake/TargetCopyFiles.cmake")
 add_custom_target(copyResources ALL)
-# resources
-add_copy_directory(copyResources default-resources DESTINATION build/${CMAKE_BUILD_TYPE}/resources)
+
+# Debug files
+# resources folder
+add_copy_directory(copyResources default-resources DESTINATION build/Debug/resources)
 # hastyNoised.dll
-add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoised.dll DESTINATION build/${CMAKE_BUILD_TYPE})
-# simd
-add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/${CMAKE_BUILD_TYPE}/simd GLOB hastyNoise_*d.dll)
+add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoised.dll DESTINATION build/Debug)
+# simd folder
+add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/Debug/simd GLOB hastyNoise_*d.dll)
+
+# Release files
+# resources folder
+add_copy_directory(copyResources default-resources DESTINATION build/Release/resources)
+# hastyNoise.dll
+add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoise.dll DESTINATION build/Release)
+# simd folder
+add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/Release/simd GLOB hastyNoise_*[!d].dll)
 
 #### Set Visual Studio specific properties ####
 
