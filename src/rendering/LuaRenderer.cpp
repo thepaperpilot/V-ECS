@@ -45,12 +45,28 @@ public:
 		this->luaRenderer = luaRenderer;
 	}
 
-	LuaMat4Handle* getMVP() {
-		return new LuaMat4Handle(luaRenderer->getMVP());
+	LuaMat4Handle* getViewProjectionMatrix() {
+		return new LuaMat4Handle(luaRenderer->camera->projection * luaRenderer->camera->getViewMatrix());
 	}
 
-	LuaFrustumHandle* getFrustum() {
-		return new LuaFrustumHandle(luaRenderer->getMVP());
+	LuaMat4Handle* getProjectionMatrix() {
+		return new LuaMat4Handle(luaRenderer->camera->projection);
+	}
+
+	LuaMat4Handle* getViewMatrix(LuaVec3Handle eye, LuaVec3Handle center) {
+		return new LuaMat4Handle(glm::lookAt(eye.vec3, center.vec3, { 0, 1, 0 }));
+	}
+
+	LuaMat4Handle* getViewMatrixWithUp(LuaVec3Handle eye, LuaVec3Handle center, LuaVec3Handle up) {
+		return new LuaMat4Handle(glm::lookAt(eye.vec3, center.vec3, up.vec3));
+	}
+
+	LuaVec3Handle* getCameraPosition() {
+		return new LuaVec3Handle(luaRenderer->camera->position);
+	}
+
+	LuaVec3Handle* getCameraForward() {
+		return new LuaVec3Handle(luaRenderer->camera->forwardDir);
 	}
 
 	void pushMat4(VkShaderStageFlagBits stageFlags, uint32_t offset, LuaMat4Handle mat4) {
@@ -88,6 +104,7 @@ static int VertexComponentMaterialIndex = static_cast<int>(VERTEX_COMPONENT_MATE
 lua_State* LuaRenderer::getState() {
 	lua_State* L = vecs::getState();
 
+	// TODO documentation for people writing their own lua renderer scripts
 	getGlobalNamespace(L)
 		.beginNamespace("shaderStages")
 			.addProperty("Vertex", &ShaderStageVertex, false)
@@ -116,8 +133,12 @@ lua_State* LuaRenderer::getState() {
 			.addFunction("loadTexture", &LuaRendererLoaderHandle::loadTexture)
 		.endClass()
 		.beginClass<LuaRendererRendererHandle>("rendererHandle")
-			.addFunction("getMVP", &LuaRendererRendererHandle::getMVP)
-			.addFunction("getFrustum", &LuaRendererRendererHandle::getFrustum)
+			.addFunction("getViewProjectionMatrix", &LuaRendererRendererHandle::getViewProjectionMatrix)
+			.addFunction("getProjectionMatrix", &LuaRendererRendererHandle::getProjectionMatrix)
+			.addFunction("getViewMatrix", &LuaRendererRendererHandle::getViewMatrix)
+			.addFunction("getViewMatrixWithUp", &LuaRendererRendererHandle::getViewMatrixWithUp)
+			.addFunction("getCameraPosition", &LuaRendererRendererHandle::getCameraPosition)
+			.addFunction("getCameraForward", &LuaRendererRendererHandle::getCameraForward)
 			.addFunction("pushMat4", &LuaRendererRendererHandle::pushMat4)
 			.addFunction("draw", &LuaRendererRendererHandle::draw)
 		.endClass();
@@ -158,6 +179,12 @@ LuaRenderer::LuaRenderer(lua_State* L, const char* filename) : config(L) {
 	}
 	vertexLayout.init(components);
 
+	// Read whether or not we should perform depth tests
+	performDepthTest = getBool(config["performDepthTest"], true);
+
+	// Read our render priority (only relevant if ignoring depth test)
+	priority = getInt(config["renderPriority"]);
+
 	alwaysDirty = true;
 }
 
@@ -194,10 +221,6 @@ void LuaRenderer::preCleanup() {
 		cleanup();
 }
 
-glm::mat4 LuaRenderer::getMVP() {
-	return *projection * *view * *model;
-}
-
 std::vector<VkDescriptorSetLayoutBinding> LuaRenderer::getDescriptorLayoutBindings() {
 	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
 	samplerLayoutBinding.binding = 1;
@@ -221,6 +244,20 @@ std::vector<VkWriteDescriptorSet> LuaRenderer::getDescriptorWrites(VkDescriptorS
 	descriptorWrite.pImageInfo = imageInfos.data();
 
 	return { descriptorWrite };
+}
+
+VkPipelineDepthStencilStateCreateInfo LuaRenderer::getDepthStencil() {
+	// Describe the depth and stencil buffer
+	// We read in a variable (default true) for whether or not to perform depth testing for this renderer
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = performDepthTest ? VK_TRUE : VK_FALSE;
+	depthStencil.depthWriteEnable = performDepthTest ? VK_TRUE : VK_FALSE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+
+	return depthStencil;
 }
 
 std::vector<VkPushConstantRange> LuaRenderer::getPushConstantRanges() {

@@ -47,7 +47,7 @@ namespace vecs {
 		bool cancelUpdate = false;
 		bool activeWorld = false;
 
-		std::vector<SubRenderer*> subrenderers;
+		std::multiset<SubRenderer*, SubRendererCompare> subrenderers;
 
 		World(Renderer* renderer) : startRenderingSystem(renderer, this) {
 			this->renderer = renderer;

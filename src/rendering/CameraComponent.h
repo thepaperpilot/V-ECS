@@ -1,16 +1,24 @@
 #pragma once
 
-#include "../../ecs/World.h"
+#include "../ecs/World.h"
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm\ext\matrix_transform.hpp>
 
 namespace vecs {
 
 	// A component that stores the MVP matrices to send to the GPU
 	// to create a 3D camera
 	struct CameraComponent : Component {
-		glm::mat4 model = glm::mat4(1.0);
-		glm::mat4 view = glm::mat4(1.0);
+		// We store the projection matrix since it won't change often
 		glm::mat4 projection = glm::mat4(1.0);
+
+		// Store camera's position in order to calculate view matrix
+		glm::vec3 position = glm::vec3(0);
+		glm::vec3 forwardDir = glm::vec3(0, 0, 1);
+		glm::vec3 upDir = glm::vec3(0, 1, 0);
 
 		// If the window resizes, then we need to recalculate the projection
 		// matrix. Due to that, systems besides the camera system shouldn't
@@ -23,5 +31,10 @@ namespace vecs {
 
 		bool projDirty = true;
 		bool isDirty = true;
+
+		// Small utility function to get a view matrix for this camera
+		glm::mat4 getViewMatrix() {
+			return glm::lookAt(position, position + forwardDir, upDir);
+		}
 	};
 }

@@ -89,7 +89,7 @@ void Renderer::acquireImage() {
     imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 }
 
-void Renderer::presentImage(std::vector<SubRenderer*>* subrenderers) {
+void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
     buildCommandBuffer(subrenderers);
 
     // Create our info to submit an image to the buffers
@@ -387,7 +387,7 @@ void Renderer::createImageViews() {
     }
 }
 
-void Renderer::buildCommandBuffer(std::vector<SubRenderer*>* subrenderers) {
+void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
     // Describe our render pass
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -407,10 +407,11 @@ void Renderer::buildCommandBuffer(std::vector<SubRenderer*>* subrenderers) {
 
     // Make sure all our secondary command buffers are up to date
     std::vector<VkCommandBuffer> secondaryBuffers(subrenderers->size());
-    for (int i = subrenderers->size() - 1; i >= 0; i--) {
-        if (subrenderers->at(i)->dirtyBuffers.count(imageIndex))
-            subrenderers->at(i)->buildCommandBuffer(imageIndex);
-        secondaryBuffers[i] = subrenderers->at(i)->commandBuffers[imageIndex];
+    int i = 0;
+    for (std::multiset<SubRenderer*, SubRendererCompare>::iterator it = subrenderers->begin(); it != subrenderers->end(); ++it) {
+        if ((*it)->dirtyBuffers.count(imageIndex))
+            (*it)->buildCommandBuffer(imageIndex);
+        secondaryBuffers[i++] = (*it)->commandBuffers[imageIndex];
     }
 
     // Begin recording our command buffer

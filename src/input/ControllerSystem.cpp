@@ -1,14 +1,11 @@
 #include "ControllerSystem.h"
 #include "ControlledComponent.h"
-#include "../voxel/rendering/CameraComponent.h"
+#include "../rendering/CameraComponent.h"
 #include "../movement/VelocityComponent.h"
 #include "../movement/PositionComponent.h"
 #include "../events/EventManager.h"
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-#include <glm\ext\matrix_transform.hpp>
 
 glm::vec3 up(0, 1, 0);
 
@@ -88,7 +85,8 @@ void ControllerSystem::update() {
 				// Store view matrix in camera component using position and forward vector
 				glm::vec3 position = static_cast<PositionComponent*>(positionComponents->at(i))->position + velocity * (float)world->deltaTime;
 				CameraComponent* camera = static_cast<CameraComponent*>(cameraComponents->at(i));
-				camera->view = glm::lookAt(position, position + forward, up);
+				camera->position = position;
+				camera->forwardDir = forward;
 				camera->isDirty = true;
 
 				controller->dirty = false;
@@ -97,7 +95,7 @@ void ControllerSystem::update() {
 				if (velocity.length == 0) return;
 				// If our velocity is non-zero, we should still update the camera
 				CameraComponent* camera = static_cast<CameraComponent*>(cameraComponents->at(i));
-				camera->view = glm::translate(camera->view, velocity * -(float)world->deltaTime);
+				camera->position = camera->position + velocity * (float)world->deltaTime;
 				camera->isDirty = true;
 			}
 		}

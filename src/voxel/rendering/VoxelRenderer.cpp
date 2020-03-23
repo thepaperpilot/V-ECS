@@ -2,6 +2,7 @@
 #include "MeshComponent.h"
 #include "../../lib/FrustumCull.h"
 #include "../../ecs/World.h"
+#include "../../rendering/CameraComponent.h"
 
 #include <glm/glm.hpp>
 
@@ -34,7 +35,7 @@ void VoxelRenderer::init() {
 void VoxelRenderer::render(VkCommandBuffer commandBuffer) {
 	// Calculate our model-projection-view matrix
 	// Remember that matrix multiplication order is reversed
-	MVP = *projection * *view * *model;
+	glm::mat4 MVP = camera->projection * camera->getViewMatrix();
 
 	// Send our MVP matrix to the GPU as a push constant
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &MVP);

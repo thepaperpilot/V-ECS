@@ -27,6 +27,12 @@ namespace vecs {
 		return ref.cast<int>();
 	}
 
+	static int getBool(LuaRef ref, bool defaultBool = false) {
+		if (!ref.isBool())
+			return defaultBool;
+		return ref.cast<bool>();
+	}
+
 	static std::vector<std::string> getResources(std::string path, std::string extension) {
 		std::vector<std::string> resources;
 		auto filepath = std::filesystem::path("./resources/" + path).make_preferred();
@@ -47,13 +53,31 @@ namespace vecs {
 			this->mat4 = mat4;
 		}
 
+		float get(int x, int y) {
+			return mat4[x][y];
+		}
+
 		void translate(float x, float y, float z) {
 			mat4 = glm::translate(mat4, { x, y, z });
+		}
+
+		LuaMat4Handle* mul(LuaMat4Handle* other) {
+			return new LuaMat4Handle(mat4 * other->mat4);
 		}
 	};
 	
 	struct LuaVec3Handle {
 		glm::vec3 vec3;
+
+		template <unsigned index>
+		static float get(LuaVec3Handle const* vec) {
+			return vec->vec3[index];
+		}
+
+		template <unsigned index>
+		static void set(LuaVec3Handle* vec, float value) {
+			vec->vec3[index] = value;
+		}
 
 		LuaVec3Handle(float x, float y, float z) {
 			this->vec3 = { x, y, z };
@@ -73,6 +97,8 @@ namespace vecs {
 
 		LuaFrustumHandle(glm::mat4 MVP) : frustum(MVP) {}
 
+		LuaFrustumHandle(LuaMat4Handle* MVP) : frustum(MVP->mat4) {}
+
 		bool isBoxVisible(LuaVec3Handle* minBounds, LuaVec3Handle* maxBounds) {
 			return frustum.IsBoxVisible(minBounds->vec3, maxBounds->vec3);
 		}
@@ -86,13 +112,19 @@ namespace vecs {
 			// TODO send this to a debug log somewhere
 			.addFunction("print", &print)
 			.beginClass<LuaMat4Handle>("mat4")
+				.addFunction("__mul", &LuaMat4Handle::mul)
+				.addFunction("get", &LuaMat4Handle::get)
 				.addFunction("translate", &LuaMat4Handle::translate)
 			.endClass()
 			.beginClass<LuaVec3Handle>("vec3")
 				.addConstructor<void (*) (float , float, float)>()
 				.addFunction("__add", &LuaVec3Handle::add)
+				.addProperty("x", &LuaVec3Handle::get<0>, &LuaVec3Handle::set<0>)
+				.addProperty("y", &LuaVec3Handle::get<1>, &LuaVec3Handle::set<1>)
+				.addProperty("z", &LuaVec3Handle::get<2>, &LuaVec3Handle::set<2>)
 			.endClass()
 			.beginClass<LuaFrustumHandle>("frustum")
+				.addConstructor<void (*) (LuaMat4Handle*)>()
 				.addFunction("isBoxVisible", &LuaFrustumHandle::isBoxVisible)
 			.endClass();
 

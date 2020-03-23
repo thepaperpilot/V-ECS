@@ -9,6 +9,7 @@
 #include "lualib.h"
 #include <LuaBridge/LuaBridge.h>
 #include "../util/LuaUtils.h"
+#include "./CameraComponent.h"
 
 #include <glm/glm.hpp>
 
@@ -52,9 +53,7 @@ namespace vecs {
 	public:
 		static lua_State* getState();
 
-		glm::mat4* model;
-		glm::mat4* view;
-		glm::mat4* projection;
+		CameraComponent* camera;
 
 		LuaRenderer(lua_State* L, const char* filename);
 
@@ -72,6 +71,7 @@ namespace vecs {
 			return vertexLayout.attributeDescriptions;
 		}
 
+		virtual VkPipelineDepthStencilStateCreateInfo getDepthStencil() override;
 		virtual std::vector<VkPushConstantRange> getPushConstantRanges() override;
 
 	private:
@@ -84,7 +84,6 @@ namespace vecs {
 
 		uint32_t numTextures;
 		std::vector<VkDescriptorImageInfo> imageInfos;
-
-		glm::mat4 getMVP();
+		bool performDepthTest;
 	};
 }

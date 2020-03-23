@@ -27,6 +27,8 @@ namespace vecs {
 	public:
 		Renderer* renderer;
 
+		int16_t priority = 0;
+
 		std::vector<VkCommandBuffer> commandBuffers;
 		std::unordered_set<uint32_t> dirtyBuffers;
 

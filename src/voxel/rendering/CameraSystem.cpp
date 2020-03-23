@@ -1,8 +1,8 @@
 #include "CameraSystem.h"
-#include "CameraComponent.h"
 #include "VoxelRenderer.h"
 #include "../../engine/GLFWEvents.h"
 #include "../../events/EventManager.h"
+#include "../../rendering/CameraComponent.h"
 
 #include <glm\ext\matrix_clip_space.hpp>
 #include <glm/gtx/string_cast.hpp>

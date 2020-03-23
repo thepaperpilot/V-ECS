@@ -9,10 +9,6 @@ layout(push_constant) uniform PushConsts {
 } pushConsts;
 
 void main() {
-	mat4 MVPWithoutTranslation = pushConsts.MVP;
-    MVPWithoutTranslation[3][0] = 0.0f;
-    MVPWithoutTranslation[3][1] = 0.0f;
-    MVPWithoutTranslation[3][2] = 0.0f;
-    gl_Position = MVPWithoutTranslation * vec4(inPosition, 1.0);
+    gl_Position = pushConsts.MVP * vec4(inPosition, 1.0);
     pos = inPosition;
 }

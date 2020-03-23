@@ -5,12 +5,11 @@
 #include "../movement/VelocityComponent.h"
 #include "../input/ControllerSystem.h"
 #include "../input/ControlledComponent.h"
+#include "../rendering/LuaRenderer.h"
+#include "../rendering/CameraComponent.h"
 #include "data/ChunkSystem.h"
-#include "rendering/CameraComponent.h"
 #include "rendering/MeshRendererSystem.h"
 #include "rendering/CameraSystem.h"
-
-#include "../rendering/LuaRenderer.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -32,22 +31,18 @@ void VoxelWorld::preInit() {
 	archetype->getComponentList(typeid(VelocityComponent))->at(player.second) = new VelocityComponent;
 	archetype->getComponentList(typeid(ControlledComponent))->at(player.second) = new ControlledComponent;
 	CameraComponent* camera = new CameraComponent;
-	voxelRenderer.model = &camera->model;
-	voxelRenderer.view = &camera->view;
-	voxelRenderer.projection = &camera->projection;
+	voxelRenderer.camera = camera;
 	archetype->getComponentList(typeid(CameraComponent))->at(player.second) = camera;
 
 	// Register our voxel renderer
 	voxelRenderer.init(this);
-	subrenderers.push_back(&voxelRenderer);
+	subrenderers.insert(&voxelRenderer);
 
 	// Load all lua renderers
 	lua_State* L = LuaRenderer::getState();
 	for (auto filename : getResources("renderers", ".lua")) {
 		LuaRenderer* luaRenderer = new LuaRenderer(L, filename.c_str());
-		luaRenderer->model = &camera->model;
-		luaRenderer->view = &camera->view;
-		luaRenderer->projection = &camera->projection;
-		subrenderers.push_back(luaRenderer);
+		luaRenderer->camera = camera;
+		subrenderers.insert(luaRenderer);
 	}
 }

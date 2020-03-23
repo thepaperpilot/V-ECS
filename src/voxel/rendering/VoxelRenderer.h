@@ -12,12 +12,11 @@ namespace vecs {
 
 	// Forward Declarations
 	class World;
+	struct CameraComponent;
 
 	class VoxelRenderer : public SubRenderer {
 	public:
-		glm::mat4* model;
-		glm::mat4* view;
-		glm::mat4* projection;
+		CameraComponent* camera;
 
 		BlockLoader blockLoader;
 
@@ -43,7 +42,5 @@ namespace vecs {
 		EntityQuery meshes;
 
 		VkDescriptorImageInfo imageInfo;
-
-		glm::mat4 MVP;
 	};
 }

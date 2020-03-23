@@ -6,11 +6,18 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <vector>
+#include <set>
 
 const uint32_t maxFramesInFlight = 2;
 const int START_RENDERING_PRIORITY = 2000;
 
 namespace vecs {
+
+	struct SubRendererCompare {
+		bool operator()(const SubRenderer* lhs, const SubRenderer* rhs) const {
+			return lhs->priority < rhs->priority;
+		}
+	};
 
 	// Forward Declarations
 	class Engine;
@@ -34,7 +41,7 @@ namespace vecs {
 
 		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window);
 		void acquireImage();
-		void presentImage(std::vector<SubRenderer*>* subrenderers);
+		void presentImage(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers);
 
 		void cleanup();
 
@@ -70,7 +77,7 @@ namespace vecs {
 		void createFramebuffers();
 		void createImageViews();
 
-		void buildCommandBuffer(std::vector<SubRenderer*>* subrenderers);
+		void buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers);
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);

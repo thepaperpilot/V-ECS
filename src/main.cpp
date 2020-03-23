@@ -54,7 +54,7 @@ int main() {
     app.init();
 
     // Create thread to load our game screen
-    // TODO move this to the other thread once you can give the thread its own VkQeueu
+    // TODO move this to the other thread once you can give the thread its own VkQeueue
     game = new VoxelWorld(&app.renderer, chunkSize);
     game->init(app.device, app.window);
     std::thread loadingThread(loadGame);
@@ -62,7 +62,7 @@ int main() {
     // Create loading screen world
     GUIRenderer loadingScreenRenderer;
     loading = new World(&app.renderer);
-    loading->subrenderers.push_back(&loadingScreenRenderer);
+    loading->subrenderers.insert(&loadingScreenRenderer);
     app.setWorld(loading);
 
     try {
