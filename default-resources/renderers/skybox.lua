@@ -18,8 +18,5 @@ renderer = {
 		local viewProj = renderer:getProjectionMatrix() * renderer:getViewMatrix(vec3(0, 0, 0), renderer:getCameraForward())
 		renderer:pushMat4(shaderStages.Vertex, 0, viewProj)
 		renderer:draw(cube)
-	end,
-	cleanup = function()
-		cube:cleanup()
 	end
 }

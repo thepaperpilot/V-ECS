@@ -71,7 +71,6 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 
 	if (materialLayout != nullptr) {
 		std::vector<float> materialValues;
-		uint16_t numFloats = 0;
 		for (auto& mat : materials) {
 			for (auto component : materialLayout->components) {
 				switch (component.second) {
@@ -79,11 +78,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 					materialValues.emplace_back(mat.diffuse[0]);
 					materialValues.emplace_back(mat.diffuse[1]);
 					materialValues.emplace_back(mat.diffuse[2]);
-					// We add an extra value for alignment, but we'll make it 1.0
-					// so that it can be used as a default alpha value if the material
-					// doesn't have a transparency component
-					materialValues.emplace_back(1);
-					numFloats += 4;
+					materialValues.emplace_back(0);
 					break;
 				}
 			}
@@ -97,7 +92,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 
 		materialLayout->bufferInfo.buffer = materialLayout->buffer;
 		materialLayout->bufferInfo.offset = 0;
-		materialLayout->bufferInfo.range = numFloats * sizeof(float);
+		materialLayout->bufferInfo.range = materials.size() * materialLayout->numFloats * sizeof(float);
 	}
 
 	// Load vertices

@@ -17,6 +17,11 @@ using namespace luabridge;
 
 namespace vecs {
 
+	struct LuaMaterialHandle {
+	public:
+		Material matLayout;
+	};
+
 	struct LuaModelHandle {
 	public:
 		Model model;
@@ -55,6 +60,9 @@ namespace vecs {
 
 		CameraComponent* camera;
 
+		std::vector<VkDescriptorBufferInfo> vertexUniformBufferInfos;
+		std::vector<VkDescriptorBufferInfo> fragmentUniformBufferInfos;
+
 		LuaRenderer(lua_State* L, const char* filename);
 
 		void init() override;
@@ -82,7 +90,9 @@ namespace vecs {
 		std::vector<LuaTextureHandle*> textures;
 		VertexLayout vertexLayout;
 
-		uint32_t numTextures;
+		uint32_t numTextures = 0;
+		uint32_t numVertexUniforms = 0;
+		uint32_t numFragmentUniforms = 0;
 		std::vector<VkDescriptorImageInfo> imageInfos;
 		bool performDepthTest;
 	};

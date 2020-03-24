@@ -20,6 +20,10 @@ namespace vecs {
 		VERTEX_COMPONENT_MATERIAL_INDEX
 	} VertexComponent;
 
+	typedef enum MaterialComponent {
+		MATERIAL_COMPONENT_DIFFUSE
+	} MaterialComponent;
+
 	// Maps binding locations to vertex components
 	struct VertexLayout {
 	public:
@@ -29,6 +33,15 @@ namespace vecs {
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 
 		void init(std::map<uint8_t, uint8_t> components);
+	};
+
+	// Lists components expected inside a material shader struct
+	struct Material {
+	public:
+		std::map<uint8_t, uint8_t> components;
+		Buffer buffer;
+		VkDescriptorBufferInfo bufferInfo;
+		VkShaderStageFlagBits shaderStage;
 	};
 
 	struct ModelPart {
@@ -52,12 +65,13 @@ namespace vecs {
 		Buffer indexBuffer;
 		Buffer vertexBuffer;
 		uint32_t numMaterials;
+		Material* materialLayout;
 
 		glm::vec3 minBounds = glm::vec3(FLT_MAX);
 		glm::vec3 maxBounds = glm::vec3(-FLT_MAX);
 		std::vector<Texture> textures;
 
-		void init(Device* device, VkQueue copyQueue, const char* filename, VertexLayout* vertexLayout);
+		void init(Device* device, VkQueue copyQueue, const char* filename, VertexLayout* vertexLayout, Material* materialLayout = nullptr);
 
 		void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t pushConstantsOffset = 0, uint32_t materialOffset = 0);
 

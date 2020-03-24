@@ -62,11 +62,12 @@ void SubRenderer::buildCommandBuffer(uint32_t imageIndex) {
     vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
 
     // Bind our descriptor sets
-    vkCmdBindDescriptorSets(commandBuffers[imageIndex],
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout, 0,
-        1, &descriptorSets[imageIndex],
-        0, NULL);
+    if (descriptorSets.size() > 0)
+        vkCmdBindDescriptorSets(commandBuffers[imageIndex],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipelineLayout, 0,
+            1, &descriptorSets[imageIndex],
+            0, NULL);
 
     // Bind our graphics pipeline
     vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -342,10 +343,12 @@ VkPipelineDynamicStateCreateInfo SubRenderer::getDynamicState() {
 }
 
 void SubRenderer::createDescriptorPool(size_t imageCount) {
+    if (bindings.size() == 0) return;
+
     std::vector<VkDescriptorPoolSize> poolSizes(bindings.size());
     for (int i = (int)bindings.size() - 1; i >= 0; i--) {
         poolSizes[i].type = bindings[i].descriptorType;
-        poolSizes[i].descriptorCount = static_cast<uint32_t>(imageCount);
+        poolSizes[i].descriptorCount = static_cast<uint32_t>(imageCount) * bindings[i].descriptorCount;
     }
 
     VkDescriptorPoolCreateInfo poolInfo = {};
@@ -360,6 +363,8 @@ void SubRenderer::createDescriptorPool(size_t imageCount) {
 }
 
 void SubRenderer::createDescriptorSets(size_t imageCount) {
+    if (bindings.size() == 0) return;
+
     std::vector<VkDescriptorSetLayout> layouts(imageCount, descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;

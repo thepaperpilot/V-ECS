@@ -49,16 +49,16 @@ namespace vecs {
 	struct LuaMat4Handle {
 		glm::mat4 mat4;
 
+		static LuaMat4Handle* translate(float x, float y, float z) {
+			return new LuaMat4Handle(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z)));
+		}
+
 		LuaMat4Handle(glm::mat4 mat4) {
 			this->mat4 = mat4;
 		}
 
 		float get(int x, int y) {
 			return mat4[x][y];
-		}
-
-		void translate(float x, float y, float z) {
-			mat4 = glm::translate(mat4, { x, y, z });
 		}
 
 		LuaMat4Handle* mul(LuaMat4Handle* other) {
@@ -112,9 +112,9 @@ namespace vecs {
 			// TODO send this to a debug log somewhere
 			.addFunction("print", &print)
 			.beginClass<LuaMat4Handle>("mat4")
+				.addStaticFunction("translate", &LuaMat4Handle::translate)
 				.addFunction("__mul", &LuaMat4Handle::mul)
 				.addFunction("get", &LuaMat4Handle::get)
-				.addFunction("translate", &LuaMat4Handle::translate)
 			.endClass()
 			.beginClass<LuaVec3Handle>("vec3")
 				.addConstructor<void (*) (float , float, float)>()

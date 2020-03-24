@@ -7,24 +7,21 @@ renderer = {
 	},
 	pushConstantsRange = sizes.mat4,
 	vertexLayout = {
-		["0"] = vertexComponents.Position
+		["0"] = vertexComponents.Position,
+		["1"] = vertexComponents.MaterialIndex
 	},
 	init = function(loader)
-		gundam = loader:loadModel("resources/models/gundam/model.obj")
+		local gundamMatLayout = loader:createMaterialLayout(shaderStages.Fragment, {
+			materialComponents.Diffuse
+		})
+		gundam = loader:loadModelWithMaterials("resources/models/gundam/model.obj", gundamMatLayout)
 	end,
 	render = function(renderer)
-		local viewProj = renderer:getViewProjectionMatrix()
-		local cullFrustum = frustum(viewProj)
-		viewProj:translate(0, 10, 0)
-		local minBounds = gundam.minBounds + vec3(0, 10, 0)
-		local maxBounds = gundam.maxBounds + vec3(0, 10, 0)
-		-- TODO draw grid of gundams
-		if cullFrustum:isBoxVisible(minBounds, maxBounds) then
-			renderer:pushMat4(shaderStages.Vertex, 0, viewProj)
+		local MVP = renderer:getViewProjectionMatrix() * mat4.translate(0, 10, 0)
+		local cullFrustum = frustum(MVP)
+		renderer:pushMat4(shaderStages.Vertex, 0, MVP)
+		if cullFrustum:isBoxVisible(gundam.minBounds, gundam.maxBounds) then
 			renderer:draw(gundam)
 		end
-	end,
-	cleanup = function()
-		gundam:cleanup()
 	end
 }

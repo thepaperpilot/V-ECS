@@ -110,7 +110,7 @@ namespace vecs {
 
 		VkPipeline graphicsPipeline;
 
-		VkDescriptorPool descriptorPool;
+		VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 		std::vector<VkDescriptorSet> descriptorSets;
 
 		std::vector<VkCommandBufferInheritanceInfo> inheritanceInfo;

@@ -17,6 +17,23 @@ public:
 		this->luaRenderer = luaRenderer;
 	}
 
+	LuaMaterialHandle* createMaterial(VkShaderStageFlagBits shaderStage, LuaRef components) {
+		Material layout;
+		layout.shaderStage = shaderStage;
+		for (auto&& kvp : pairs(components)) {
+			layout.components[kvp.first] = kvp.second;
+		}
+
+		return new LuaMaterialHandle { layout };
+	}
+
+	LuaModelHandle* loadModelWithMaterials(const char* filename, LuaMaterialHandle* materialLayout) {
+		LuaModelHandle* modelHandle = new LuaModelHandle;
+		modelHandle->model.init(device, renderer->graphicsQueue, filename, &luaRenderer->vertexLayout, &materialLayout->matLayout);
+		luaRenderer->models.emplace_back(modelHandle);
+		return modelHandle;
+	}
+
 	LuaModelHandle* loadModel(const char* filename) {
 		LuaModelHandle* modelHandle = new LuaModelHandle;
 		modelHandle->model.init(device, renderer->graphicsQueue, filename, &luaRenderer->vertexLayout);
@@ -94,12 +111,15 @@ static int ShaderStageVertex = static_cast<int>(VK_SHADER_STAGE_VERTEX_BIT);
 static int ShaderStageFragment = static_cast<int>(VK_SHADER_STAGE_FRAGMENT_BIT);
 
 static int SizeMat4 = static_cast<int>(sizeof(glm::mat4));
+static int SizeVec3 = static_cast<int>(sizeof(glm::vec3));
 static int SizeFloat = static_cast<int>(sizeof(float));
 
 static int VertexComponentPosition = static_cast<int>(VERTEX_COMPONENT_POSITION);
 static int VertexComponentNormal = static_cast<int>(VERTEX_COMPONENT_NORMAL);
 static int VertexComponentUV = static_cast<int>(VERTEX_COMPONENT_UV);
 static int VertexComponentMaterialIndex = static_cast<int>(VERTEX_COMPONENT_MATERIAL_INDEX);
+
+static int MaterialComponentDiffuse = static_cast<int>(MATERIAL_COMPONENT_DIFFUSE);
 
 lua_State* LuaRenderer::getState() {
 	lua_State* L = vecs::getState();
@@ -112,6 +132,7 @@ lua_State* LuaRenderer::getState() {
 		.endNamespace()
 		.beginNamespace("sizes")
 			.addProperty("mat4", &SizeMat4)
+			.addProperty("vec3", &SizeVec3)
 			.addProperty("float", &SizeFloat)
 		.endNamespace()
 		.beginNamespace("vertexComponents")
@@ -120,6 +141,11 @@ lua_State* LuaRenderer::getState() {
 			.addProperty("UV", &VertexComponentUV, false)
 			.addProperty("MaterialIndex", &VertexComponentMaterialIndex, false)
 		.endNamespace()
+		.beginNamespace("materialComponents")
+			.addProperty("Diffuse", &MaterialComponentDiffuse, false)
+		.endNamespace()
+		.beginClass<LuaMaterialHandle>("materialHandle")
+		.endClass()
 		.beginClass<LuaModelHandle>("modelHandle")
 			.addFunction("cleanup", &LuaModelHandle::cleanup)
 			.addProperty("minBounds", &LuaModelHandle::getMinBounds)
@@ -129,6 +155,8 @@ lua_State* LuaRenderer::getState() {
 			.addFunction("cleanup", &LuaTextureHandle::cleanup)
 		.endClass()
 		.beginClass<LuaRendererLoaderHandle>("loaderHandle")
+			.addFunction("createMaterialLayout", &LuaRendererLoaderHandle::createMaterial)
+			.addFunction("loadModelWithMaterials", &LuaRendererLoaderHandle::loadModelWithMaterials)
 			.addFunction("loadModel", &LuaRendererLoaderHandle::loadModel)
 			.addFunction("loadTexture", &LuaRendererLoaderHandle::loadTexture)
 		.endClass()
@@ -204,6 +232,18 @@ void LuaRenderer::init() {
 		numTextures += model->model.textures.size();
 		for (auto texture : model->model.textures)
 			imageInfos.emplace_back(texture.descriptor);
+		if (model->model.materialLayout != nullptr) {
+			switch (model->model.materialLayout->shaderStage) {
+			case VK_SHADER_STAGE_VERTEX_BIT:
+				numVertexUniforms++;
+				vertexUniformBufferInfos.emplace_back(model->model.materialLayout->bufferInfo);
+				break;
+			case VK_SHADER_STAGE_FRAGMENT_BIT:
+				numFragmentUniforms++;
+				fragmentUniformBufferInfos.emplace_back(model->model.materialLayout->bufferInfo);
+				break;
+			}
+		}
 	}
 }
 
@@ -216,34 +256,94 @@ void LuaRenderer::render(VkCommandBuffer commandBuffer) {
 }
 
 void LuaRenderer::preCleanup() {
-	LuaRef cleanup = config["cleanup"];
-	if (cleanup.isFunction())
-		cleanup();
+	for (auto texture : textures)
+		texture->cleanup();
+	for (auto model : models)
+		model->cleanup();
 }
 
 std::vector<VkDescriptorSetLayoutBinding> LuaRenderer::getDescriptorLayoutBindings() {
-	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = numTextures;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	return { samplerLayoutBinding };
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+	if (numTextures > 0) {
+		VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+		samplerLayoutBinding.binding = 1;
+		samplerLayoutBinding.descriptorCount = numTextures;
+		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		samplerLayoutBinding.pImmutableSamplers = nullptr;
+		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		bindings.emplace_back(samplerLayoutBinding);
+	}
+
+	if (numVertexUniforms > 0) {
+		VkDescriptorSetLayoutBinding uniformLayoutBinding = {};
+		uniformLayoutBinding.binding = 2;
+		uniformLayoutBinding.descriptorCount = numVertexUniforms;
+		uniformLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uniformLayoutBinding.pImmutableSamplers = nullptr;
+		uniformLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		bindings.emplace_back(uniformLayoutBinding);
+	}
+
+	if (numFragmentUniforms > 0) {
+		VkDescriptorSetLayoutBinding uniformLayoutBinding = {};
+		uniformLayoutBinding.binding = 3;
+		uniformLayoutBinding.descriptorCount = numFragmentUniforms;
+		uniformLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uniformLayoutBinding.pImmutableSamplers = nullptr;
+		uniformLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		bindings.emplace_back(uniformLayoutBinding);
+	}
+
+	return bindings;
 }
 
 std::vector<VkWriteDescriptorSet> LuaRenderer::getDescriptorWrites(VkDescriptorSet descriptorSet) {
-	if (numTextures == 0) return {};
+	std::vector<VkWriteDescriptorSet> descriptors;
 
-	VkWriteDescriptorSet descriptorWrite = {};
-	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite.dstSet = descriptorSet;
-	descriptorWrite.dstBinding = 1;
-	descriptorWrite.dstArrayElement = 0;
-	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrite.descriptorCount = numTextures;
-	descriptorWrite.pImageInfo = imageInfos.data();
+	if (numTextures > 0) {
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 1;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrite.descriptorCount = numTextures;
+		descriptorWrite.pImageInfo = imageInfos.data();
 
-	return { descriptorWrite };
+		descriptors.emplace_back(descriptorWrite);
+	}
+
+	if (numVertexUniforms > 0) {
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 2;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = numVertexUniforms;
+		descriptorWrite.pBufferInfo = vertexUniformBufferInfos.data();
+
+		descriptors.emplace_back(descriptorWrite);
+	}
+
+	if (numFragmentUniforms > 0) {
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 3;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = numFragmentUniforms;
+		descriptorWrite.pBufferInfo = fragmentUniformBufferInfos.data();
+
+		descriptors.emplace_back(descriptorWrite);
+	}
+
+	return descriptors;
 }
 
 VkPipelineDepthStencilStateCreateInfo LuaRenderer::getDepthStencil() {
