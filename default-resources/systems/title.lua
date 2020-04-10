@@ -35,7 +35,6 @@ return {
 			if ig.button(name) then
 				loadWorld(world)
 			end
-			ig.text(name)
 		end
 
 		ig.endWindow()

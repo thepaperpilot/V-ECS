@@ -357,7 +357,7 @@ void SubRenderer::createMultisampling() {
 }
 
 void SubRenderer::createDepthStencil() {
-    VkBool32 performDepthTest = config.get_or("performDepthTest", VK_TRUE);
+    VkBool32 performDepthTest = config.get_or("performDepthTest", true) ? VK_TRUE : VK_FALSE;
 
     // Describe the depth and stencil buffer
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
