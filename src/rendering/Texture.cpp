@@ -1,32 +1,40 @@
 #include "Texture.h"
 
+#include "Renderer.h"
+#include "SubRenderer.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
 using namespace vecs;
 
-void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
+// TODO perhaps make these constructors called through a function in subrenderer? (similar to Buffer)
+Texture::Texture(SubRenderer* subrenderer, const char* filename,
 	VkFilter filter, VkFormat format,  VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
-	this->device = device;
+	this->device = subrenderer->device;
 	this->format = format;
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
-	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+	init(&stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+
+	subrenderer->textures.emplace_back(this);
 }
 
-void Texture::init(Device* device, VkQueue copyQueue, unsigned char* pixels, int width, int height,
+Texture::Texture(SubRenderer* subrenderer, unsigned char* pixels, int width, int height,
 	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
-	this->device = device;
+	this->device = subrenderer->device;
 	this->format = format;
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
 
-	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+	init(&stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+
+	subrenderer->textures.emplace_back(this);
 }
 
 void Texture::cleanup() {

@@ -13,12 +13,6 @@ const int START_RENDERING_PRIORITY = 2000;
 
 namespace vecs {
 
-	struct SubRendererCompare {
-		bool operator()(const SubRenderer* lhs, const SubRenderer* rhs) const {
-			return lhs->priority < rhs->priority;
-		}
-	};
-
 	// Forward Declarations
 	class Engine;
 	class Device;
@@ -41,7 +35,7 @@ namespace vecs {
 
 		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window);
 		void acquireImage();
-		void presentImage(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers);
+		void presentImage();
 
 		void cleanup();
 
@@ -62,6 +56,7 @@ namespace vecs {
 		std::vector<VkImageView> swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 		std::vector<VkCommandBuffer> commandBuffers;
+		std::vector<VkCommandBuffer> secondaryBuffers;
 
 		size_t currentFrame = 0;
 		uint32_t imageIndex;
@@ -77,7 +72,7 @@ namespace vecs {
 		void createFramebuffers();
 		void createImageViews();
 
-		void buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers);
+		void buildCommandBuffer();
 
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);

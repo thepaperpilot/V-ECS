@@ -1,12 +1,14 @@
 #pragma once
 
 #include <unordered_map>
-#include <typeindex>
 #include <array>
 #include <numeric>
 #include <unordered_set>
 
 #include <vulkan/vulkan.h>
+
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol\sol.hpp>
 
 namespace vecs {
 
@@ -17,31 +19,29 @@ namespace vecs {
 	
 	class Archetype {
 	public:
-		std::unordered_set<std::type_index> componentTypes;
+		std::unordered_set<std::string> componentTypes;
 
-		std::unordered_map<std::type_index, Component*>* sharedComponents;
+		std::unordered_map<std::string, sol::table>* sharedComponents;
 
-		Archetype(World* world, std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr) {
+		Archetype(World* world, std::unordered_set<std::string> componentTypes, std::unordered_map<std::string, sol::table>* sharedComponents = nullptr) {
 			this->world = world;
 			this->componentTypes = componentTypes;
 			this->sharedComponents = sharedComponents;
 
 			for (auto component : componentTypes) {
-				components[component] = new std::vector<Component*>;
+				components[component] = new std::vector<sol::table>;
 			}
 		}
 
-		template <class C>
-		C* getComponent(size_t index) {
-			return static_cast<C*>(components[typeid(C)]->at(index));
+		sol::table getComponent(std::string componentType, size_t index) {
+			return components[componentType]->at(index);
 		}
 
-		template <class C>
-		C* getSharedComponent() {
-			return static_cast<C*>(sharedComponents->at(typeid(C)));
+		sol::table getSharedComponent(std::string componentType) {
+			return sharedComponents->at(componentType);
 		}
 
-		std::vector<Component*>* getComponentList(std::type_index componentType);
+		std::vector<sol::table>* getComponentList(std::string componentType);
 
 		bool hasEntity(uint32_t entity);
 
@@ -56,13 +56,11 @@ namespace vecs {
 
 		void removeEntities(std::vector<uint32_t> entities);
 
-		void cleanup(VkDevice* device);
-
 	private:
 		World* world;
 
 		std::vector<uint32_t> entities;
 
-		std::unordered_map<std::type_index, std::vector<Component*>*> components;
+		std::unordered_map<std::string, std::vector<sol::table>*> components;
 	};
 }

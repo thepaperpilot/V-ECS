@@ -1,4 +1,4 @@
-block = {
-	id = "vecs:grass",
-	texture = "goodLudicolo.png"
+return { "vecs:grass", function(world)
+		return world.renderers.voxel:getBlockFromTexture("goodLudicolo.png")
+	end
 }

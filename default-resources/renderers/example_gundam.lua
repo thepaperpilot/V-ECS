@@ -1,27 +1,30 @@
-local gundam
-
-renderer = {
+return {
 	shaders = {
 		["resources/shaders/gundam.vert"] = shaderStages.Vertex,
 		["resources/shaders/gundam.frag"] = shaderStages.Fragment
 	},
-	pushConstantsRange = sizes.mat4,
+	pushConstantsSize = sizes.mat4,
 	vertexLayout = {
-		["0"] = vertexComponents.Position,
-		["1"] = vertexComponents.MaterialIndex
+		[0] = vertexComponents.Position,
+		[1] = vertexComponents.MaterialIndex
 	},
-	init = function(loader)
-		local gundamMatLayout = loader:createMaterialLayout(shaderStages.Fragment, {
+	init = function(self, world, renderer)
+		self.gundam = model.new(renderer, "resources/models/gundam/model.obj", shaderStages.Fragment, {
 			materialComponents.Diffuse
 		})
-		gundam = loader:loadModelWithMaterials("resources/models/gundam/model.obj", gundamMatLayout)
 	end,
-	render = function(renderer)
-		local MVP = renderer:getViewProjectionMatrix() * mat4.translate(0, 10, 0)
-		local cullFrustum = frustum(MVP)
-		renderer:pushMat4(shaderStages.Vertex, 0, MVP)
-		if cullFrustum:isBoxVisible(gundam.minBounds, gundam.maxBounds) then
-			renderer:draw(gundam)
+	dependencies = {
+		camera = "system",
+		skybox = "renderer"
+	},
+	render = function(self, world, renderer)
+		local MVP = world.systems.camera.main.viewProjectionMatrix * mat4.translate(vec3.new(0, 10, 0))
+		renderer:pushConstant(shaderStages.Vertex, 0, sizes.mat4, MVP)
+
+		local cullFrustum = frustum.new(MVP)
+
+		if cullFrustum:isBoxVisible(self.gundam.minBounds, self.gundam.maxBounds) then
+			renderer:draw(self.gundam)
 		end
 	end
 }

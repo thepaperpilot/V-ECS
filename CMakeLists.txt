@@ -123,11 +123,11 @@ else()
 	target_include_directories(vecs PRIVATE ${LUA_INCLUDE_DIR})
 endif()
 
-# LuaBridge
-if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
-	execute_process(COMMAND git clone https://github.com/vinniefalco/LuaBridge ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
+# sol2
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sol2)
+	execute_process(COMMAND git clone https://github.com/ThePhD/sol2.git ${CMAKE_CURRENT_BINARY_DIR}/sol2)
 endif()
-target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge/Source)
+target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/sol2/include)
 
 # rectpack2D
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D)

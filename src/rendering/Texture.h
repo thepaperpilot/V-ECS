@@ -7,6 +7,9 @@
 
 namespace vecs {
 
+	// Forward Declarations
+	class SubRenderer;
+
 	class Texture {
 	public:
 		VkImage image;
@@ -38,13 +41,13 @@ namespace vecs {
 			}
 		}
 
-		void init(Device* device, VkQueue copyQueue, const char* filename,
+		Texture(SubRenderer* subrenderer, const char* filename,
 			VkFilter filter = VK_FILTER_NEAREST,
 			VkFormat format = VK_FORMAT_R8G8B8A8_SRGB,
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
 			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-		void init(Device* device, VkQueue copyQueue, unsigned char* pixels,
+		Texture(SubRenderer* subrenderer, unsigned char* pixels,
 			int width, int height,
 			VkFilter filter = VK_FILTER_LINEAR,
 			VkFormat format = VK_FORMAT_R8G8B8A8_UNORM,

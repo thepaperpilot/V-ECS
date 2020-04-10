@@ -193,6 +193,7 @@ static std::vector<char> readFile(const std::string& filename) {
 }
 
 // Reference used: https://github.com/ForestCSharp/VkCppRenderer/blob/master/Src/Renderer/GLSL/ShaderCompiler.hpp
+// TODO validate shader and output errors
 static const VkShaderModule getCompiledShader(VkDevice* device, const std::string& filename) {
     auto filepath = std::filesystem::path(filename).make_preferred();
     // If the source code hasn't been modified since we last compiled our shader, just use the already compiled one.

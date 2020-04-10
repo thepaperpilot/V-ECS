@@ -2,12 +2,14 @@
 
 #include <vulkan/vulkan.h>
 
+#include <hastyNoise/hastyNoise.h>
+
 #include "Debugger.h"
-#include "Manifest.h"
 #include "../rendering/Renderer.h"
 
 // Forward Declarations
 struct GLFWwindow;
+class table;
 
 namespace vecs {
 
@@ -23,39 +25,46 @@ namespace vecs {
     // https://github.com/SaschaWillems/Vulkan
     class Engine {
     public:
+        inline static size_t fastestSimd = 0;
+
         Device* device;
         GLFWwindow* window;
-        World* world;
+        World* world = nullptr;
 
         Renderer renderer;
 
-        Engine() : renderer(this) {};
+        size_t imguiVertexBufferSize = 0;
+        size_t imguiIndexBufferSize = 0;
+        Buffer imguiVertexBuffer;
+        Buffer imguiIndexBuffer;
+
+        Engine() : renderer(this) {
+            // init noise
+            HastyNoise::loadSimd("./simd");
+            fastestSimd = HastyNoise::GetFastestSIMD();
+        };
 
         void init();
 
-        void setWorld(World* world, bool init = true, bool cleanupWorld = false);
+        void setWorld(World* world);
 
-        void run();
-
-        // This is an optional function pointer to run before the cleanup step
-        // intended to be used for cleaning up anything external to the engine
-        // before the logical device gets destroyed itself
-        void (*preCleanup)();
+        void updateWorld();
 
     private:
         VkInstance instance;
         VkSurfaceKHR surface;
-        World* nextWorld;
+        World* nextWorld = nullptr;
         Debugger debugger;
-        Manifest manifest;
 
         double lastFrameTime;
-        bool cleanupWorld;
 
-        void initWindow();
-        void initVulkan();
+        void run(std::string worldFilename);
 
-        void createInstance();
+        void initWindow(sol::table manifest);
+        void initVulkan(sol::table manifest);
+        void initImGui();
+
+        void createInstance(sol::table manifest);
         void createSurface();
 
         std::vector<const char*> getRequiredExtensions();

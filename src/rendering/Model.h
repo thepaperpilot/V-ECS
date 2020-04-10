@@ -13,48 +13,13 @@
 
 namespace vecs {
 
-	typedef enum VertexComponent {
-		VERTEX_COMPONENT_POSITION,
-		VERTEX_COMPONENT_NORMAL,
-		VERTEX_COMPONENT_UV,
-		VERTEX_COMPONENT_MATERIAL_INDEX
-	} VertexComponent;
-
 	typedef enum MaterialComponent {
 		MATERIAL_COMPONENT_DIFFUSE
 	} MaterialComponent;
 
-	// Maps binding locations to vertex components
-	struct VertexLayout {
-	public:
-		std::map<uint8_t, uint8_t> components;
-		uint16_t numFloats;
-		VkVertexInputBindingDescription bindingDescription;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-
-		void init(std::map<uint8_t, uint8_t> components);
-	};
-
-	// Lists components expected inside a material shader struct
-	struct Material {
-	public:
-		std::map<uint8_t, uint8_t> components;
-		Buffer buffer;
-		VkDescriptorBufferInfo bufferInfo;
-		VkShaderStageFlagBits shaderStage;
-	};
-
-	struct ModelPart {
-		uint32_t indexStart;
-		uint32_t indexCount;
-		uint32_t matIndex;
-
-		ModelPart(uint32_t indexStart, uint32_t indexCount, uint32_t matIndex) {
-			this->indexStart = indexStart;
-			this->indexCount = indexCount;
-			this->matIndex = matIndex;
-		}
-	};
+	// Forward declarations
+	class SubRenderer;
+	struct VertexLayout;
 
 	// References:
 	// https://pastebin.com/PZYVnJCd
@@ -62,28 +27,32 @@ namespace vecs {
 	// https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanModel.hpp
 	class Model {
 	public:
-		Buffer indexBuffer;
-		Buffer vertexBuffer;
-		uint32_t numMaterials;
-		Material* materialLayout;
-
 		glm::vec3 minBounds = glm::vec3(FLT_MAX);
 		glm::vec3 maxBounds = glm::vec3(-FLT_MAX);
 		std::vector<Texture> textures;
 
-		void init(Device* device, VkQueue copyQueue, const char* filename, VertexLayout* vertexLayout, Material* materialLayout = nullptr);
+		bool hasMaterial = false;
+		VkShaderStageFlagBits materialShaderStage;
+		VkDescriptorBufferInfo materialBufferInfo;
 
-		void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t pushConstantsOffset = 0, uint32_t materialOffset = 0);
+		Model(SubRenderer* subrenderer, const char* filename);
+		Model(SubRenderer* subrenderer, const char* filename, VkShaderStageFlagBits shaderStage, std::vector<MaterialComponent> materialComponents);
+
+		void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
 
 		void cleanup();
 
 	private:
 		Device* device;
-
 		VertexLayout* vertexLayout;
-		std::vector<ModelPart> parts;
-		bool hasMaterialIndices;
+		std::vector<MaterialComponent> materialComponents;
 
+		Buffer indexBuffer;
+		Buffer vertexBuffer;
+		uint32_t indexCount;
+		Buffer materialBuffer;
+
+		void init(SubRenderer* subrenderer, const char* filename);
 		void loadObj(VkQueue copyQueue, std::filesystem::path filepath);
 	};
 }

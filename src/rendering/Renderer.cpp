@@ -3,7 +3,7 @@
 #include "../engine/Engine.h"
 #include "../engine/Device.h"
 #include "../events/EventManager.h"
-#include "../engine/GLFWEvents.h"
+#include "../events/GLFWEvents.h"
 #include "../ecs/World.h"
 
 #include <algorithm>
@@ -89,10 +89,11 @@ void Renderer::acquireImage() {
     imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 }
 
-void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
-    buildCommandBuffer(subrenderers);
+void Renderer::presentImage() {
+    // Create our command buffer of draw calls
+    buildCommandBuffer();
 
-    // Create our info to submit an image to the buffers
+    // Create our info to submit an image to the present queue
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     // We need to set it up with a sempahore signal so it knows to wait until there's an image available
@@ -287,9 +288,10 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     }
 
     // Tell sub-renderers the window size changed as well
-    for (auto subrenderer : engine->world->subrenderers) {
-        subrenderer->windowRefresh(numImagesChanged, imageCount);
-    }
+    engine->world->windowRefresh(numImagesChanged, imageCount);
+
+    // Redraw screen
+    engine->updateWorld();
 }
 
 bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
@@ -337,7 +339,11 @@ bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
     createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : *oldSwapChain;
 
     if (vkCreateSwapchainKHR(*device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create swap chain!");
+        // If this fails for any reason, then the old swapchain will be invalidated
+        // We don't throw a runtime error because creating a swapchain can fail for innocuous reasons,
+        // like moving the window near the edge of the screen too quickly
+        // Instead we'll just try creating it again, notably leaving oldSwapchain as nullptr
+        return createSwapChain();
     }
 
     vkGetSwapchainImagesKHR(*device, swapChain, &imageCount, nullptr);
@@ -387,7 +393,7 @@ void Renderer::createImageViews() {
     }
 }
 
-void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
+void Renderer::buildCommandBuffer() {
     // Describe our render pass
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -405,15 +411,6 @@ void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
 
-    // Make sure all our secondary command buffers are up to date
-    std::vector<VkCommandBuffer> secondaryBuffers(subrenderers->size());
-    int i = 0;
-    for (std::multiset<SubRenderer*, SubRendererCompare>::iterator it = subrenderers->begin(); it != subrenderers->end(); ++it) {
-        if ((*it)->dirtyBuffers.count(imageIndex))
-            (*it)->buildCommandBuffer(imageIndex);
-        secondaryBuffers[i++] = (*it)->commandBuffers[imageIndex];
-    }
-
     // Begin recording our command buffer
     device->beginCommandBuffer(commandBuffers[imageIndex]);
 
@@ -429,7 +426,9 @@ void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare
     // End the command buffer
     if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
         throw std::runtime_error("failed to record command buffer!");
-    }    
+    }
+
+    secondaryBuffers.clear();
 }
 
 VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {

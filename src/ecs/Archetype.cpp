@@ -5,7 +5,7 @@
 
 using namespace vecs;
 
-std::vector<Component*>* Archetype::getComponentList(std::type_index componentType) {
+std::vector<sol::table>* Archetype::getComponentList(std::string componentType) {
 	return components[componentType];
 }
 
@@ -18,18 +18,18 @@ ptrdiff_t Archetype::getIndex(uint32_t entity) {
 }
 
 bool Archetype::checkQuery(EntityQuery* query) {
-	for (std::type_index component_t : query->filter.required) {
+	for (std::string component_t : query->filter.required) {
 		if (componentTypes.find(component_t) == componentTypes.end())
 			return false;
 	}
-	for (std::type_index component_t : query->filter.disallowed)
+	for (std::string component_t : query->filter.disallowed)
 		if (componentTypes.find(component_t) != componentTypes.end())
 			return false;
-	for (std::type_index component_t : query->sharedFilter.required) {
+	for (std::string component_t : query->sharedFilter.required) {
 		if (!sharedComponents->count(component_t))
 			return false;
 	}
-	for (std::type_index component_t : query->sharedFilter.disallowed)
+	for (std::string component_t : query->sharedFilter.disallowed)
 		if (sharedComponents->count(component_t))
 			return false;
 	return true;
@@ -70,12 +70,5 @@ void Archetype::removeEntities(std::vector<uint32_t> entities) {
 			kvp.second->at(index) = kvp.second->back();
 			kvp.second->pop_back();
 		}
-	}
-}
-
-void Archetype::cleanup(VkDevice* device) {
-	for (auto kvp : components) {
-		for (auto component : *kvp.second)
-			component->cleanup(device);
 	}
 }

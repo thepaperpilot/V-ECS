@@ -16,17 +16,16 @@ namespace vecs {
 	class ComponentFilter {
 	friend class Archetype;
 	public:
-		// TODO should the with and without functions just use va_list?
 		// Adds required types
-		void with(std::type_index component);
-		void with(std::vector<std::type_index> components);
+		void with(std::string component);
+		void with(std::vector<std::string> components);
 		// Adds disallowed types
-		void without(std::type_index component);
-		void without(std::vector<std::type_index> components);
+		void without(std::string component);
+		void without(std::vector<std::string> components);
 
 	private:
-		std::set<std::type_index> required;
-		std::set<std::type_index> disallowed;
+		std::set<std::string> required;
+		std::set<std::string> disallowed;
 	};
 
 	// This struct becomes a container to track entities matching the filter
