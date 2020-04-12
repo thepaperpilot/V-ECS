@@ -59,8 +59,13 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 }
 
 void DependencyGraph::execute() {
-	for (auto node : nodes)
+	for (auto node : nodes) {
 		node->dependenciesRemaining = node->dependencies.size();
+
+		// Some renderers need to perform some work at the start of our frame
+		// e.g. imgui needs to create a new frame, and it has to start after event handling
+		node->startFrame(config);
+	}
 
 	for (auto node : leaves)
 		node->execute(config);
@@ -136,6 +141,17 @@ void DependencyNode::createEdges(std::map<std::string, DependencyNode*> systemsM
 
 			dependents.emplace_back(dependent);
 			dependent->dependencies.emplace_back(this);
+		}
+	}
+}
+
+void DependencyNode::startFrame(sol::table worldConfig) {
+	if (type == DEPENDENCY_NODE_TYPE_RENDERER && config["startFrame"].get_type() == sol::type::function) {
+		auto result = config["startFrame"](config, worldConfig, subrenderer);
+		if (!result.valid()) {
+			sol::error err = result;
+			std::cout << "[LUA] " << err.what() << std::endl;
+			return;
 		}
 	}
 }

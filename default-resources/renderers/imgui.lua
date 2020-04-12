@@ -13,10 +13,11 @@ return {
 	cullMode = cullModes.None,
 	init = function(self, world, renderer)
 		ig.createFontTexture(renderer)
+	end,
+	startFrame = function(self, world, renderer)
 		ig.newFrame()
 	end,
 	render = function(self, world, renderer)
 		ig.render(renderer)
-		ig.newFrame()
 	end
 }

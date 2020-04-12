@@ -28,6 +28,7 @@ namespace vecs {
 		// We do this outside the constructor because we need all the nodes to exist before we can start linking them
 		void createEdges(std::map<std::string, DependencyNode*> systemsMap, std::map<std::string, DependencyNode*> renderersMap);
 
+		void startFrame(sol::table worldConfig);
 		// In the future we'll create a number of worker threads, with their own VkQueues,
 		// and execute will add any number of jobs to a job queue that each worker thread will pull from
 		// Whenever the last job for a dependency node is completed,
