@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../engine/Debugger.h"
+
 #include <vulkan/vulkan.h>
 
 #include <glslang/Public/ShaderLang.h>
@@ -14,6 +16,8 @@
 #include <fstream>
 #include <iostream>
 #include <cassert>
+
+using namespace vecs;
 
 static VkResult CreateDebugUtilsMessengerEXT(
     VkInstance instance,
@@ -257,27 +261,21 @@ static const VkShaderModule getCompiledShader(VkDevice* device, const std::strin
         std::string PreprocessedGLSL;
 
         if (!Shader.preprocess(&Resources, DefaultVersion, ENoProfile, false, false, messages, &PreprocessedGLSL, Includer)) {
-            std::cout << "GLSL Preprocessing Failed for: " << filename << std::endl;
-            std::cout << Shader.getInfoLog() << std::endl;
-            std::cout << Shader.getInfoDebugLog() << std::endl;
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "[SHADER] " + filepath.string() + " failed GLSL Preprocessing step. " + Shader.getInfoLog() + "\n" + Shader.getInfoDebugLog());
         }
 
         const char* PreprocessedCStr = PreprocessedGLSL.c_str();
         Shader.setStrings(&PreprocessedCStr, 1);
 
         if (!Shader.parse(&Resources, 100, false, messages)) {
-            std::cout << "GLSL Parsing Failed for: " << filename << std::endl;
-            std::cout << Shader.getInfoLog() << std::endl;
-            std::cout << Shader.getInfoDebugLog() << std::endl;
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "[SHADER] " + filepath.string() + " failed GLSL Parsing step. " + Shader.getInfoLog() + "\n" + Shader.getInfoDebugLog());
         }
 
         glslang::TProgram Program;
         Program.addShader(&Shader);
 
         if (!Program.link(messages)) {
-            std::cout << "GLSL Linking Failed for: " << filename << std::endl;
-            std::cout << Shader.getInfoLog() << std::endl;
-            std::cout << Shader.getInfoDebugLog() << std::endl;
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "[SHADER] " + filepath.string() + " failed GLSL Linking step. " + Shader.getInfoLog() + "\n" + Shader.getInfoDebugLog());
         }
 
         std::vector<unsigned int> SpirV;
@@ -288,7 +286,7 @@ static const VkShaderModule getCompiledShader(VkDevice* device, const std::strin
         glslang::OutputSpvBin(SpirV, compiledFilepath.string().c_str());
 
         if (logger.getAllMessages().length() > 0) {
-            std::cout << logger.getAllMessages() << std::endl;
+            Debugger::addLog(DEBUG_LEVEL_WARN, "[SHADER] " + filepath.string() + " compiled with the following output: " + logger.getAllMessages());
         }
 
         //TODO: Handle startup shutdown separately from compile function

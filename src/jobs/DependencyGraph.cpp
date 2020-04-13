@@ -1,5 +1,7 @@
 #include "DependencyGraph.h"
 
+#include "../engine/Debugger.h"
+
 #include <iostream>
 
 using namespace vecs;
@@ -94,7 +96,7 @@ DependencyNode::DependencyNode(Device* device, Renderer* renderer, DependencyNod
 			auto result = config["init"](config, worldConfig);
 			if (!result.valid()) {
 				sol::error err = result;
-				std::cout << "[LUA] " << err.what() << std::endl;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 				return;
 			}
 		}
@@ -114,7 +116,7 @@ void DependencyNode::createEdges(std::map<std::string, DependencyNode*> systemsM
 			else continue;
 
 			if (dependency == nullptr) {
-				std::cout << "Dependency " << kvp.first.as<std::string>() << " (" << dependencyType << ") not found!" << std::endl;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "Dependency " + kvp.first.as<std::string>() + " (" + dependencyType + ") not found!");
 				continue;
 			}
 
@@ -135,7 +137,7 @@ void DependencyNode::createEdges(std::map<std::string, DependencyNode*> systemsM
 			else continue;
 
 			if (dependent == nullptr) {
-				std::cout << "Forward dependency " << kvp.first.as<std::string>() << " (" << dependencyType << ") not found!" << std::endl;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "Forward dependency " + kvp.first.as<std::string>() + " (" + dependencyType + ") not found!");
 				continue;
 			}
 
@@ -150,7 +152,7 @@ void DependencyNode::startFrame(sol::table worldConfig) {
 		auto result = config["startFrame"](config, worldConfig, subrenderer);
 		if (!result.valid()) {
 			sol::error err = result;
-			std::cout << "[LUA] " << err.what() << std::endl;
+			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 			return;
 		}
 	}
@@ -162,7 +164,7 @@ void DependencyNode::execute(sol::table worldConfig) {
 			auto result = config["update"](config, worldConfig);
 			if (!result.valid()) {
 				sol::error err = result;
-				std::cout << "[LUA] " << err.what() << std::endl;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 				return;
 			}
 		}		

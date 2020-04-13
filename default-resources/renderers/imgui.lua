@@ -3,7 +3,7 @@ return {
 		["resources/shaders/imgui.vert"] = shaderStages.Vertex,
 		["resources/shaders/imgui.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.float * 4,
+	pushConstantsSize = sizes.Float * 4,
 	vertexLayout = {
 		[0] = vertexComponents.R32G32,
 		[1] = vertexComponents.R32G32,

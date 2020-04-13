@@ -32,6 +32,7 @@ namespace vecs {
         World* world = nullptr;
 
         Renderer renderer;
+        Debugger debugger;
 
         size_t imguiVertexBufferSize = 0;
         size_t imguiIndexBufferSize = 0;
@@ -54,7 +55,6 @@ namespace vecs {
         VkInstance instance;
         VkSurfaceKHR surface;
         World* nextWorld = nullptr;
-        Debugger debugger;
 
         double lastFrameTime;
 

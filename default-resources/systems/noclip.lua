@@ -31,8 +31,8 @@ return {
 			if glfw.isKeyPressed(keys.S) then self.velocity = self.velocity - forward end
 			if glfw.isKeyPressed(keys.A) then self.velocity = self.velocity - right end
 			if glfw.isKeyPressed(keys.D) then self.velocity = self.velocity + right end
-			if glfw.isKeyPressed(keys.SPACE) then self.velocity = self.velocity + up end
-			if glfw.isKeyPressed(keys.LEFT_SHIFT) then self.velocity = self.velocity - up end
+			if glfw.isKeyPressed(keys.Space) then self.velocity = self.velocity + up end
+			if glfw.isKeyPressed(keys.LeftShift) then self.velocity = self.velocity - up end
 
 			if self.velocity:length() > 0 then
 				self.velocity = normalize(self.velocity) * self.speed

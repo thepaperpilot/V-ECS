@@ -99,7 +99,7 @@ void SubRenderer::buildCommandBuffer() {
     auto result = config["render"](config, worldConfig, this);
     if (!result.valid()) {
         sol::error err = result;
-        std::cout << "[LUA] " << err.what() << std::endl;
+        Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
         return;
     }
 

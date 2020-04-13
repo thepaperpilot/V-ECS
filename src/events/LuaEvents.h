@@ -22,7 +22,7 @@ namespace vecs {
 				auto result = listeners[i](selves[i], event);
 				if (!result.valid()) {
 					sol::error err = result;
-					std::cout << "[LUA] " << err.what() << std::endl;
+					Debugger::addLog(DEBUG_LEVEL_ERROR, "[ERR] " + std::string(err.what()));
 				}
 			}
 		}

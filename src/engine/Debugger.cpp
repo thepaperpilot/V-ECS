@@ -8,6 +8,8 @@ using namespace vecs;
 
 VkDebugUtilsMessageSeverityFlagBitsEXT Debugger::logLevel = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
 
+std::vector<Log> Debugger::log = std::vector<Log>();
+
 // TODO look at the Vulkan debug docs to make this more robust
 // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_EXT_debug_utils
 VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
@@ -17,15 +19,20 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
     void* pUserData) {
 
     if (messageSeverity >= logLevel) {
-        const char* errorType =
-            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ? "GENERAL - " :
-            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ? "VALIDATION - " :
-            "PERFORMANCE - ";
+        std::string errorType =
+            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ? "[GENERAL] " :
+            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ? "[VALIDATION] " :
+            "[PERFORMANCE] ";
 
-        std::cout << "[VULKAN] " << errorType << pCallbackData->pMessage << std::endl;
+        Debugger::log.emplace_back(DEBUG_LEVEL_ERROR, "[VULKAN] " + errorType + std::string(pCallbackData->pMessage));
     }
 
     return VK_FALSE;
+}
+
+void Debugger::addLog(DebugLevel debugLevel, std::string message) {
+    log.emplace_back(debugLevel, message);
+    std::cout << message << std::endl;
 }
 
 void Debugger::setupDebugMessenger(VkInstance instance) {

@@ -3,7 +3,7 @@ return {
 		["resources/shaders/voxel.vert"] = shaderStages.Vertex,
 		["resources/shaders/voxel.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.mat4,
+	pushConstantsSize = sizes.Mat4,
 	vertexLayout = {
 		[0] = vertexComponents.R32G32B32,
 		[1] = vertexComponents.R32G32
@@ -27,7 +27,7 @@ return {
 	},
 	render = function(self, world, renderer)
 		local viewProj = world.systems.camera.main.viewProjectionMatrix
-		renderer:pushConstant(shaderStages.Vertex, 0, sizes.mat4, viewProj)
+		renderer:pushConstant(shaderStages.Vertex, 0, sizes.Mat4, viewProj)
 
 		local cullFrustum = frustum.new(MVP)
 

@@ -11,9 +11,11 @@
 
 #include <imgui.h>
 #include <examples\imgui_impl_glfw.h>
+#include <misc/cpp/imgui_stdlib.h>
 
 #include "../events/LuaEvents.h"
 #include "../lib/FrustumCull.h"
+#include "../engine/Debugger.h"
 
 using namespace vecs;
 using namespace rectpack2D;
@@ -24,6 +26,34 @@ struct SubTexture {
 	stbi_uc* pixels;
 	std::string filename;
 };
+
+struct LuaCallback {
+	LuaCallback(sol::table self, sol::function callback) {
+		this->self = self;
+		this->callback = callback;
+	}
+
+	sol::table self;
+	sol::function callback;
+};
+
+static int InputTextCallback(ImGuiInputTextCallbackData* data) {
+	LuaCallback* cb = (LuaCallback*)data->UserData;
+	auto result = cb->callback(cb->self, data);
+	if (result.valid()) {
+		if (result.get_type() == sol::type::string) {
+			std::string str = result;
+			data->DeleteChars(0, data->BufTextLen);
+			data->InsertChars(0, str.c_str());
+			data->CursorPos = data->BufTextLen;
+		}
+	} else {
+		sol::error err = result;
+		Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+		return 0;
+	}
+	return 0;
+}
 
 uint32_t World::createEntities(uint32_t amount) {
 	uint32_t firstEntity = nextEntity;
@@ -101,10 +131,9 @@ void World::cleanup() {
 }
 
 void World::setupState(Engine* engine) {
-	lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string);
+	lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string, sol::lib::table);
 
 	// Utility functions
-	lua["print"] = [](std::string s) { std::cout << "[LUA] " << s << std::endl; };
 	lua["getResources"] = [](std::string path, std::string extension) -> std::vector<std::string> {
 		std::vector<std::string> resources;
 		auto filepath = std::filesystem::path("./resources/" + path).make_preferred();
@@ -115,6 +144,12 @@ void World::setupState(Engine* engine) {
 	};
 	lua["loadWorld"] = [engine](sol::table worldConfig) { engine->setWorld(new World(engine, worldConfig)); };
 
+	lua.new_enum("debugLevels",
+		"Error", DEBUG_LEVEL_ERROR,
+		"Warn", DEBUG_LEVEL_WARN,
+		"Info", DEBUG_LEVEL_INFO,
+		"Verbose", DEBUG_LEVEL_VERBOSE
+	);
 	lua.new_enum("shaderStages",
 		"Vertex", VK_SHADER_STAGE_VERTEX_BIT,
 		"Fragment", VK_SHADER_STAGE_FRAGMENT_BIT
@@ -215,41 +250,112 @@ void World::setupState(Engine* engine) {
 		"Tooltip", ImGuiWindowFlags_Tooltip,
 		"UnsavedDocument", ImGuiWindowFlags_UnsavedDocument
 	);
-	lua["sizes"] = lua.create_table_with(
-		"float", sizeof(float),
-		"vec3", sizeof(glm::vec3),
-		"mat4", sizeof(glm::mat4)
+	lua.new_enum("inputTextFlags",
+		"AllowTabInput", ImGuiInputTextFlags_AllowTabInput,
+		"AlwaysInsertMode", ImGuiInputTextFlags_AlwaysInsertMode,
+		"AutoSelectAll", ImGuiInputTextFlags_AutoSelectAll,
+		"CallbackAlways", ImGuiInputTextFlags_CallbackAlways,
+		"CallbackCharFilter", ImGuiInputTextFlags_CallbackCharFilter,
+		"CallbackCompletion", ImGuiInputTextFlags_CallbackCompletion,
+		"CallbackHistory", ImGuiInputTextFlags_CallbackHistory,
+		"CallbackResize", ImGuiInputTextFlags_CallbackResize,
+		"CharsDecimal", ImGuiInputTextFlags_CharsDecimal,
+		"CharsHexadecimal", ImGuiInputTextFlags_CharsHexadecimal,
+		"CharsNoBlank", ImGuiInputTextFlags_CharsNoBlank,
+		"CharsScientific", ImGuiInputTextFlags_CharsScientific,
+		"CharsUppercase", ImGuiInputTextFlags_CharsUppercase,
+		"CtrlEnterForNewLine", ImGuiInputTextFlags_CtrlEnterForNewLine,
+		"EnterReturnsTrue", ImGuiInputTextFlags_EnterReturnsTrue,
+		"Multiline", ImGuiInputTextFlags_Multiline,
+		"NoHorizontalScroll", ImGuiInputTextFlags_NoHorizontalScroll,
+		"NoMarkEdited", ImGuiInputTextFlags_NoMarkEdited,
+		"NoUndoRedo", ImGuiInputTextFlags_NoUndoRedo,
+		"Password", ImGuiInputTextFlags_Password,
+		"ReadOnly", ImGuiInputTextFlags_ReadOnly
 	);
-
-	// time namespace
-	lua["time"] = lua.create_table_with(
-		"getDeltaTime", [this]() -> float { return deltaTime; }
+	lua.new_enum("styleColors", 
+		"Border", ImGuiCol_Border,
+		"BorderShadow", ImGuiCol_BorderShadow,
+		"Button", ImGuiCol_Button,
+		"ButtonActive", ImGuiCol_ButtonActive,
+		"ButtonHovered", ImGuiCol_ButtonHovered,
+		"CheckMark", ImGuiCol_CheckMark,
+		"ChildBg", ImGuiCol_ChildBg,
+		"DragDropTarget", ImGuiCol_DragDropTarget,
+		"FrameBg", ImGuiCol_FrameBg,
+		"FrameBgActive", ImGuiCol_FrameBgActive,
+		"FrameBgHovered", ImGuiCol_FrameBgHovered,
+		"Header", ImGuiCol_Header,
+		"HeaderActive", ImGuiCol_HeaderActive,
+		"HeaderHovered", ImGuiCol_HeaderHovered,
+		"MenuBarBg", ImGuiCol_MenuBarBg,
+		"ModalWindowDarkening", ImGuiCol_ModalWindowDarkening,
+		"ModalWindowDimBg", ImGuiCol_ModalWindowDimBg,
+		"NavHighlight", ImGuiCol_NavHighlight,
+		"NavWindowingDimBg", ImGuiCol_NavWindowingDimBg,
+		"NavWindowingHighlight", ImGuiCol_NavWindowingHighlight,
+		"PlotHistogram", ImGuiCol_PlotHistogram,
+		"PlotHistogramHovered", ImGuiCol_PlotHistogramHovered,
+		"PlotLines", ImGuiCol_PlotLines,
+		"PlotLinesHovered", ImGuiCol_PlotLinesHovered,
+		"PopupBg", ImGuiCol_PopupBg,
+		"ResizeGrip", ImGuiCol_ResizeGrip,
+		"ResizeGripActive", ImGuiCol_ResizeGripActive,
+		"ResizeGripHovered", ImGuiCol_ResizeGripHovered,
+		"ScrollbarBg", ImGuiCol_ScrollbarBg,
+		"ScrollbarGrab", ImGuiCol_ScrollbarGrab,
+		"ScrollbarGrabActive", ImGuiCol_ScrollbarGrabActive,
+		"ScrollbarGrabHovered", ImGuiCol_ScrollbarGrabHovered,
+		"Separator", ImGuiCol_Separator,
+		"SeparatorActive", ImGuiCol_SeparatorActive,
+		"SeparatorHovered", ImGuiCol_SeparatorHovered,
+		"SliderGrab", ImGuiCol_SliderGrab,
+		"SliderGrabActive", ImGuiCol_SliderGrabActive,
+		"Tab", ImGuiCol_Tab,
+		"TabActive", ImGuiCol_TabActive,
+		"TabHovered", ImGuiCol_TabHovered,
+		"TabUnfocused", ImGuiCol_TabUnfocused,
+		"TabUnfocusedActive", ImGuiCol_TabUnfocusedActive,
+		"Text", ImGuiCol_Text,
+		"TextDisabled", ImGuiCol_TextDisabled,
+		"TextSelectedBg", ImGuiCol_TextSelectedBg,
+		"TitleBg", ImGuiCol_TitleBg,
+		"TitleBgActive", ImGuiCol_TitleBgActive,
+		"TitleBgCollapsed", ImGuiCol_TitleBgCollapsed,
+		"WindowBg", ImGuiCol_WindowBg
 	);
-
-	// glfw namespace
-	lua["glfw"] = lua.create_table_with(
-		"hideCursor", [window = engine->window]() { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); },
-		"cursorPos", [window = engine->window]() -> std::tuple<double, double> {
-			double xpos, ypos;
-			glfwGetCursorPos(window, &xpos, &ypos);
-			return std::make_tuple(xpos, ypos);
-		},
-		"isKeyPressed", [window = engine->window](int key) -> bool { return glfwGetKey(window, key) == GLFW_PRESS; },
-		"windowSize", [window = engine->window]() -> std::tuple<int, int> {
-			int width, height;
-			glfwGetWindowSize(window, &width, &height);
-			return std::make_tuple(width, height);
-		}
+	lua.new_enum("styleVars",
+		"Alpha", ImGuiStyleVar_Alpha,
+		"ButtonTextAlign", ImGuiStyleVar_ButtonTextAlign,
+		"ChildBorderSize", ImGuiStyleVar_ChildBorderSize,
+		"ChildRounding", ImGuiStyleVar_ChildRounding,
+		"FrameBorderSize", ImGuiStyleVar_FrameBorderSize,
+		"FramePadding", ImGuiStyleVar_FramePadding,
+		"FrameRounding", ImGuiStyleVar_FrameRounding,
+		"GrabMinSize", ImGuiStyleVar_GrabMinSize,
+		"GrabRounding", ImGuiStyleVar_GrabRounding,
+		"IndentSpacing", ImGuiStyleVar_IndentSpacing,
+		"ItemInnerSpacing", ImGuiStyleVar_ItemInnerSpacing,
+		"ItemSpacing", ImGuiStyleVar_ItemSpacing,
+		"PopupBorderSize", ImGuiStyleVar_PopupBorderSize,
+		"PopupRounding", ImGuiStyleVar_PopupRounding,
+		"ScrollbarRounding", ImGuiStyleVar_ScrollbarRounding,
+		"ScrollbarSize", ImGuiStyleVar_ScrollbarSize,
+		"SelectableTextAlign", ImGuiStyleVar_SelectableTextAlign,
+		"TabRounding", ImGuiStyleVar_TabRounding,
+		"WindowBorderSize", ImGuiStyleVar_WindowBorderSize,
+		"WindowMinSize", ImGuiStyleVar_WindowMinSize,
+		"WindowPadding", ImGuiStyleVar_WindowPadding,
+		"WindowRounding", ImGuiStyleVar_WindowRounding,
+		"WindowTitleAlign", ImGuiStyleVar_WindowTitleAlign
 	);
-
-	// keys namespace
-	lua["keys"] = lua.create_table_with(
-		"SPACE", GLFW_KEY_SPACE,
-		"APOSTROPHE", GLFW_KEY_APOSTROPHE,
-		"COMMA", GLFW_KEY_COMMA,
-		"MINUS", GLFW_KEY_MINUS,
-		"PERIOD", GLFW_KEY_PERIOD,
-		"SLASH", GLFW_KEY_SLASH,
+	lua.new_enum("keys",
+		"Space", GLFW_KEY_SPACE,
+		"Apostrophe", GLFW_KEY_APOSTROPHE,
+		"Comma", GLFW_KEY_COMMA,
+		"Minus", GLFW_KEY_MINUS,
+		"Period", GLFW_KEY_PERIOD,
+		"Slash", GLFW_KEY_SLASH,
 		"0", GLFW_KEY_0,
 		"1", GLFW_KEY_1,
 		"2", GLFW_KEY_2,
@@ -261,8 +367,8 @@ void World::setupState(Engine* engine) {
 		"8", GLFW_KEY_8,
 		"9", GLFW_KEY_9,
 		"W", GLFW_KEY_W,
-		"SEMICOLON", GLFW_KEY_SEMICOLON,
-		"EQUAL", GLFW_KEY_EQUAL,
+		"Semicolon", GLFW_KEY_SEMICOLON,
+		"Equal", GLFW_KEY_EQUAL,
 		"A", GLFW_KEY_A,
 		"B", GLFW_KEY_B,
 		"C", GLFW_KEY_C,
@@ -291,28 +397,61 @@ void World::setupState(Engine* engine) {
 		"Z", GLFW_KEY_Z,
 		// We start skipping once we get to the function keys,
 		// only binding the ones we think we'll need
-		"LEFT_BRACKET", GLFW_KEY_LEFT_BRACKET,
-		"BACKSLASH", GLFW_KEY_BACKSLASH,
-		"RIGHT_BRACKET", GLFW_KEY_RIGHT_BRACKET,
-		"GRAVE", GLFW_KEY_GRAVE_ACCENT,
-		"ESCAPE", GLFW_KEY_ESCAPE,
-		"ENTER", GLFW_KEY_ENTER,
-		"TAB", GLFW_KEY_TAB,
-		"BACKSPACE", GLFW_KEY_BACKSPACE,
-		"INSERT", GLFW_KEY_INSERT,
-		"DELETE", GLFW_KEY_DELETE,
-		"RIGHT", GLFW_KEY_RIGHT,
-		"LEFT", GLFW_KEY_LEFT,
-		"DOWN", GLFW_KEY_DOWN,
-		"UP", GLFW_KEY_UP,
-		"LEFT_SHIFT", GLFW_KEY_LEFT_SHIFT,
-		"LEFT_CONTROL", GLFW_KEY_LEFT_CONTROL,
-		"LEFT_ALT", GLFW_KEY_LEFT_ALT,
-		"LEFT_SUPER", GLFW_KEY_LEFT_SUPER,
-		"RIGHT_SHIFT", GLFW_KEY_RIGHT_SHIFT,
-		"RIGHT_CONTROL", GLFW_KEY_RIGHT_CONTROL,
-		"RIGHT_ALT", GLFW_KEY_RIGHT_ALT,
-		"RIGHT_SUPER", GLFW_KEY_RIGHT_SUPER
+		"LeftBracket", GLFW_KEY_LEFT_BRACKET,
+		"Backslash", GLFW_KEY_BACKSLASH,
+		"RightBracket", GLFW_KEY_RIGHT_BRACKET,
+		"Grave", GLFW_KEY_GRAVE_ACCENT,
+		"Escape", GLFW_KEY_ESCAPE,
+		"Enter", GLFW_KEY_ENTER,
+		"Tab", GLFW_KEY_TAB,
+		"Backspace", GLFW_KEY_BACKSPACE,
+		"Insert", GLFW_KEY_INSERT,
+		"Delete", GLFW_KEY_DELETE,
+		"Right", GLFW_KEY_RIGHT,
+		"Left", GLFW_KEY_LEFT,
+		"Down", GLFW_KEY_DOWN,
+		"Up", GLFW_KEY_UP,
+		"PageUp", GLFW_KEY_PAGE_UP,
+		"PageDown", GLFW_KEY_PAGE_DOWN,
+		"Home", GLFW_KEY_HOME,
+		"End", GLFW_KEY_END,
+		"LeftShift", GLFW_KEY_LEFT_SHIFT,
+		"LeftControl", GLFW_KEY_LEFT_CONTROL,
+		"LeftAlt", GLFW_KEY_LEFT_ALT,
+		"LeftSuper", GLFW_KEY_LEFT_SUPER,
+		"RightShift", GLFW_KEY_RIGHT_SHIFT,
+		"RightControl", GLFW_KEY_RIGHT_CONTROL,
+		"RightAlt", GLFW_KEY_RIGHT_ALT,
+		"RightSuper", GLFW_KEY_RIGHT_SUPER
+	);
+	// not technically an enum but they are a read-only lookup table, so calling it an enum works well
+	lua.new_enum("sizes",
+		"Float", sizeof(float),
+		"Vec2", sizeof(glm::vec2),
+		"Vec3", sizeof(glm::vec3),
+		"Vec4", sizeof(glm::vec4),
+		"Mat4", sizeof(glm::mat4)
+	);
+
+	// time namespace
+	lua["time"] = lua.create_table_with(
+		"getDeltaTime", [this]() -> float { return deltaTime; }
+	);
+
+	// glfw namespace
+	lua["glfw"] = lua.create_table_with(
+		"hideCursor", [window = engine->window]() { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); },
+		"cursorPos", [window = engine->window]() -> std::tuple<double, double> {
+			double xpos, ypos;
+			glfwGetCursorPos(window, &xpos, &ypos);
+			return std::make_tuple(xpos, ypos);
+		},
+		"isKeyPressed", [window = engine->window](int key) -> bool { return glfwGetKey(window, key) == GLFW_PRESS; },
+		"windowSize", [window = engine->window]() -> std::tuple<int, int> {
+			int width, height;
+			glfwGetWindowSize(window, &width, &height);
+			return std::make_tuple(width, height);
+		}
 	);
 
 	// glm functions, w/o namespace to make it more glsl-like
@@ -322,6 +461,17 @@ void World::setupState(Engine* engine) {
 	lua["cos"] = [](float v) -> float { return glm::cos(v); };
 	lua["cross"] = [](glm::vec3 first, glm::vec3 second) -> glm::vec3 { return glm::cross(first, second); };
 	lua["perspective"] = [](float fov, float aspectRatio, float nearPlane, float farPlane) -> glm::mat4 { return glm::perspective(fov, aspectRatio, nearPlane, farPlane); };
+	lua.new_usertype<glm::vec2>("vec2",
+		sol::constructors<glm::vec2(), glm::vec2(float), glm::vec2(float, float)>(),
+		"x", &glm::vec2::x,
+		"y", &glm::vec2::y,
+		sol::meta_function::multiplication, sol::overload(
+			[](const glm::vec2& v1, const glm::vec2& v2) -> glm::vec2 { return v1 * v2; },
+			[](const glm::vec2& v1, float f) -> glm::vec2 { return v1 * f; },
+			[](float f, const glm::vec2& v1) -> glm::vec2 { return f * v1; }
+		),
+		sol::meta_function::to_string, [](const glm::vec2& v1) -> std::string { return glm::to_string(v1); }
+	);
 	lua.new_usertype<glm::vec3>("vec3",
 		sol::constructors<glm::vec3(), glm::vec3(float), glm::vec3(float, float, float)>(),
 		"x", &glm::vec3::x,
@@ -333,6 +483,19 @@ void World::setupState(Engine* engine) {
 			[](float f, const glm::vec3& v1) -> glm::vec3 { return f * v1; }
 		),
 		sol::meta_function::to_string, [](const glm::vec3& v1) -> std::string { return glm::to_string(v1); }
+	);
+	lua.new_usertype<glm::vec4>("vec4",
+		sol::constructors<glm::vec4(), glm::vec4(float), glm::vec4(float, float, float, float)>(),
+		"w", &glm::vec4::w,
+		"x", &glm::vec4::x,
+		"y", &glm::vec4::y,
+		"z", &glm::vec4::z,
+		sol::meta_function::multiplication, sol::overload(
+			[](const glm::vec4& v1, const glm::vec4& v2) -> glm::vec4 { return v1 * v2; },
+			[](const glm::vec4& v1, float f) -> glm::vec4 { return v1 * f; },
+			[](float f, const glm::vec4& v1) -> glm::vec4 { return f * v1; }
+		),
+		sol::meta_function::to_string, [](const glm::vec4& v1) -> std::string { return glm::to_string(v1); }
 	);
 	lua.new_usertype<glm::mat4>("mat4",
 		sol::constructors<glm::mat4()>(),
@@ -672,17 +835,136 @@ void World::setupState(Engine* engine) {
 		},
 		"setNextWindowPos", [](int x, int y) { SetNextWindowPos(ImVec2(x, y)); },
 		"setNextWindowSize", [](int width, int height) { SetNextWindowSize(ImVec2(width, height)); },
-		"setWindowFontScale", [](float scale) { SetWindowFontScale(scale); },
+		"setWindowFontScale", &SetWindowFontScale,
 		"beginWindow", [](std::string title, bool* p_open, std::vector<ImGuiWindowFlags> flags) {
 			ImGuiWindowFlags windowFlags = 0;
 			for (auto flag : flags)
-				windowFlags = windowFlags | flag;
+				windowFlags |= flag;
 			Begin(title.c_str(), p_open, windowFlags);
 		},
-		"endWindow", []() { End(); },
+		"endWindow", &End,
+		"openPopup", &OpenPopup,
+		"beginPopupModal", [](std::string title, bool* p_open, std::vector<ImGuiWindowFlags> flags) {
+			ImGuiWindowFlags windowFlags = 0;
+			for (auto flag : flags)
+				windowFlags |= flag;
+			BeginPopupModal(title.c_str(), p_open, windowFlags);
+		},
+		"endPopup", &EndPopup,
+		"beginChild", [](std::string title, glm::vec2 size, bool border, std::vector<ImGuiWindowFlags> flags) {
+			ImGuiWindowFlags windowFlags = 0;
+			for (auto flag : flags)
+				windowFlags |= flag;
+			BeginChild(title.c_str(), ImVec2(size.x, size.y), border, windowFlags);
+		},
+		"endChild", &EndChild,
+		"logToClipboard", []() { LogToClipboard(); },
+		"logFinish", &LogFinish,
+		"pushStyleColor", [](ImGuiCol idx, glm::vec4 color) { PushStyleColor(idx, ImVec4(color.r, color.g, color.b, color.a)); },
+		"popStyleColor", [](int amount) { PopStyleColor(amount); },
+		"pushStyleVar", [](ImGuiStyleVar idx, float val) { PushStyleVar(idx, val); },
+		"popStyleVar", [](int amount) { PopStyleVar(amount); },
+		"setKeyboardFocusHere", sol::overload([]() { SetKeyboardFocusHere(); }, &SetKeyboardFocusHere),
+		"getScrollY", &GetScrollX,
+		"getScrollY", &GetScrollY,
+		"setScrollHereX", sol::overload([]() { SetScrollHereX(); }, &SetScrollHereX),
+		"setScrollHereY", sol::overload([]() { SetScrollHereY(); }, &SetScrollHereY),
+		"getScrollMaxX", &GetScrollMaxX,
+		"getScrollMaxY", &GetScrollMaxY,
+		"calcTextSize", [](std::string text) -> std::tuple<float, float> {
+			ImVec2 size = CalcTextSize(text.c_str());
+			return std::make_tuple(size.x, size.y);
+		},
+		"sameLine", []() { SameLine(); },
 		"text", [](std::string text) { Text(text.c_str()); },
+		"textUnformatted", [](std::string text) { TextUnformatted(text.c_str()); },
 		"button", [](std::string text) -> bool { return Button(text.c_str()); },
-		"separator", []() { Separator(); },
-		"showDemoWindow", []() { ShowDemoWindow(); }
+		"checkbox", [](std::string label, bool value) -> bool {
+			Checkbox(label.c_str(), &value);
+			return value;
+		},
+		"separator", &Separator,
+		"showDemoWindow", []() { ShowDemoWindow(); },
+		"inputText", [](std::string label, std::string input, std::vector<ImGuiInputTextFlags> flags, sol::table self, sol::function callback) -> std::tuple<bool,std::string> {
+			ImGuiInputTextFlags inputTextFlags = 0;
+			for (auto flag : flags)
+				inputTextFlags |= flag;
+			bool result = InputText(label.c_str(), &input, inputTextFlags, InputTextCallback, new LuaCallback(self, callback));
+			// Since we can't create a string pointer in our lua code, we return the updated string alongside the input text's return value
+			return std::make_tuple(result, input);
+		}
+	);
+	lua.new_usertype<ImGuiTextFilter>("textFilter",
+		sol::constructors<ImGuiTextFilter()>(),
+		"draw", [](ImGuiTextFilter* filter, std::string label) { filter->Draw(label.c_str()); },
+		"check", [](ImGuiTextFilter* filter, std::string text) -> bool { return filter->PassFilter(text.c_str()); }
+	);
+	lua.new_usertype<ImGuiTextEditCallbackData>("textEditCallbackData",
+		"new", sol::no_constructor,
+		"eventFlag", &ImGuiTextEditCallbackData::EventFlag,
+		"getKey", [](ImGuiTextEditCallbackData* data) -> int {
+			// We map imgui keys to GLFW keys so we only need one keys enum
+			switch (data->EventKey) {
+			case ImGuiKey_Tab:
+				return GLFW_KEY_TAB;
+			case ImGuiKey_LeftArrow:
+				return GLFW_KEY_LEFT;
+			case ImGuiKey_RightArrow:
+				return GLFW_KEY_RIGHT;
+			case ImGuiKey_UpArrow:
+				return GLFW_KEY_UP;
+			case ImGuiKey_DownArrow:
+				return GLFW_KEY_DOWN;
+			case ImGuiKey_PageDown:
+				return GLFW_KEY_PAGE_DOWN;
+			case ImGuiKey_PageUp:
+				return GLFW_KEY_PAGE_UP;
+			case ImGuiKey_Home:
+				return GLFW_KEY_HOME;
+			case ImGuiKey_End:
+				return GLFW_KEY_END;
+			case ImGuiKey_Insert:
+				return GLFW_KEY_INSERT;
+			case ImGuiKey_Delete:
+				return GLFW_KEY_DELETE;
+			case ImGuiKey_Backspace:
+				return GLFW_KEY_BACKSPACE;
+			case ImGuiKey_Space:
+				return GLFW_KEY_SPACE;
+			case ImGuiKey_Enter:
+				return GLFW_KEY_ENTER;
+			case ImGuiKey_Escape:
+				return GLFW_KEY_ESCAPE;
+			case ImGuiKey_A:
+				return GLFW_KEY_A;
+			case ImGuiKey_C:
+				return GLFW_KEY_C;
+			case ImGuiKey_V:
+				return GLFW_KEY_V;
+			case ImGuiKey_X:
+				return GLFW_KEY_X;
+			case ImGuiKey_Y:
+				return GLFW_KEY_Y;
+			case ImGuiKey_Z:
+				return GLFW_KEY_Z;
+			default:
+				return GLFW_KEY_UNKNOWN;
+			}
+		},
+		"getText", [](ImGuiTextEditCallbackData* data) -> std::string { return std::string(data->Buf, data->BufTextLen); },
+		"cursorPos", &ImGuiTextEditCallbackData::CursorPos
+	);
+
+	// debugger
+	lua["debugger"] = lua.create_table_with(
+		// Originally this was called "getLog", so in lua you'd do `debugger.getLog()`, but it was using it as a property getter instead of a function getter
+		"getLogs", []() -> sol::as_table_t<std::vector<Log>> { return Debugger::getLog(); },
+		"addLog", [](DebugLevel level, std::string message) { Debugger::addLog(level, message); },
+		"clearLog", []() { Debugger::clearLog(); }
+	);
+	lua.new_usertype<Log>("log",
+		"new", sol::no_constructor,
+		"level", &Log::level,
+		"message", &Log::message
 	);
 }

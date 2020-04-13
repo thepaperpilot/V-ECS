@@ -105,9 +105,9 @@ return {
 
 		-- build our vertex and index buffers
 		chunk.indexCount = numIndices
-		chunk.vertexBuffer = buffer(bufferUsage.VertexBuffer, numVertices * sizes.float)
+		chunk.vertexBuffer = buffer(bufferUsage.VertexBuffer, numVertices * sizes.Float)
 		chunk.vertexBuffer:setData(vertices)
-		chunk.indexBuffer = buffer(bufferUsage.IndexBuffer, numIndices * sizes.float)
+		chunk.indexBuffer = buffer(bufferUsage.IndexBuffer, numIndices * sizes.Float)
 		chunk.indexBuffer:setData(indices)
 	end,
 	addFace = function(x1, y1, z1, x2, y2, z2, UVs, isClockWise, vertices, indices, numVertices)

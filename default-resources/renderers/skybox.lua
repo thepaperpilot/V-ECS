@@ -3,7 +3,7 @@ return {
 		["resources/shaders/skybox.vert"] = shaderStages.Vertex,
 		["resources/shaders/skybox.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.mat4,
+	pushConstantsSize = sizes.Mat4,
 	performDepthTest = false,
 	vertexLayout = {
 		[0] = vertexComponents.Position

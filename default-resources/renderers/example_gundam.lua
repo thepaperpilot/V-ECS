@@ -3,7 +3,7 @@ return {
 		["resources/shaders/gundam.vert"] = shaderStages.Vertex,
 		["resources/shaders/gundam.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.mat4,
+	pushConstantsSize = sizes.Mat4,
 	vertexLayout = {
 		[0] = vertexComponents.Position,
 		[1] = vertexComponents.MaterialIndex
@@ -19,7 +19,7 @@ return {
 	},
 	render = function(self, world, renderer)
 		local MVP = world.systems.camera.main.viewProjectionMatrix * mat4.translate(vec3.new(0, 10, 0))
-		renderer:pushConstant(shaderStages.Vertex, 0, sizes.mat4, MVP)
+		renderer:pushConstant(shaderStages.Vertex, 0, sizes.Mat4, MVP)
 
 		local cullFrustum = frustum.new(MVP)
 

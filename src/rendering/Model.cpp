@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 #include "SubRenderer.h"
+#include "../engine/Debugger.h"
 
 #include <cstdlib>
 #include <cassert>
@@ -38,7 +39,8 @@ void Model::init(SubRenderer* subrenderer, const char* filename) {
 		loadObj(subrenderer->renderer->graphicsQueue, filepath);
 	}
 	else {
-		assert(0 && "Unknown model format");
+		Debugger::addLog(DEBUG_LEVEL_ERROR, "[MODEL] " + filepath.string() + " has unknown file format \"" + extension.string() + "\"");
+		return;
 	}
 
 	subrenderer->models.emplace_back(this);
@@ -171,7 +173,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 					default:
 						// Ignore other cases because those are explicitly not set automatically by models
 						// (it's probably a mistake for them to use a model while using a vertex component not listed above)
-						std::cout << "[WARN] Used a model with a vertex layout using a custom vertex component" << std::endl;
+						Debugger::addLog(DEBUG_LEVEL_WARN, "[MODEL] " + filepath.string() + " loaded with a vertex layout using a custom vertex component");
 						break;
 					}
 				}
