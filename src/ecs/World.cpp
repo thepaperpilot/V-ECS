@@ -441,6 +441,8 @@ void World::setupState(Engine* engine) {
 	// glfw namespace
 	lua["glfw"] = lua.create_table_with(
 		"hideCursor", [window = engine->window]() { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); },
+		"showCursor", [window = engine->window]() { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL); },
+		"isCursorVisible", [window = engine->window]() -> bool { return glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_NORMAL; },
 		"cursorPos", [window = engine->window]() -> std::tuple<double, double> {
 			double xpos, ypos;
 			glfwGetCursorPos(window, &xpos, &ypos);

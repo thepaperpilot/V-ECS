@@ -18,6 +18,8 @@ return {
 		self.appearing = false
 		-- whenever we write a command we'll scroll to the bottom automatically, using this to track whether we just wrote a command
 		self.scrollToBottom = false
+		-- stores current visibility of the cursor when the console is opened, and restores it when closed (can be toggled via a command below)
+		self.showCursor = false
 
 		self.showInfo = true
 		self.showWarn = true
@@ -27,8 +29,8 @@ return {
 		self:addCommand("clear", self, self.clearLog, "Usage: clear\n\tClears the console")
 		self:addCommand("loadWorld", self, self.loadWorld, "Usage: loadWorld {filename}\n\tLoads a world at {filename}, relative to the 'resources' folder")
 		self:addCommand("toggleDemoWindow", self, self.toggleDemoWindow, "Usage: toggleDemoWindow\n\tToggles whether the imgui demo window is open when the console is open")
+		self:addCommand("toggleCursorVisibility", self, self.toggleCursorVisibility, "Usage: toggleCursorVisibility\n\tToggles whether the cursor is visible when the console is closed")
 		self:addCommand("help", self, self.help, "Usage: help [command]\n\tShows list of commands or help for a specific command (like you're doing right now!)")
-		self:addCommand("hell", self, self.help, "Usage: help [command]\n\tShows list of commands or help for a specific command (like you're doing right now!)")
 	end,
 	update = function(self, world)
 		if self.isDebugWindowOpen then
@@ -178,6 +180,12 @@ return {
 	onKeyRelease = function(self, keyReleaseEvent)
 		if keyReleaseEvent.key == keys.Grave then
 			self.isDebugWindowOpen = not self.isDebugWindowOpen
+			if self.isDebugWindowOpen then
+				self.showCursor = glfw.isCursorVisible()
+				glfw.showCursor()
+			elseif not self.showCursor then
+				glfw.hideCursor()
+			end
 			-- TODO force cursor visible when debug window is open, saving and restoring cursor mode when closing the debug window
 			self.appearing = true
 			self.commandLineText = ""
@@ -263,6 +271,9 @@ return {
 	end,
 	toggleDemoWindow = function(self)
 		self.showDemoWindow = not self.showDemoWindow
+	end,
+	toggleCursorVisibility = function(self)
+		self.showCursor = not self.showCursor
 	end,
 	help = function(self, args)
 		if #args > 0 then
