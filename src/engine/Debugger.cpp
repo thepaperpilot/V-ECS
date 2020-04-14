@@ -24,7 +24,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
             messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ? "[VALIDATION] " :
             "[PERFORMANCE] ";
 
-        Debugger::log.emplace_back(DEBUG_LEVEL_ERROR, "[VULKAN] " + errorType + std::string(pCallbackData->pMessage));
+        Debugger::addLog(DEBUG_LEVEL_ERROR, "[VULKAN] " + errorType + std::string(pCallbackData->pMessage));
     }
 
     return VK_FALSE;
