@@ -24,6 +24,8 @@ namespace vecs {
 
 		DependencyNode(Device* device, Renderer* renderer, DependencyNodeType type, sol::table worldConfig, sol::table config);
 
+		void init(sol::table worldConfig);
+
 		// Use the node's config and fill dependencies and dependents using these maps of names to their respective nodes
 		// We do this outside the constructor because we need all the nodes to exist before we can start linking them
 		void createEdges(std::map<std::string, DependencyNode*> systemsMap, std::map<std::string, DependencyNode*> renderersMap);

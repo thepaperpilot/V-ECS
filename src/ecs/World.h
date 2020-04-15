@@ -18,6 +18,8 @@ namespace vecs {
 	// and handles updating them as appropriate
 	class World {
 	public:
+		sol::state lua;
+
 		double deltaTime = 0;
 
 		DependencyGraph dependencyGraph;
@@ -42,7 +44,7 @@ namespace vecs {
 		uint32_t createEntities(uint32_t amount = 1);
 		void deleteEntity(uint32_t entity);
 
-		Archetype* getArchetype(std::unordered_set<std::string> componentTypes, std::unordered_map<std::string, sol::table>* sharedComponents = nullptr);
+		Archetype* getArchetype(std::unordered_set<std::string> componentTypes, sol::table sharedComponents = sol::table());
 		Archetype* getArchetype(uint32_t entity);
 
 		Archetype* addComponents(std::vector<uint32_t> entities, std::unordered_set<std::string> components) {
@@ -53,8 +55,8 @@ namespace vecs {
 			Archetype* newArchetype = getArchetype(components, oldArchetype->sharedComponents);
 
 			size_t numComponents = components.size();
-			std::vector<std::vector<sol::table>*> oldComponents(numComponents);
-			std::vector<std::vector<sol::table>*> newComponents(numComponents);
+			std::vector<sol::table> oldComponents(numComponents);
+			std::vector<sol::table> newComponents(numComponents);
 			uint16_t i = 0;
 			for (auto type : oldArchetype->componentTypes) {
 				oldComponents[i] = oldArchetype->getComponentList(type);
@@ -134,7 +136,6 @@ namespace vecs {
 	private:
 		Device* device;
 
-		sol::state lua;
 		sol::table config;
 
 		// Start at 1 so that 0 can be used to represent an invalid entity
@@ -147,6 +148,8 @@ namespace vecs {
 
 		// Each unique set of components is managed by an archetype
 		std::vector<Archetype*> archetypes;
+
+		std::vector<Buffer> buffers;
 
 		void setupState(Engine* engine);
 	};

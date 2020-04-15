@@ -21,27 +21,19 @@ namespace vecs {
 	public:
 		std::unordered_set<std::string> componentTypes;
 
-		std::unordered_map<std::string, sol::table>* sharedComponents;
+		sol::table sharedComponents;
 
-		Archetype(World* world, std::unordered_set<std::string> componentTypes, std::unordered_map<std::string, sol::table>* sharedComponents = nullptr) {
-			this->world = world;
-			this->componentTypes = componentTypes;
-			this->sharedComponents = sharedComponents;
-
-			for (auto component : componentTypes) {
-				components[component] = new std::vector<sol::table>;
-			}
-		}
+		Archetype(World* world, std::unordered_set<std::string> componentTypes, sol::table sharedComponents = sol::table());
 
 		sol::table getComponent(std::string componentType, size_t index) {
-			return components[componentType]->at(index);
+			return components[componentType][index];
 		}
 
 		sol::table getSharedComponent(std::string componentType) {
-			return sharedComponents->at(componentType);
+			return sharedComponents[componentType];
 		}
 
-		std::vector<sol::table>* getComponentList(std::string componentType);
+		sol::table getComponentList(std::string componentType);
 
 		bool hasEntity(uint32_t entity);
 
@@ -61,6 +53,6 @@ namespace vecs {
 
 		std::vector<uint32_t> entities;
 
-		std::unordered_map<std::string, std::vector<sol::table>*> components;
+		std::unordered_map<std::string, sol::table> components;
 	};
 }

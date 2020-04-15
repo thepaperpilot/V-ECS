@@ -8,16 +8,17 @@ return {
 		[0] = vertexComponents.R32G32B32,
 		[1] = vertexComponents.R32G32
 	},
-	init = function(self, world, renderer)
+	preInit = function(self, world, renderer)
 		-- setup block archetypes
 		self.textureMap = texture.createStitched(renderer, getResources("textures/blocks", ".png"))
 		self.blockArchetypes = {}
 		for key,filename in pairs(getResources("blocks", ".lua")) do
-			local id, getArchetype = require(filename:sub(1,filename:len()-4))
-			self.blockArchetypes[id] = getArchetype(world)
+			local block = require(filename:sub(1,filename:len()-4))
+			self.blockArchetypes[block.id] = block.getArchetype(world)
 		end
-
-		self.chunksQuery = query({
+	end,
+	init = function(self, world, renderer)
+		self.chunksQuery = query.new({
 			"Chunk"
 		})
 	end,
@@ -27,11 +28,12 @@ return {
 	},
 	render = function(self, world, renderer)
 		local viewProj = world.systems.camera.main.viewProjectionMatrix
-		renderer:pushConstant(shaderStages.Vertex, 0, sizes.Mat4, viewProj)
+		renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
 
-		local cullFrustum = frustum.new(MVP)
+		local cullFrustum = frustum.new(viewProj)
 
-		for key,archetype in pairs(self.chunksQuery.archetypes) do
+		-- TODO sort by distance from player and attempt to perform occlusion culling
+		for key,archetype in pairs(self.chunksQuery:getArchetypes()) do
 			for id,chunk in pairs(archetype:getComponents("Chunk")) do
 				if chunk.indexCount > 0 and cullFrustum:isBoxVisible(chunk.minBounds, chunk.maxBounds) then
 					renderer:drawVertices(chunk.vertexBuffer, chunk.indexBuffer, chunk.indexCount)
@@ -41,9 +43,19 @@ return {
 	end,
 	getBlockFromTexture = function(self, texture)
 		local UVs = self.textureMap[texture]
-		local top = { UVs.p, UVs.q, UVs.s, UV.t }
-		local bottom = { UVs.p, UVs.t, UVs.s, UVs.q }
-		return archetype.new({}, {}, {
+		local top = {
+			p = UVs.p,
+			q = UVs.q,
+			s = UVs.s,
+			t = UVs.t
+		}
+		local bottom = {
+			p = UVs.p,
+			q = UVs.t,
+			s = UVs.s,
+			t = UVs.q
+		}
+		return archetype.new({}, {
 			Block = {
 				top = top,
 				bottom = bottom,

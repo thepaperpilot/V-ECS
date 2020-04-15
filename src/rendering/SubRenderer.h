@@ -33,13 +33,12 @@ namespace vecs {
 
 		SubRenderer(Device* device, Renderer* renderer, sol::table worldConfig, sol::table config);
 
-		void buildCommandBuffer();
+		void buildCommandBuffer(sol::table worldConfig);
 		void windowRefresh(bool numImagesChanged, int imageCount);
 		void cleanup();
 
 	private:
 		sol::table config;
-		sol::table worldConfig;
 
 		std::vector<VkCommandBuffer> commandBuffers;
 

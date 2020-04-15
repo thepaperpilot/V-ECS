@@ -103,25 +103,26 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 					// so that it can be used as a default alpha value if the material
 					// doesn't have a transparency component
 					materialValues.emplace_back(1);
-					numFloats += 4;
 					break;
 				}
 			}
 		}
 
-		device->createBuffer(materialValues.size() * sizeof(float),
+		VkDeviceSize size = materialValues.size() * sizeof(float);
+		device->createBuffer(size,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&materialBuffer);
-		materialBuffer.copyTo(materialValues.data(), materialValues.size() * sizeof(float));
+		materialBuffer.copyTo(materialValues.data(), size);
 
 		materialBufferInfo.buffer = materialBuffer;
 		materialBufferInfo.offset = 0;
-		materialBufferInfo.range = numFloats * sizeof(float);
+		materialBufferInfo.range = size;
 	}
 
 	// Load vertices
 	indexCount = 0;
+	uint32_t vertexCount = 0;
 	std::vector<void*> vertices;
 	std::vector<uint32_t> indices;
 	for (auto& shape : shapes) {
@@ -178,7 +179,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 					}
 				}
 
-				uint32_t index = indexCount;
+				uint32_t index = vertexCount;
 				bool uniqueVertex = true;
 				// Look through our existing vertex for a duplicate
 				// If none is found it'll use the initial index value,
@@ -194,6 +195,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 
 				if (uniqueVertex) {
 					vertices.emplace_back(vertex);
+					vertexCount++;
 				} else {
 					// Free our memory since it wasn't added to our list of vertices
 					//free(vertex);

@@ -39,7 +39,7 @@ Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer.buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
+        throw std::runtime_error("failed to create buffer!");
     }
 
     // Assign memory to our buffer
@@ -55,7 +55,7 @@ Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
 
     // Allocate memory
     if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer.memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
+        throw std::runtime_error("failed to allocate buffer memory!");
     }
 
     // Bind this memory to our new buffer

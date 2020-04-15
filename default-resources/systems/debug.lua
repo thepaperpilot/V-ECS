@@ -7,7 +7,7 @@ return {
 	history = {},
 	historyPos = -1, -- -1 represents a new line
 	init = function(self, world)
-		glfw.events.KeyRelease:add(self, self.onKeyRelease)
+		glfw.events.KeyPress:add(self, self.onKeyPress)
 
 		-- self.isDebugWindowOpen stores whether our console is open, toggled by pressing the grave key (`)
 		self.isDebugWindowOpen = false
@@ -168,6 +168,8 @@ return {
 			if self.showDemoWindow then
 				ig.showDemoWindow()
 			end
+		else
+			self.appearing = false
 		end
 	end,
 	addCommand = function(self, command, callbackOwner, callback, help)
@@ -177,8 +179,8 @@ return {
 			help = help
 		}
 	end,
-	onKeyRelease = function(self, keyReleaseEvent)
-		if keyReleaseEvent.key == keys.Grave then
+	onKeyPress = function(self, keyPressEvent)
+		if keyPressEvent.key == keys.Grave then
 			self.isDebugWindowOpen = not self.isDebugWindowOpen
 			if self.isDebugWindowOpen then
 				self.showCursor = glfw.isCursorVisible()

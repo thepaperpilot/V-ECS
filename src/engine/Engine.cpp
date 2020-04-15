@@ -182,8 +182,11 @@ void Engine::mainLoop() {
 
 void Engine::updateWorld() {
     double currentTime = glfwGetTime();
+    vkDeviceWaitIdle(*device);
     renderer.acquireImage();
+    vkDeviceWaitIdle(*device);
     world->update(currentTime - lastFrameTime);
+    vkDeviceWaitIdle(*device);
     renderer.presentImage();
     lastFrameTime = currentTime;
 

@@ -9,7 +9,7 @@ return {
 			local filename = worlds[i]
 			local world = require(filename:sub(1,filename:len()-4))
 			if world["name"] ~= nil then
-				self.worlds[world["name"]] = world
+				self.worlds[world["name"]] = filename
 			end
 		end
 	end,

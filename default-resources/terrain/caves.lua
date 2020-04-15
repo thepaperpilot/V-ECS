@@ -11,13 +11,13 @@ return {
 		for point,density in pairs(noiseSet) do
 			if y < -2 then
 				if density > 0.4 then
-					chunk.blocks[point] = nil
+					chunk.blocks[point - 1] = nil
 				end
 			else
 				-- Taper off over the course of one vertical chunk
 				local internalY = (point - 1) % (world.chunkSize * world.chunkSize) / world.chunkSize
 				if density - internalY * 0.4 / world.chunkSize > 0.4 then
-					chunk.blocks[point] = nil
+					chunk.blocks[point - 1] = nil
 				end
 			end
 		end

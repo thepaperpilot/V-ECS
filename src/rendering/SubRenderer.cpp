@@ -14,7 +14,13 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, sol::table worldCon
 
     vertexLayout = new VertexLayout(config.get_or("vertexLayout", sol::table()));
 
-    config["init"](config, worldConfig, this);
+    if (config["preInit"].get_type() == sol::type::function) {
+        auto result = config["preInit"](config, worldConfig, this);
+        if (!result.valid()) {
+            sol::error err = result;
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+        }
+    }
 
     numTextures = textures.size();
     imageInfos.reserve(numTextures);
@@ -62,7 +68,7 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, sol::table worldCon
     commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderer->imageCount);
 }
 
-void SubRenderer::buildCommandBuffer() {
+void SubRenderer::buildCommandBuffer(sol::table worldConfig) {
     uint32_t imageIndex = renderer->imageIndex;
 
     // Begin the command buffer

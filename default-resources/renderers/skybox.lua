@@ -15,8 +15,8 @@ return {
 		camera = "system"
 	},
 	render = function(self, world, renderer)
-		local viewProj = world.systems.camera.main.projectionMatrix * world.systems.camera:getViewMatrix(vec3.new(0, 0, 0), world.systems.camera.main.forward)
-		renderer:pushConstant(shaderStages.Vertex, 0, size.mat4, viewProj)
+		local viewProj = world.systems.camera.main.projectionMatrix * world.systems.camera.getViewMatrix(vec3.new(0, 0, 0), world.systems.camera.main.forward)
+		renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
 		renderer:draw(self.cube)
 	end
 }

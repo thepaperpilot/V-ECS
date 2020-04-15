@@ -171,4 +171,4 @@ add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/Releas
 
 #### Set Visual Studio specific properties ####
 
-set_property(TARGET vecs PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BUILD_TYPE}")
+set_target_properties(vecs PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/$(Configuration)")

@@ -50,6 +50,7 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 
 	// Make each node's list of dependents and dependencies
 	for (auto node : nodes) {
+		node->init(config);
 		node->createEdges(systemsMap, renderersMap);
 	}
 
@@ -91,8 +92,18 @@ DependencyNode::DependencyNode(Device* device, Renderer* renderer, DependencyNod
 
 	if (type == DEPENDENCY_NODE_TYPE_RENDERER)
 		subrenderer = new SubRenderer(device, renderer, worldConfig, config);
-	else {
-		if (config["init"].get_type() == sol::type::function) {
+}
+
+void DependencyNode::init(sol::table worldConfig) {
+	if (config["init"].get_type() == sol::type::function) {
+		if (type == DEPENDENCY_NODE_TYPE_RENDERER) {
+			auto result = config["init"](config, worldConfig, subrenderer);
+			if (!result.valid()) {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+				return;
+			}
+		}  else {
 			auto result = config["init"](config, worldConfig);
 			if (!result.valid()) {
 				sol::error err = result;
@@ -169,7 +180,7 @@ void DependencyNode::execute(sol::table worldConfig) {
 			}
 		}		
 	} else if (type == DEPENDENCY_NODE_TYPE_RENDERER) {
-		subrenderer->buildCommandBuffer();
+		subrenderer->buildCommandBuffer(worldConfig);
 	}
 
 	for (auto node : dependents) {

@@ -11,7 +11,7 @@ return {
 	},
 	performDepthTest = false,
 	cullMode = cullModes.None,
-	init = function(self, world, renderer)
+	preInit = function(self, world, renderer)
 		ig.createFontTexture(renderer)
 	end,
 	startFrame = function(self, world, renderer)

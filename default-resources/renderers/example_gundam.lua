@@ -8,7 +8,7 @@ return {
 		[0] = vertexComponents.Position,
 		[1] = vertexComponents.MaterialIndex
 	},
-	init = function(self, world, renderer)
+	preInit = function(self, world, renderer)
 		self.gundam = model.new(renderer, "resources/models/gundam/model.obj", shaderStages.Fragment, {
 			materialComponents.Diffuse
 		})
@@ -19,7 +19,7 @@ return {
 	},
 	render = function(self, world, renderer)
 		local MVP = world.systems.camera.main.viewProjectionMatrix * mat4.translate(vec3.new(0, 10, 0))
-		renderer:pushConstant(shaderStages.Vertex, 0, sizes.Mat4, MVP)
+		renderer:pushConstantMat4(shaderStages.Vertex, 0, MVP)
 
 		local cullFrustum = frustum.new(MVP)
 

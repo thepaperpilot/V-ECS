@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 
 #include <hastyNoise/hastyNoise.h>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include "Debugger.h"
 #include "../rendering/Renderer.h"
@@ -25,7 +27,7 @@ namespace vecs {
     // https://github.com/SaschaWillems/Vulkan
     class Engine {
     public:
-        inline static size_t fastestSimd = 0;
+        size_t fastestSimd = 0;
 
         Device* device;
         GLFWwindow* window;

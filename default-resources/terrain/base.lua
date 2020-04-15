@@ -17,7 +17,7 @@ return {
 			local archetype = biomes["Plain"].getArchetype(density, y * world.chunkSize + internalY + z)
 			
 			if archetype ~= false then
-				chunk.blocks[point] = world.systems.voxel.blockArchetypes[archetype]
+				chunk.blocks[point - 1] = world.renderers.voxel.blockArchetypes[archetype]
 			end
 		end
 	end

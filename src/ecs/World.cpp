@@ -70,9 +70,10 @@ void World::deleteEntity(uint32_t entity) {
 	}
 }
 
-Archetype* World::getArchetype(std::unordered_set<std::string> componentTypes, std::unordered_map<std::string, sol::table>* sharedComponents) {
+Archetype* World::getArchetype(std::unordered_set<std::string> componentTypes, sol::table sharedComponents) {
 	auto itr = std::find_if(archetypes.begin(), archetypes.end(), [&componentTypes, &sharedComponents](Archetype* archetype) {
-		return archetype->componentTypes == componentTypes && (sharedComponents == nullptr || archetype->sharedComponents == sharedComponents);
+		// TODO I don't think this'll deeply compare if the shared component tables are the same
+		return archetype->componentTypes == componentTypes && archetype->sharedComponents == sharedComponents;
 	});
 
 	if (itr == archetypes.end()) {
@@ -128,13 +129,17 @@ void World::windowRefresh(bool numImagesChanged, int imageCount) {
 void World::cleanup() {
 	// Destroy our systems and sub-renderers
 	dependencyGraph.cleanup();
+
+	// Destroy any buffers created by this world
+	for (auto buffer : buffers)
+		buffer.cleanup();
 }
 
 void World::setupState(Engine* engine) {
 	lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string, sol::lib::table);
 
 	// Utility functions
-	lua["getResources"] = [](std::string path, std::string extension) -> std::vector<std::string> {
+	lua["getResources"] = [](std::string path, std::string extension) -> sol::as_table_t<std::vector<std::string>> {
 		std::vector<std::string> resources;
 		auto filepath = std::filesystem::path("./resources/" + path).make_preferred();
 		for (const auto& entry : std::filesystem::directory_iterator(filepath))
@@ -142,7 +147,7 @@ void World::setupState(Engine* engine) {
 				resources.push_back(entry.path().string());
 		return resources;
 	};
-	lua["loadWorld"] = [engine](sol::table worldConfig) { engine->setWorld(new World(engine, worldConfig)); };
+	lua["loadWorld"] = [engine](std::string filename) { engine->setWorld(new World(engine, filename)); };
 
 	lua.new_enum("debugLevels",
 		"Error", DEBUG_LEVEL_ERROR,
@@ -463,15 +468,19 @@ void World::setupState(Engine* engine) {
 	lua["cos"] = [](float v) -> float { return glm::cos(v); };
 	lua["cross"] = [](glm::vec3 first, glm::vec3 second) -> glm::vec3 { return glm::cross(first, second); };
 	lua["perspective"] = [](float fov, float aspectRatio, float nearPlane, float farPlane) -> glm::mat4 { return glm::perspective(fov, aspectRatio, nearPlane, farPlane); };
+	lua["lookAt"] = [](glm::vec3 position, glm::vec3 forward, glm::vec3 up) -> glm::mat4 { return glm::lookAt(position, forward, up); };
 	lua.new_usertype<glm::vec2>("vec2",
 		sol::constructors<glm::vec2(), glm::vec2(float), glm::vec2(float, float)>(),
 		"x", &glm::vec2::x,
 		"y", &glm::vec2::y,
+		"length", [](const glm::vec2& v1) -> float { return glm::length(v1); },
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec2& v1, const glm::vec2& v2) -> glm::vec2 { return v1 * v2; },
 			[](const glm::vec2& v1, float f) -> glm::vec2 { return v1 * f; },
 			[](float f, const glm::vec2& v1) -> glm::vec2 { return f * v1; }
 		),
+		sol::meta_function::addition, [](const glm::vec2& v1, const glm::vec2& v2) -> glm::vec2 { return v1 + v2; },
+		sol::meta_function::subtraction, [](const glm::vec2& v1, const glm::vec2& v2) -> glm::vec2 { return v1 - v2; },
 		sol::meta_function::to_string, [](const glm::vec2& v1) -> std::string { return glm::to_string(v1); }
 	);
 	lua.new_usertype<glm::vec3>("vec3",
@@ -479,11 +488,16 @@ void World::setupState(Engine* engine) {
 		"x", &glm::vec3::x,
 		"y", &glm::vec3::y,
 		"z", &glm::vec3::z,
+		"length", [](const glm::vec3& v1) -> float {
+			return glm::length(v1);
+		},
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 * v2; },
 			[](const glm::vec3& v1, float f) -> glm::vec3 { return v1 * f; },
-			[](float f, const glm::vec3& v1) -> glm::vec3 { return f * v1; }
+			[](const glm::vec3& v1, float f) -> glm::vec3 { return f * v1; }
 		),
+		sol::meta_function::addition, [](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 + v2; },
+		sol::meta_function::subtraction, [](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 - v2; },
 		sol::meta_function::to_string, [](const glm::vec3& v1) -> std::string { return glm::to_string(v1); }
 	);
 	lua.new_usertype<glm::vec4>("vec4",
@@ -492,11 +506,14 @@ void World::setupState(Engine* engine) {
 		"x", &glm::vec4::x,
 		"y", &glm::vec4::y,
 		"z", &glm::vec4::z,
+		"length", [](const glm::vec4& v1) -> float { return glm::length(v1); },
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec4& v1, const glm::vec4& v2) -> glm::vec4 { return v1 * v2; },
 			[](const glm::vec4& v1, float f) -> glm::vec4 { return v1 * f; },
 			[](float f, const glm::vec4& v1) -> glm::vec4 { return f * v1; }
 		),
+		sol::meta_function::addition, [](const glm::vec4& v1, const glm::vec4& v2) -> glm::vec4 { return v1 + v2; },
+		sol::meta_function::subtraction, [](const glm::vec4& v1, const glm::vec4& v2) -> glm::vec4 { return v1 - v2; },
 		sol::meta_function::to_string, [](const glm::vec4& v1) -> std::string { return glm::to_string(v1); }
 	);
 	lua.new_usertype<glm::mat4>("mat4",
@@ -505,26 +522,34 @@ void World::setupState(Engine* engine) {
 		// TODO find better way to make setters/getters
 		"get", [](const glm::mat4& m1, int idx1, int idx2) -> float { return m1[idx1][idx2]; },
 		"set", [](glm::mat4& m1, int idx1, int idx2, float value) { m1[idx1][idx2] = value; },
+		sol::meta_function::multiplication, [](const glm::mat4& m1, const glm::mat4& m2) -> glm::mat4 {
+			return m1 * m2;
+		},
 		sol::meta_function::to_string, [](const glm::mat4& m1) -> std::string { return glm::to_string(m1); }
 	);
 
 	lua.new_usertype<Frustum>("frustum",
 		sol::constructors<Frustum(glm::mat4)>(),
-		"isBoxVisible", &Frustum::IsBoxVisible
+		"isBoxVisible", [](const Frustum& frustum, glm::vec3 minBounds, glm::vec3 maxBounds) -> bool { return frustum.IsBoxVisible(minBounds, maxBounds); }
 	);
 
 	// ecs
 	lua.new_usertype<Archetype>("archetype",
 		"new", sol::factories(
 			[this](std::unordered_set<std::string> required) -> Archetype* { return this->getArchetype(required); },
-			[this](std::unordered_set<std::string> required, std::unordered_map<std::string, sol::table>* sharedComponents) -> Archetype* { return this->getArchetype(required, sharedComponents); }
+			[this](std::unordered_set<std::string> required, sol::table sharedComponents) -> Archetype* { return this->getArchetype(required, sharedComponents); }
 		),
 		"isEmpty", [](const Archetype& archetype) -> bool { return archetype.componentTypes.size(); },
-		"getComponents", [](Archetype& archetype, std::string componentType) -> std::vector<sol::table> { return *archetype.getComponentList(componentType); },
+		"getComponents", [](Archetype& archetype, std::string componentType) -> sol::table {
+			auto t = archetype.getComponentList(componentType);
+			t.size();
+			return archetype.getComponentList(componentType);
+		},
+		"getSharedComponent", [](Archetype& archetype, std::string component_t) -> sol::table { return archetype.getSharedComponent(component_t); },
 		"createEntity", [](Archetype& archetype) -> std::pair<uint32_t, size_t> { return archetype.createEntities(1); },
 		"createEntities", &Archetype::createEntities
 	);
-	lua.new_usertype<EntityQuery>("query"
+	lua.new_usertype<EntityQuery>("query",
 		"new", sol::factories(
 			[this](std::vector<std::string> required) -> EntityQuery* {
 				EntityQuery* query = new EntityQuery();
@@ -539,7 +564,7 @@ void World::setupState(Engine* engine) {
 				return query;
 			}
 		),
-		"archetypes", &EntityQuery::matchingArchetypes
+		"getArchetypes", [](const EntityQuery& query) -> sol::as_table_t<std::vector<Archetype*>> { return query.matchingArchetypes; }
 	);
 
 	// events
@@ -569,14 +594,14 @@ void World::setupState(Engine* engine) {
 	// noise
 	lua.new_usertype<HastyNoise::NoiseSIMD>("noise",
 		"new", sol::factories(
-			[](HastyNoise::NoiseType noiseType, int seed, float frequency) -> HastyNoise::NoiseSIMD* {
-				HastyNoise::NoiseSIMD* noise = HastyNoise::details::CreateNoise(seed, Engine::fastestSimd);
+			[engine](HastyNoise::NoiseType noiseType, int seed, float frequency) -> HastyNoise::NoiseSIMD* {
+				HastyNoise::NoiseSIMD* noise = HastyNoise::details::CreateNoise(seed, engine->fastestSimd);
 				noise->SetNoiseType(noiseType);
 				noise->SetFrequency(frequency);
 				return noise;
 			}
 		),
-		"getNoiseSet", [](HastyNoise::NoiseSIMD noise, int chunkX, int chunkY, int chunkZ, int chunkSize) -> std::vector<float> {
+		"getNoiseSet", [](HastyNoise::NoiseSIMD& noise, int chunkX, int chunkY, int chunkZ, int chunkSize) -> sol::as_table_t<std::vector<float>> {
 			auto floatBuffer = noise.GetNoiseSet(chunkX * chunkSize, chunkY * chunkSize, chunkZ * chunkSize, chunkSize, chunkSize, chunkSize);
 			return std::vector<float>(floatBuffer.get(), floatBuffer.get() + chunkSize * chunkSize * chunkSize);
 		},
@@ -593,10 +618,10 @@ void World::setupState(Engine* engine) {
 	// rendering
 	lua.new_usertype<SubRenderer>("renderer",
 		"new", sol::no_constructor,
-		"pushConstant", [](SubRenderer renderer, VkShaderStageFlags shaderStage, int offset, size_t size, void* constant) {
-			vkCmdPushConstants(renderer.activeCommandBuffer, renderer.pipelineLayout, shaderStage, offset, size, constant);
+		"pushConstantMat4", [](SubRenderer renderer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
+			vkCmdPushConstants(renderer.activeCommandBuffer, renderer.pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
 		},
-		"draw", [](SubRenderer renderer, Model* model) { model->draw(renderer.activeCommandBuffer, renderer.pipelineLayout); },
+		"draw", [](SubRenderer renderer, Model& model) { model.draw(renderer.activeCommandBuffer, renderer.pipelineLayout); },
 		"drawVertices", [](SubRenderer renderer, Buffer* vertexBuffer, Buffer* indexBuffer, int indexCount) {
 			VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -606,7 +631,9 @@ void World::setupState(Engine* engine) {
 		}
 	);
 	lua.new_usertype<Model>("model",
-		"new", sol::constructors<Model(SubRenderer*, const char*), Model(SubRenderer*, const char*, VkShaderStageFlagBits, std::vector<MaterialComponent>)>()
+		"new", sol::constructors<Model(SubRenderer*, const char*), Model(SubRenderer*, const char*, VkShaderStageFlagBits, std::vector<MaterialComponent>)>(),
+		"minBounds", &Model::minBounds,
+		"maxBounds", &Model::maxBounds
 	);
 	lua.new_usertype<Texture>("texture",
 		sol::constructors<Texture(SubRenderer*, const char*)>(),
@@ -625,7 +652,7 @@ void World::setupState(Engine* engine) {
 			for (auto image : images) {
 				int texChannels, texWidth, texHeight;
 				subtextures[texIdx].pixels = stbi_load(image.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-				subtextures[texIdx].filename = image;
+				subtextures[texIdx].filename = std::filesystem::path(image).filename().string();
 				rects[texIdx] = { 0, 0, texWidth, texHeight };
 				texIdx++;
 			}
@@ -678,11 +705,18 @@ void World::setupState(Engine* engine) {
 	);
 	lua.new_usertype<Buffer>("buffer",
 		"new", sol::factories(
-			[device = this->device](VkBufferUsageFlags usageFlags, VkDeviceSize size) -> Buffer* {
-				return &device->createBuffer(size, usageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			[this](VkBufferUsageFlags usageFlags, VkDeviceSize size) -> Buffer {
+				Buffer buffer = device->createBuffer(size, usageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				buffers.emplace_back(buffer);
+				return buffer;
 			}
 		),
-		"setData", [](Buffer buffer, void* data) { buffer.copyTo(0, data); }
+		"setDataInts", [](Buffer buffer, std::vector<int> data) {
+			buffer.copyTo(data.data(), data.size() * sizeof(int));
+		},
+		"setDataFloats", [](Buffer buffer, std::vector<float> data) {
+			buffer.copyTo(data.data(), data.size() * sizeof(float));
+		}
 	);
 
 	// imgui

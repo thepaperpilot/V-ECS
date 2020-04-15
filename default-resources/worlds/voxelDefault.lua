@@ -14,5 +14,5 @@ return {
 		imgui = "renderers/imgui.lua"
 	},
 	loadDistance = 8,
-	chunkSize = 32
+	chunkSize = 16
 }
