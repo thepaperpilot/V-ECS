@@ -144,32 +144,32 @@ return {
 				-- and the standard "{condition} and X or Y" doesn't work if X is falsey (as it would be in our case)
 				-- Unfortunately that makes this block of code look pretty messy, hence this explanation
 				if (localY == axisSize and not self:doesBlockExist(x, y + 1, z, point - axisSize * world.chunkSize)) or (localY ~= axisSize and chunk.blocks[point + world.chunkSize] == nil) then -- top
-					self.addFace(globalX, globalY + 1, globalZ, globalX + 1, globalY + 1, globalZ + 1, block.top, true, vertices, indices, numVertices)
+					self.addFace(globalX, globalY + 1, globalZ, globalX + 1, globalY + 1, globalZ + 1, 0, 1, 0, block.top, true, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
 				if (localY == 0 and not self:doesBlockExist(x, y - 1, z, point + axisSize * world.chunkSize)) or (localY ~= 0 and chunk.blocks[point - world.chunkSize] == nil) then -- bottom
-					self.addFace(globalX, globalY, globalZ, globalX + 1, globalY, globalZ + 1, block.bottom, false, vertices, indices, numVertices)
+					self.addFace(globalX, globalY, globalZ, globalX + 1, globalY, globalZ + 1, 0, -1, 0, block.bottom, false, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
 				if (localZ == axisSize and not self:doesBlockExist(x, y, z + 1, point - axisSize)) or (localZ ~= axisSize and chunk.blocks[point + 1] == nil) then -- back
-					self.addFace(globalX + 1, globalY + 1, globalZ + 1, globalX, globalY, globalZ + 1, block.back, false, vertices, indices, numVertices)
+					self.addFace(globalX + 1, globalY + 1, globalZ + 1, globalX, globalY, globalZ + 1, 0, 0, 1, block.back, false, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
 				if (localZ == 0 and not self:doesBlockExist(x, y, z - 1, point + axisSize)) or (localZ ~= 0 and chunk.blocks[point - 1] == nil) then -- front
-					self.addFace(globalX, globalY, globalZ, globalX + 1, globalY + 1, globalZ, block.front, true, vertices, indices, numVertices)
+					self.addFace(globalX, globalY, globalZ, globalX + 1, globalY + 1, globalZ, 0, 0, -1, block.front, true, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
 				if (localX == axisSize and not self:doesBlockExist(x + 1, y, z, point - axisSize * chunkSizeSquared)) or (localX ~= axisSize and chunk.blocks[point + chunkSizeSquared] == nil) then -- left
-					self.addFace(globalX + 1, globalY, globalZ, globalX + 1, globalY + 1, globalZ + 1, block.left, true, vertices, indices, numVertices)
+					self.addFace(globalX + 1, globalY, globalZ, globalX + 1, globalY + 1, globalZ + 1, 1, 0, 0, block.left, true, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
 				if (localX == 0 and not self:doesBlockExist(x - 1, y, z, point + axisSize * chunkSizeSquared)) or (localX ~= 0 and chunk.blocks[point - chunkSizeSquared] == nil) then -- right
-					self.addFace(globalX, globalY, globalZ + 1, globalX, globalY + 1, globalZ, block.right, true, vertices, indices, numVertices)
+					self.addFace(globalX, globalY, globalZ + 1, globalX, globalY + 1, globalZ, -1, 0, 0, block.right, true, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
@@ -179,17 +179,20 @@ return {
 		chunk.indexCount = numIndices
 		if numIndices > 0 then
 			-- build our vertex and index buffers
-			chunk.vertexBuffer = buffer.new(bufferUsage.VertexBuffer, numVertices * 5 * sizes.Float)
+			chunk.vertexBuffer = buffer.new(bufferUsage.VertexBuffer, numVertices * 8 * sizes.Float)
 			chunk.vertexBuffer:setDataFloats(vertices)
 			chunk.indexBuffer = buffer.new(bufferUsage.IndexBuffer, numIndices * sizes.Float)
 			chunk.indexBuffer:setDataInts(indices)
 		end
 	end,
-	addFace = function(x1, y1, z1, x2, y2, z2, UVs, isClockWise, vertices, indices, numVertices)
+	addFace = function(x1, y1, z1, x2, y2, z2, nX, nY, nZ, UVs, isClockWise, vertices, indices, numVertices)
 		-- vertex 0
 		table.insert(vertices, x1)
 		table.insert(vertices, y1)
 		table.insert(vertices, z1)
+		table.insert(vertices, nX)
+		table.insert(vertices, nY)
+		table.insert(vertices, nZ)
 		table.insert(vertices, UVs.s)
 		table.insert(vertices, UVs.t)
 		-- vertex 1
@@ -202,12 +205,18 @@ return {
 			table.insert(vertices, y2)
 			table.insert(vertices, z1)
 		end
+		table.insert(vertices, nX)
+		table.insert(vertices, nY)
+		table.insert(vertices, nZ)
 		table.insert(vertices, UVs.s)
 		table.insert(vertices, UVs.q)
 		-- vertex 2
 		table.insert(vertices, x2)
 		table.insert(vertices, y2)
 		table.insert(vertices, z2)
+		table.insert(vertices, nX)
+		table.insert(vertices, nY)
+		table.insert(vertices, nZ)
 		table.insert(vertices, UVs.p)
 		table.insert(vertices, UVs.q)
 		-- vertex 3
@@ -220,6 +229,9 @@ return {
 			table.insert(vertices, y1)
 			table.insert(vertices, z1)
 		end
+		table.insert(vertices, nX)
+		table.insert(vertices, nY)
+		table.insert(vertices, nZ)
 		table.insert(vertices, UVs.p)
 		table.insert(vertices, UVs.t)
 

@@ -26,6 +26,7 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, sol::table worldCon
     imageInfos.reserve(numTextures);
     for (auto texture : textures)
         imageInfos.emplace_back(texture->descriptor);
+
     for (auto model : models) {
         numTextures += model->textures.size();
         for (auto texture : model->textures)

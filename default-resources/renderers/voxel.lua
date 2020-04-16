@@ -3,10 +3,11 @@ return {
 		["resources/shaders/voxel.vert"] = shaderStages.Vertex,
 		["resources/shaders/voxel.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.Mat4,
+	pushConstantsSize = sizes.Mat4 + sizes.Vec3,
 	vertexLayout = {
 		[0] = vertexComponents.R32G32B32,
-		[1] = vertexComponents.R32G32
+		[1] = vertexComponents.R32G32B32,
+		[2] = vertexComponents.R32G32
 	},
 	preInit = function(self, world, renderer)
 		-- setup block archetypes
@@ -29,6 +30,7 @@ return {
 	render = function(self, world, renderer)
 		local viewProj = world.systems.camera.main.viewProjectionMatrix
 		renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
+		renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
 
 		local cullFrustum = frustum.new(viewProj)
 

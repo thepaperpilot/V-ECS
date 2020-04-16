@@ -621,6 +621,9 @@ void World::setupState(Engine* engine) {
 		"pushConstantMat4", [](SubRenderer renderer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
 			vkCmdPushConstants(renderer.activeCommandBuffer, renderer.pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
 		},
+		"pushConstantVec3", [](SubRenderer renderer, VkShaderStageFlags shaderStage, int offset, glm::vec3 constant) {
+			vkCmdPushConstants(renderer.activeCommandBuffer, renderer.pipelineLayout, shaderStage, offset, sizeof(glm::vec3), &constant);
+		},
 		"draw", [](SubRenderer renderer, Model& model) { model.draw(renderer.activeCommandBuffer, renderer.pipelineLayout); },
 		"drawVertices", [](SubRenderer renderer, Buffer* vertexBuffer, Buffer* indexBuffer, int indexCount) {
 			VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
@@ -699,8 +702,6 @@ void World::setupState(Engine* engine) {
 
 			// Create our texture and release the stbi pixel data
 			new Texture(subrenderer, pixels, texSize.w, texSize.h);
-			stbi_image_free(pixels);
-
 			return map;
 		}
 	);
