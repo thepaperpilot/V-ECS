@@ -20,6 +20,8 @@ namespace vecs {
 	public:
 		sol::state lua;
 
+		bool isValid = false;
+
 		double deltaTime = 0;
 
 		DependencyGraph dependencyGraph;
@@ -29,8 +31,18 @@ namespace vecs {
 
 			setupState(engine);
 
-			config = lua.script_file(filename);
+			auto result = lua.script_file(filename);
+			if (result.valid()) {
+				config = result;
+			} else {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+				return;
+			}
+
 			dependencyGraph.init(engine->device, &engine->renderer, &lua, config);
+
+			isValid = true;
 		};
 
 		World(Engine* engine, sol::table worldConfig) {
@@ -39,6 +51,8 @@ namespace vecs {
 			setupState(engine);
 
 			dependencyGraph.init(engine->device, &engine->renderer, &lua, worldConfig);
+
+			isValid = true;
 		};
 
 		uint32_t createEntities(uint32_t amount = 1);

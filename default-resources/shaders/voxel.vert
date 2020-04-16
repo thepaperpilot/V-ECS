@@ -10,6 +10,6 @@ layout(push_constant) uniform PushConsts {
 } pushConsts;
 
 void main() {
-    gl_Position = pushConsts.MVP * vec4(inPosition, 1.0);
+    gl_Position = pushConsts.MVP * vec4(int(inPosition.x+.5), int(inPosition.y+.5), int(inPosition.z+.5), 1.0);
     fragTexCoord = inTexCoord;
 }

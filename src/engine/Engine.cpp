@@ -35,6 +35,7 @@ void Engine::init() {
 }
 
 void Engine::setWorld(World* world) {
+    if (!world->isValid) return;
     if (this->world == nullptr) {
         this->world = world;
     } else {

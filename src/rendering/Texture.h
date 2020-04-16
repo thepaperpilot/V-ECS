@@ -49,7 +49,7 @@ namespace vecs {
 
 		Texture(SubRenderer* subrenderer, unsigned char* pixels,
 			int width, int height,
-			VkFilter filter = VK_FILTER_LINEAR,
+			VkFilter filter = VK_FILTER_NEAREST,
 			VkFormat format = VK_FORMAT_R8G8B8A8_UNORM,
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
 			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);

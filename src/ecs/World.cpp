@@ -653,6 +653,7 @@ void World::setupState(Engine* engine) {
 				int texChannels, texWidth, texHeight;
 				subtextures[texIdx].pixels = stbi_load(image.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 				subtextures[texIdx].filename = std::filesystem::path(image).filename().string();
+				// We add a pixel to the height and left to help prevent bleeding
 				rects[texIdx] = { 0, 0, texWidth, texHeight };
 				texIdx++;
 			}
