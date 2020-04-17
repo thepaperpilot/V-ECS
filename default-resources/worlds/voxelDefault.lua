@@ -5,6 +5,7 @@ return {
 		noclip = "systems/noclip.lua",
 		camera = "systems/camera.lua",
 		fps = "systems/fps.lua",
+		hotbar = "systems/hotbar.lua",
 		debug = "systems/debug.lua"
 	},
 	renderers = {
@@ -12,7 +13,5 @@ return {
 		gundam = "renderers/example_gundam.lua",
 		voxel = "renderers/voxel.lua",
 		imgui = "renderers/imgui.lua"
-	},
-	loadDistance = 8,
-	chunkSize = 16
+	}
 }

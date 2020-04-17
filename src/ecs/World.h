@@ -19,6 +19,7 @@ namespace vecs {
 	class World {
 	public:
 		sol::state lua;
+		sol::table config;
 
 		bool isValid = false;
 
@@ -149,8 +150,6 @@ namespace vecs {
 
 	private:
 		Device* device;
-
-		sol::table config;
 
 		// Start at 1 so that 0 can be used to represent an invalid entity
 		uint32_t nextEntity = 1;

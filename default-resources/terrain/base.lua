@@ -11,10 +11,11 @@ return {
 		self.terrainNoise = noise.new(noiseType.Simplex, seed, .01)
 	end,
 	generateChunk = function(self, world, chunk, x, y, z)
-		local noiseSet = self.terrainNoise:getNoiseSet(x, y, z, world.chunkSize)
+		local chunkSize = world.renderers.voxel.chunkSize
+		local noiseSet = self.terrainNoise:getNoiseSet(x, y, z, chunkSize)
 		for point,density in pairs(noiseSet) do
-			local internalY = (point - 1) % (world.chunkSize * world.chunkSize) / world.chunkSize
-			local archetype = biomes["Plain"].getArchetype(density, y * world.chunkSize + internalY + z)
+			local internalY = (point - 1) % (chunkSize * chunkSize) / chunkSize
+			local archetype = biomes["Plain"].getArchetype(density, y * chunkSize + internalY + z)
 			
 			if archetype ~= false then
 				chunk.blocks[point - 1] = world.renderers.voxel.blockArchetypes[archetype]

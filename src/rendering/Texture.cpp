@@ -8,9 +8,8 @@
 
 using namespace vecs;
 
-// TODO perhaps make these constructors called through a function in subrenderer? (similar to Buffer)
 Texture::Texture(SubRenderer* subrenderer, const char* filename,
-	VkFilter filter, VkFormat format,  VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
 	this->device = subrenderer->device;
 	this->format = format;
@@ -46,6 +45,8 @@ void Texture::cleanup() {
 }
 
 void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+	this->imageLayout = imageLayout;
+
 	// Creating our image is going to require several commands, so we'll create a buffer for them
 	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 

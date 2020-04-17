@@ -5,6 +5,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <imgui.h>
+
 namespace vecs {
 
 	// Forward Declarations
@@ -21,6 +23,9 @@ namespace vecs {
 		uint32_t layerCount;
 		VkDescriptorImageInfo descriptor;
 		VkSampler sampler;
+		VkImageLayout imageLayout;
+
+		ImTextureID imguiTexId;
 
 		static void createImageView(Device* device, VkImage image, VkFormat format, VkImageView* view,
 			VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT) {

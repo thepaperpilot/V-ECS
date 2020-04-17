@@ -175,8 +175,7 @@ void DependencyNode::execute(sol::table worldConfig) {
 			auto result = config["update"](config, worldConfig);
 			if (!result.valid()) {
 				sol::error err = result;
-				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-				return;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()) + ". Attempting to continue anyways...");
 			}
 		}		
 	} else if (type == DEPENDENCY_NODE_TYPE_RENDERER) {

@@ -11,21 +11,17 @@
 
 namespace vecs {
 
+	// Forward Declarations
+	class World;
+
 	// An event can have listeners subscribe to it that will then run whenever the event if "fired"
 	class LuaEvent {
 	public:
 		std::vector<sol::table> selves;
 		std::vector<sol::function> listeners;
+		World* world;
 
-		void fire(sol::table event) {
-			for (int i = 0; i < listeners.size(); i++) {
-				auto result = listeners[i](selves[i], event);
-				if (!result.valid()) {
-					sol::error err = result;
-					Debugger::addLog(DEBUG_LEVEL_ERROR, "[ERR] " + std::string(err.what()));
-				}
-			}
-		}
+		void fire(sol::table event);
 	};
 
 	// Wrapper class for letting lua access c++ events
@@ -35,8 +31,9 @@ namespace vecs {
 	public:
 		LuaEvent event;
 
-		LuaEventWrapper(sol::state* lua) {
+		LuaEventWrapper(sol::state* lua, World* world) {
 			this->lua = lua;
+			event.world = world;
 		}
 
 	protected:
@@ -45,7 +42,7 @@ namespace vecs {
 
 	class WindowRefreshLuaEvent : public LuaEventWrapper {
 	public:
-		WindowRefreshLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		WindowRefreshLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &WindowRefreshLuaEvent::callback);
 		}
 
@@ -56,7 +53,7 @@ namespace vecs {
 
 	class WindowResizeLuaEvent : public LuaEventWrapper {
 	public:
-		WindowResizeLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		WindowResizeLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &WindowResizeLuaEvent::callback);
 		}
 
@@ -70,7 +67,7 @@ namespace vecs {
 
 	class MouseMoveLuaEvent : public LuaEventWrapper {
 	public:
-		MouseMoveLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		MouseMoveLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &MouseMoveLuaEvent::callback);
 		}
 
@@ -85,7 +82,7 @@ namespace vecs {
 	// TODO convert mods to a table of booleans
 	class LeftMousePressLuaEvent : public LuaEventWrapper {
 	public:
-		LeftMousePressLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		LeftMousePressLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &LeftMousePressLuaEvent::callback);
 		}
 
@@ -98,7 +95,7 @@ namespace vecs {
 
 	class LeftMouseReleaseLuaEvent : public LuaEventWrapper {
 	public:
-		LeftMouseReleaseLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		LeftMouseReleaseLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &LeftMouseReleaseLuaEvent::callback);
 		}
 
@@ -111,7 +108,7 @@ namespace vecs {
 
 	class RightMousePressLuaEvent : public LuaEventWrapper {
 	public:
-		RightMousePressLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		RightMousePressLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &RightMousePressLuaEvent::callback);
 		}
 
@@ -124,7 +121,7 @@ namespace vecs {
 
 	class RightMouseReleaseLuaEvent : public LuaEventWrapper {
 	public:
-		RightMouseReleaseLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		RightMouseReleaseLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &RightMouseReleaseLuaEvent::callback);
 		}
 
@@ -137,7 +134,7 @@ namespace vecs {
 
 	class VerticalScrollLuaEvent : public LuaEventWrapper {
 	public:
-		VerticalScrollLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		VerticalScrollLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &VerticalScrollLuaEvent::callback);
 		}
 
@@ -150,7 +147,7 @@ namespace vecs {
 
 	class HorizontalScrollLuaEvent : public LuaEventWrapper {
 	public:
-		HorizontalScrollLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		HorizontalScrollLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &HorizontalScrollLuaEvent::callback);
 		}
 
@@ -163,7 +160,7 @@ namespace vecs {
 
 	class KeyPressLuaEvent : public LuaEventWrapper {
 	public:
-		KeyPressLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		KeyPressLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &KeyPressLuaEvent::callback);
 		}
 
@@ -178,7 +175,7 @@ namespace vecs {
 
 	class KeyReleaseLuaEvent : public LuaEventWrapper {
 	public:
-		KeyReleaseLuaEvent(sol::state* lua) : LuaEventWrapper(lua) {
+		KeyReleaseLuaEvent(sol::state* lua, World* world) : LuaEventWrapper(lua, world) {
 			EventManager::addListener(this, &KeyReleaseLuaEvent::callback);
 		}
 

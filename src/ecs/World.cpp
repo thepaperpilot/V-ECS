@@ -147,7 +147,7 @@ void World::setupState(Engine* engine) {
 				resources.push_back(entry.path().string());
 		return resources;
 	};
-	lua["loadWorld"] = [engine](std::string filename) { engine->setWorld(new World(engine, filename)); };
+	lua["loadWorld"] = [engine](std::string filename) { engine->setWorld(filename); };
 
 	lua.new_enum("debugLevels",
 		"Error", DEBUG_LEVEL_ERROR,
@@ -578,17 +578,17 @@ void World::setupState(Engine* engine) {
 	);
 	// Create glfw events
 	lua["glfw"]["events"] = lua.create_table_with(
-		"WindowRefresh", &(new WindowRefreshLuaEvent(&lua))->event,
-		"WindowResize", &(new WindowResizeLuaEvent(&lua))->event,
-		"MouseMove", &(new MouseMoveLuaEvent(&lua))->event,
-		"LeftMousePress", &(new LeftMousePressLuaEvent(&lua))->event,
-		"LeftMouseRelease", &(new LeftMouseReleaseLuaEvent(&lua))->event,
-		"RightMousePress", &(new RightMousePressLuaEvent(&lua))->event,
-		"RightMouseRelease", &(new RightMouseReleaseLuaEvent(&lua))->event,
-		"VerticalScroll", &(new VerticalScrollLuaEvent(&lua))->event,
-		"HorizontalScroll", &(new HorizontalScrollLuaEvent(&lua))->event,
-		"KeyPress", &(new KeyPressLuaEvent(&lua))->event,
-		"KeyRelease", &(new KeyReleaseLuaEvent(&lua))->event
+		"WindowRefresh", &(new WindowRefreshLuaEvent(&lua, this))->event,
+		"WindowResize", &(new WindowResizeLuaEvent(&lua, this))->event,
+		"MouseMove", &(new MouseMoveLuaEvent(&lua, this))->event,
+		"LeftMousePress", &(new LeftMousePressLuaEvent(&lua, this))->event,
+		"LeftMouseRelease", &(new LeftMouseReleaseLuaEvent(&lua, this))->event,
+		"RightMousePress", &(new RightMousePressLuaEvent(&lua, this))->event,
+		"RightMouseRelease", &(new RightMouseReleaseLuaEvent(&lua, this))->event,
+		"VerticalScroll", &(new VerticalScrollLuaEvent(&lua, this))->event,
+		"HorizontalScroll", &(new HorizontalScrollLuaEvent(&lua, this))->event,
+		"KeyPress", &(new KeyPressLuaEvent(&lua, this))->event,
+		"KeyRelease", &(new KeyReleaseLuaEvent(&lua, this))->event
 	);
 
 	// noise
@@ -618,6 +618,32 @@ void World::setupState(Engine* engine) {
 	// rendering
 	lua.new_usertype<SubRenderer>("renderer",
 		"new", sol::no_constructor,
+		"addTexture", [this](SubRenderer renderer, Texture* texture) {
+			VkDescriptorSet descriptorSet;
+
+			VkDescriptorSetAllocateInfo allocateInfo = {};
+			allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocateInfo.descriptorPool = renderer.imguiDescriptorPool;
+			allocateInfo.descriptorSetCount = 1;
+			allocateInfo.pSetLayouts = &renderer.descriptorSetLayout;
+
+			if (vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet) != VK_SUCCESS) {
+				throw std::runtime_error("failed to allocate descriptor set for imgui texture!");
+			}
+
+			VkDescriptorImageInfo descriptorImage[1] = { texture->descriptor };
+			VkWriteDescriptorSet writeDescriptor[1] = {};
+			writeDescriptor[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptor[0].dstSet = descriptorSet;
+			writeDescriptor[0].dstBinding = 1;
+			writeDescriptor[0].descriptorCount = 1;
+			writeDescriptor[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptor[0].pImageInfo = descriptorImage;
+
+			vkUpdateDescriptorSets(device->logical, 1, writeDescriptor, 0, nullptr);
+			
+			texture->imguiTexId = (ImTextureID)descriptorSet;
+		},
 		"pushConstantMat4", [](SubRenderer renderer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
 			vkCmdPushConstants(renderer.activeCommandBuffer, renderer.pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
 		},
@@ -640,7 +666,7 @@ void World::setupState(Engine* engine) {
 	);
 	lua.new_usertype<Texture>("texture",
 		sol::constructors<Texture(SubRenderer*, const char*)>(),
-		"createStitched", [this](SubRenderer* subrenderer, std::vector<std::string> images) -> sol::table {
+		"createStitched", [this, engine](SubRenderer* subrenderer, std::vector<std::string> images) -> std::tuple<Texture*, sol::table> {
 			using spaces_type = empty_spaces<false, default_empty_spaces>;
 			using rect_type = output_rect_t<spaces_type>;
 
@@ -701,8 +727,7 @@ void World::setupState(Engine* engine) {
 			}
 
 			// Create our texture and release the stbi pixel data
-			new Texture(subrenderer, pixels, texSize.w, texSize.h);
-			return map;
+			return std::make_tuple(new Texture(subrenderer, pixels, texSize.w, texSize.h), map);
 		}
 	);
 	lua.new_usertype<Buffer>("buffer",
@@ -723,15 +748,73 @@ void World::setupState(Engine* engine) {
 
 	// imgui
 	lua["ig"] = lua.create_table_with(
-		"createFontTexture", [](SubRenderer* subrenderer) {
+		"preInit", [this](SubRenderer* subrenderer) {
+			// We'll be using multiple textures but only one per draw call, so we tell our subrenderer
+			// about a dummy texture in preinit(),
+			// and actually create the font texture and prepare for user textures in init()
+			unsigned char pixels[4] = { 0 };
+			new Texture(subrenderer, pixels, 1, 1);
+
+			// Not all of these are in use, but the pool is cheap and its what imgui
+			// does in its vulkan+glfw example:
+			// https://github.com/ocornut/imgui/blob/master/examples/example_glfw_vulkan/main.cpp
+			VkDescriptorPoolSize pool_sizes[] =
+			{
+				{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+				{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+				{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+				{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+				{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+			};
+			VkDescriptorPoolCreateInfo pool_info = {};
+			pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+			pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
+			pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+			pool_info.pPoolSizes = pool_sizes;
+			if (vkCreateDescriptorPool(device->logical, &pool_info, nullptr, &subrenderer->imguiDescriptorPool) != VK_SUCCESS) {
+				throw std::runtime_error("failed to setup imgui descriptor pool!");
+			}
+		},
+		"init", [this](SubRenderer* subrenderer) {
 			// Create our font texture from ImGUI's pixel data
 			ImGuiIO& io = ImGui::GetIO();
 			unsigned char* pixels;
 			int width, height;
 			io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 			Texture* fontTexture = new Texture(subrenderer, pixels, width, height);
-			io.Fonts->TexID = (ImTextureID)(intptr_t)fontTexture->image;
-			subrenderer->immutableSamplers.emplace_back(fontTexture->sampler);
+
+			// Copied from renderer's addTexture function
+			VkDescriptorSet descriptorSet;
+
+			VkDescriptorSetAllocateInfo allocateInfo = {};
+			allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocateInfo.descriptorPool = subrenderer->imguiDescriptorPool;
+			allocateInfo.descriptorSetCount = 1;
+			allocateInfo.pSetLayouts = &subrenderer->descriptorSetLayout;
+
+			if (vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet) != VK_SUCCESS) {
+				throw std::runtime_error("failed to allocate descriptor set for imgui texture!");
+			}
+
+			VkDescriptorImageInfo descriptorImage[1] = { fontTexture->descriptor };
+			VkWriteDescriptorSet writeDescriptor[1] = {};
+			writeDescriptor[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptor[0].dstSet = descriptorSet;
+			writeDescriptor[0].dstBinding = 1;
+			writeDescriptor[0].descriptorCount = 1;
+			writeDescriptor[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptor[0].pImageInfo = descriptorImage;
+
+			vkUpdateDescriptorSets(device->logical, 1, writeDescriptor, 0, nullptr);
+
+			io.Fonts->TexID = (ImTextureID)descriptorSet;
 		},
 		"newFrame", []() {
 			ImGui_ImplGlfw_NewFrame();
@@ -862,6 +945,11 @@ void World::setupState(Engine* engine) {
 							scissor.extent.height = (uint32_t)(clip_rect.w - clip_rect.y);
 							vkCmdSetScissor(subrenderer->activeCommandBuffer, 0, 1, &scissor);
 
+							// Bind descriptor set with font or user texture
+							// TODO slight inefficiency when SubRenderer binds the font descriptor set
+							VkDescriptorSet descSet[1] = { (VkDescriptorSet)pcmd->TextureId };
+							vkCmdBindDescriptorSets(subrenderer->activeCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, subrenderer->pipelineLayout, 0, 1, descSet, 0, NULL);
+
 							// Draw
 							vkCmdDrawIndexed(subrenderer->activeCommandBuffer, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
 						}
@@ -900,7 +988,7 @@ void World::setupState(Engine* engine) {
 		"logFinish", &LogFinish,
 		"pushStyleColor", [](ImGuiCol idx, glm::vec4 color) { PushStyleColor(idx, ImVec4(color.r, color.g, color.b, color.a)); },
 		"popStyleColor", [](int amount) { PopStyleColor(amount); },
-		"pushStyleVar", [](ImGuiStyleVar idx, float val) { PushStyleVar(idx, val); },
+		"pushStyleVar", sol::overload([](ImGuiStyleVar idx, float val) { PushStyleVar(idx, val); }, [](ImGuiStyleVar idx, float v1, float v2) { PushStyleVar(idx, ImVec2(v1, v2)); }),
 		"popStyleVar", [](int amount) { PopStyleVar(amount); },
 		"setKeyboardFocusHere", sol::overload([]() { SetKeyboardFocusHere(); }, &SetKeyboardFocusHere),
 		"getScrollY", &GetScrollX,
@@ -913,8 +1001,13 @@ void World::setupState(Engine* engine) {
 			ImVec2 size = CalcTextSize(text.c_str());
 			return std::make_tuple(size.x, size.y);
 		},
+		"image", [](Texture* texture, glm::vec2 size, glm::vec4 uv) {
+			// Note we flip q and t - that's because vulkan flips the y component compared to opengl
+			Image((ImTextureID)texture->imguiTexId, ImVec2(size.x, size.y), ImVec2(uv.p, uv.t), ImVec2(uv.s, uv.q));
+		},
 		"sameLine", []() { SameLine(); },
 		"text", [](std::string text) { Text(text.c_str()); },
+		"textWrapped", [](std::string text) { TextWrapped(text.c_str()); },
 		"textUnformatted", [](std::string text) { TextUnformatted(text.c_str()); },
 		"button", [](std::string text) -> bool { return Button(text.c_str()); },
 		"checkbox", [](std::string label, bool value) -> bool {

@@ -18,7 +18,7 @@ return {
 			self.main.forward = vec3.new(0, 0, 1)
 			self.main.right = vec3.new(1, 0, 0)
 			local width, height = glfw.windowSize()
-			self:onWindowResize({ width = width, height = height })
+			self:onWindowResize({}, { width = width, height = height })
 		else
 			self.main = cameraArchetype:getComponents("Camera")[1]
 		end
@@ -39,7 +39,7 @@ return {
 			end
 		end
 	end,
-	onWindowResize = function(self, windowResizeEvent)
+	onWindowResize = function(self, world, windowResizeEvent)
 		local aspectRatio = windowResizeEvent.width / windowResizeEvent.height
 		self.main.projectionMatrix = perspective(radians(self.fieldOfView), aspectRatio, self.nearPlane, self.farPlane)
 		-- flip yy component because glm assumes we're using opengl but vulkan has y=0 on the opposite side of the screen as opengl
@@ -49,7 +49,7 @@ return {
 		if #args == 1 then
 			self.fieldOfView = tonumber(args[1])
 			local width, height = glfw.windowSize()
-			self:onWindowResize({ width = width, height = height })
+			self:onWindowResize({}, { width = width, height = height })
 		else
 			debugger.addLog(debugLevels.Warn, "Wrong number of parameters.\nUsage: fov {number}\n\tSets the camera's field of view to {number}, in degrees")
 		end

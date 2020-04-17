@@ -7,7 +7,8 @@ return {
 	end,
 	generateChunk = function(self, world, chunk, x, y, z)
 		if y > -1 then return end
-		local noiseSet = self.caveNoise:getNoiseSet(x, y, z, world.chunkSize)
+		local chunkSize = world.renderers.voxel.chunkSize
+		local noiseSet = self.caveNoise:getNoiseSet(x, y, z, chunkSize)
 		for point,density in pairs(noiseSet) do
 			if y < -2 then
 				if density > 0.4 then
@@ -15,8 +16,8 @@ return {
 				end
 			else
 				-- Taper off over the course of one vertical chunk
-				local internalY = (point - 1) % (world.chunkSize * world.chunkSize) / world.chunkSize
-				if density - internalY * 0.4 / world.chunkSize > 0.4 then
+				local internalY = (point - 1) % (chunkSize * chunkSize) / chunkSize
+				if density - internalY * 0.4 / chunkSize > 0.4 then
 					chunk.blocks[point - 1] = nil
 				end
 			end

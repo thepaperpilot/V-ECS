@@ -34,18 +34,17 @@ void Engine::init() {
     run(manifest["initialWorld"]);
 }
 
-void Engine::setWorld(World* world) {
-    if (!world->isValid) return;
+void Engine::setWorld(std::string filename) {
     if (this->world == nullptr) {
-        this->world = world;
+        this->world = new World(this, filename);
     } else {
-        this->nextWorld = world;
+        this->nextWorld = filename;
     }
 }
 
 void Engine::run(std::string worldFilename) {
     // Load initial world
-    setWorld(new World(this, "resources/" + worldFilename));
+    setWorld("resources/" + worldFilename);
 
     mainLoop();
     cleanup();
@@ -73,6 +72,7 @@ void Engine::initWindow(sol::table manifest) {
     glfwSetCursorPosCallback(window, cursorPositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetKeyCallback(window, keyCallback);
+    glfwSetScrollCallback(window, scrollCallback);
 }
 
 void Engine::initVulkan(sol::table manifest) {
@@ -191,15 +191,18 @@ void Engine::updateWorld() {
     renderer.presentImage();
     lastFrameTime = currentTime;
 
-    if (nextWorld != nullptr) {
-        vkDeviceWaitIdle(*device);
-        // Handle world trade-off
-        this->world->cleanup();
-        this->world = nextWorld;
-        // TODO find way to make windowRefresh faster in this situation
-        // Also may not be necessary anymore?
-        this->world->windowRefresh(true, renderer.imageCount);
-        nextWorld = nullptr;
+    if (nextWorld != "") {
+        World* world = new World(this, nextWorld);
+        if (world->isValid) {
+            vkDeviceWaitIdle(*device);
+            // Handle world trade-off
+            this->world->cleanup();
+            this->world = world;
+            // TODO find way to make windowRefresh faster in this situation
+            // Also may not be necessary anymore?
+            this->world->windowRefresh(true, renderer.imageCount);
+            nextWorld = "";
+        }
     }
 }
 

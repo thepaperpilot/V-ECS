@@ -12,12 +12,21 @@ return {
 	performDepthTest = false,
 	cullMode = cullModes.None,
 	preInit = function(self, world, renderer)
-		ig.createFontTexture(renderer)
+		self.renderer = renderer
+		ig.preInit(renderer)
 	end,
-	startFrame = function(self, world, renderer)
+	init = function(self, world)
+		ig.init(self.renderer)
+	end,
+	startFrame = function(self, world)
 		ig.newFrame()
 	end,
-	render = function(self, world, renderer)
-		ig.render(renderer)
+	render = function(self, world)
+		ig.render(self.renderer)
+	end,
+	addStitchedTexture = function(self, filenames)
+		local texture, map = texture.createStitched(self.renderer, filenames)
+		self.renderer:addTexture(texture)
+		return texture, map
 	end
 }

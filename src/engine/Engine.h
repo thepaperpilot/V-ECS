@@ -49,14 +49,14 @@ namespace vecs {
 
         void init();
 
-        void setWorld(World* world);
+        void setWorld(std::string filename);
 
         void updateWorld();
 
     private:
         VkInstance instance;
         VkSurfaceKHR surface;
-        World* nextWorld = nullptr;
+        std::string nextWorld = "";
 
         double lastFrameTime;
 

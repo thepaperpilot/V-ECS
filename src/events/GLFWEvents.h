@@ -115,6 +115,19 @@ namespace vecs {
 		}
 	}
 
+	static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+		if (xoffset != 0) {
+			HorizontalScrollEvent event;
+			event.xOffset = xoffset;
+			EventManager::fire(event);
+		}
+		if (yoffset != 0) {
+			VerticalScrollEvent event;
+			event.yOffset = yoffset;
+			EventManager::fire(event);
+		}
+	}
+
 	static void windowResizeCallback(GLFWwindow* window, int width, int height) {
 		WindowResizeEvent event;
 		event.width = width;

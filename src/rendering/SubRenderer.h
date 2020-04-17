@@ -30,6 +30,11 @@ namespace vecs {
 		VertexLayout* vertexLayout;
 		VkCommandBuffer activeCommandBuffer = VK_NULL_HANDLE;
 		VkPipelineLayout pipelineLayout;
+		VkDescriptorSetLayout descriptorSetLayout;
+
+		// descriptor pool for use in imgui subrenderers that need to be able to load
+		// many images with descriptor sets
+		VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
 		SubRenderer(Device* device, Renderer* renderer, sol::table worldConfig, sol::table config);
 
@@ -43,7 +48,6 @@ namespace vecs {
 		std::vector<VkCommandBuffer> commandBuffers;
 
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		VkDescriptorSetLayout descriptorSetLayout;
 		VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 		std::vector<VkDescriptorSet> descriptorSets;
 

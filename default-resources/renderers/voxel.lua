@@ -9,9 +9,13 @@ return {
 		[1] = vertexComponents.R32G32B32,
 		[2] = vertexComponents.R32G32
 	},
+	loadDistance = 4,
+	chunkSize = 8,
 	preInit = function(self, world, renderer)
+		self.renderer = renderer
 		-- setup block archetypes
-		self.textureMap = texture.createStitched(renderer, getResources("textures/blocks", ".png"))
+		local texture, map = texture.createStitched(renderer, getResources("textures/blocks", ".png"))
+		self.textureMap = map
 		self.blockArchetypes = {}
 		for key,filename in pairs(getResources("blocks", ".lua")) do
 			local block = require(filename:sub(1,filename:len()-4))
@@ -27,10 +31,10 @@ return {
 		camera = "system",
 		skybox = "renderer"
 	},
-	render = function(self, world, renderer)
+	render = function(self, world)
 		local viewProj = world.systems.camera.main.viewProjectionMatrix
-		renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
-		renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
+		self.renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
+		self.renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
 
 		local cullFrustum = frustum.new(viewProj)
 
@@ -38,7 +42,7 @@ return {
 		for key,archetype in pairs(self.chunksQuery:getArchetypes()) do
 			for id,chunk in pairs(archetype:getComponents("Chunk")) do
 				if chunk.indexCount > 0 and cullFrustum:isBoxVisible(chunk.minBounds, chunk.maxBounds) then
-					renderer:drawVertices(chunk.vertexBuffer, chunk.indexBuffer, chunk.indexCount)
+					self.renderer:drawVertices(chunk.vertexBuffer, chunk.indexBuffer, chunk.indexCount)
 				end
 			end
 		end

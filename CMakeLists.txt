@@ -132,7 +132,10 @@ target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D/s
 
 # imgui
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/imgui)
-	execute_process(COMMAND git clone https://github.com/ocornut/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+	# we pull an out of data fork with support for loading images with the vulkan backend
+	execute_process(COMMAND git clone https://github.com/martty/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+	# then merge upstream/master so its no longer out of date. Currently this merges smoothly
+	execute_process(COMMAND git pull --no-edit https://github.com/ocornut/imgui WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/imgui)
 endif()
 target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui)
 target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_demo.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_draw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_widgets.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/examples/imgui_impl_glfw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/misc/cpp/imgui_stdlib.cpp)

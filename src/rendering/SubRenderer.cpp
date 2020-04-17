@@ -103,7 +103,7 @@ void SubRenderer::buildCommandBuffer(sol::table worldConfig) {
     vkCmdBindPipeline(activeCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     // Run our renderer
-    auto result = config["render"](config, worldConfig, this);
+    auto result = config["render"](config, worldConfig);
     if (!result.valid()) {
         sol::error err = result;
         Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
@@ -147,6 +147,9 @@ void SubRenderer::cleanup() {
     // Destroy our descriptor set layout
     vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);
     vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
+
+    // Destroy our imgui descriptor pool
+    vkDestroyDescriptorPool(*device, imguiDescriptorPool, nullptr);
 
     // Destroy our graphics pipeline
     vkDestroyPipeline(*device, graphicsPipeline, nullptr);

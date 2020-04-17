@@ -10,6 +10,7 @@ return {
 		[2] = vertexComponents.MaterialIndex
 	},
 	preInit = function(self, world, renderer)
+		self.renderer = renderer
 		self.gundam = model.new(renderer, "resources/models/gundam/model.obj", shaderStages.Vertex, {
 			materialComponents.Diffuse
 		})
@@ -18,15 +19,15 @@ return {
 		camera = "system",
 		skybox = "renderer"
 	},
-	render = function(self, world, renderer)
+	render = function(self, world)
 		local MVP = world.systems.camera.main.viewProjectionMatrix * mat4.translate(vec3.new(0, 10, 0))
-		renderer:pushConstantMat4(shaderStages.Vertex, 0, MVP)
-		renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
+		self.renderer:pushConstantMat4(shaderStages.Vertex, 0, MVP)
+		self.renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
 
 		local cullFrustum = frustum.new(MVP)
 
 		if cullFrustum:isBoxVisible(self.gundam.minBounds, self.gundam.maxBounds) then
-			renderer:draw(self.gundam)
+			self.renderer:draw(self.gundam)
 		end
 	end
 }

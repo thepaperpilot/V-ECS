@@ -68,7 +68,7 @@ return {
 			self.lastY = y
 		end
 	end,
-	onMouseMove = function(self, mouseMoveEvent)
+	onMouseMove = function(self, world, mouseMoveEvent)
 		self.yaw = self.yaw + (mouseMoveEvent.xPos - self.lastX) * self.lookSpeed
 		self.pitch = self.pitch - (mouseMoveEvent.yPos - self.lastY) * self.lookSpeed
 		self.lastX = mouseMoveEvent.xPos

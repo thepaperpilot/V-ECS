@@ -61,13 +61,13 @@ return {
 		-- TODO is storing 3D array of chunk indices going to be okay?
 		self.chunks = {}
 		if chunkArchetype:isEmpty() then
-			local firstId, firstIndex = chunkArchetype:createEntities((2 * world.loadDistance) ^ 3)
+			local firstId, firstIndex = chunkArchetype:createEntities((2 * world.renderers.voxel.loadDistance) ^ 3)
 			local currIndex = firstIndex
-			for x = -world.loadDistance, world.loadDistance - 1 do
+			for x = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 				self.chunks[x] = {}
-				for y = -world.loadDistance, world.loadDistance - 1 do
+				for y = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 					self.chunks[x][y] = {}
-					for z = -world.loadDistance, world.loadDistance - 1 do
+					for z = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 						self:fillChunk(world, x, y, z, currIndex)
 						self.chunks[x][y][z] = currIndex
 						currIndex = currIndex + 1
@@ -75,9 +75,9 @@ return {
 				end
 			end
 			currIndex = firstIndex
-			for x = -world.loadDistance, world.loadDistance - 1 do
-				for y = -world.loadDistance, world.loadDistance - 1 do
-					for z = -world.loadDistance, world.loadDistance - 1 do
+			for x = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
+				for y = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
+					for z = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 						self:createMesh(world, x, y, z, currIndex)
 						currIndex = currIndex + 1
 					end
@@ -87,9 +87,10 @@ return {
 	end,
 	fillChunk = function(self, world, x, y, z, index)
 		local chunk = self.chunkComponents[index]
+		local chunkSize = world.renderers.voxel.chunkSize
 
-		chunk.minBounds = vec3.new(x * world.chunkSize, y * world.chunkSize, z * world.chunkSize)
-		chunk.maxBounds = vec3.new((x + 1) * world.chunkSize, (y + 1) * world.chunkSize, (z + 1) * world.chunkSize)
+		chunk.minBounds = vec3.new(x * chunkSize, y * chunkSize, z * chunkSize)
+		chunk.maxBounds = vec3.new((x + 1) * chunkSize, (y + 1) * chunkSize, (z + 1) * chunkSize)
 		chunk.blocks = {}
 
 		-- run our terrain generators
@@ -105,8 +106,9 @@ return {
 	end,
 	createMesh = function(self, world, x, y, z, index)
 		local chunk = self.chunkComponents[index]
-		local chunkSizeSquared = world.chunkSize ^ 2
-		local axisSize = world.chunkSize - 1
+		local chunkSize = world.renderers.voxel.chunkSize
+		local chunkSizeSquared = chunkSize ^ 2
+		local axisSize = chunkSize - 1
 
 		-- currently chunk.blocks maps points to their archetype
 		-- we want a map of archetypes to the points using it
@@ -129,13 +131,13 @@ return {
 			for _, point in pairs(points) do
 				-- local[XYZ] are the coordinates of this block inside this chunk
 				local localX = math.floor(point / chunkSizeSquared)
-				local localY = math.floor((point % chunkSizeSquared) / world.chunkSize)
-				local localZ = point % world.chunkSize
+				local localY = math.floor((point % chunkSizeSquared) / chunkSize)
+				local localZ = point % chunkSize
 				-- global[XYZ] are the coordinates of this block in global space
 				-- remember x, y, and z are the chunk's position
-				local globalX = localX + x * world.chunkSize
-				local globalY = localY + y * world.chunkSize
-				local globalZ = localZ + z * world.chunkSize
+				local globalX = localX + x * chunkSize
+				local globalY = localY + y * chunkSize
+				local globalZ = localZ + z * chunkSize
 
 				-- for each face, we only add it to our mesh if 
 				-- 1. its an exterior block and the block doesn't exist in the adjacent chunk (or if that chunk isn't loaded)
@@ -143,12 +145,12 @@ return {
 				-- We need to check if its interior or exterior twice because lua doesn't support ternaries,
 				-- and the standard "{condition} and X or Y" doesn't work if X is falsey (as it would be in our case)
 				-- Unfortunately that makes this block of code look pretty messy, hence this explanation
-				if (localY == axisSize and not self:doesBlockExist(x, y + 1, z, point - axisSize * world.chunkSize)) or (localY ~= axisSize and chunk.blocks[point + world.chunkSize] == nil) then -- top
+				if (localY == axisSize and not self:doesBlockExist(x, y + 1, z, point - axisSize * chunkSize)) or (localY ~= axisSize and chunk.blocks[point + chunkSize] == nil) then -- top
 					self.addFace(globalX, globalY + 1, globalZ, globalX + 1, globalY + 1, globalZ + 1, 0, 1, 0, block.top, true, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
 				end
-				if (localY == 0 and not self:doesBlockExist(x, y - 1, z, point + axisSize * world.chunkSize)) or (localY ~= 0 and chunk.blocks[point - world.chunkSize] == nil) then -- bottom
+				if (localY == 0 and not self:doesBlockExist(x, y - 1, z, point + axisSize * chunkSize)) or (localY ~= 0 and chunk.blocks[point - chunkSize] == nil) then -- bottom
 					self.addFace(globalX, globalY, globalZ, globalX + 1, globalY, globalZ + 1, 0, -1, 0, block.bottom, false, vertices, indices, numVertices)
 					numVertices = numVertices + 4
 					numIndices = numIndices + 6
@@ -179,6 +181,7 @@ return {
 		chunk.indexCount = numIndices
 		if numIndices > 0 then
 			-- build our vertex and index buffers
+			-- TODO use one buffer for all terrain and assign parts of it for each chunk
 			chunk.vertexBuffer = buffer.new(bufferUsage.VertexBuffer, numVertices * 8 * sizes.Float)
 			chunk.vertexBuffer:setDataFloats(vertices)
 			chunk.indexBuffer = buffer.new(bufferUsage.IndexBuffer, numIndices * sizes.Float)

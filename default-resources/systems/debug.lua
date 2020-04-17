@@ -179,7 +179,7 @@ return {
 			help = help
 		}
 	end,
-	onKeyPress = function(self, keyPressEvent)
+	onKeyPress = function(self, world, keyPressEvent)
 		if keyPressEvent.key == keys.Grave then
 			self.isDebugWindowOpen = not self.isDebugWindowOpen
 			if self.isDebugWindowOpen then
@@ -266,7 +266,7 @@ return {
 	end,
 	loadWorld = function(self, args)
 		if #args == 1 then
-			loadWorld(require(args[1]))
+			loadWorld(args[1])
 		else
 			debugger.addLog(debugLevels.Warn, "Wrong number of parameters.\n"..self.commands["loadWorld"].help)
 		end
