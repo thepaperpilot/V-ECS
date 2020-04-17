@@ -6,7 +6,7 @@
 
 using namespace vecs;
 
-void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, sol::table config) {
+bool DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, sol::table config) {
 	this->config = config;
 
 	sol::table systems = config["systems"];
@@ -26,8 +26,8 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 			auto result = lua->script_file(filename);
 			if (!result.valid()) {
 				sol::error err = result;
-				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Attempted to load system at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()) + "\nAttempting to continue loading world...");
-				continue;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Failed to load world. Attempted to load system at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()));
+				return false;
 			}
 			system = result;
 			systems[kvp.first] = system;
@@ -47,8 +47,8 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 			auto result = lua->script_file(filename);
 			if (!result.valid()) {
 				sol::error err = result;
-				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Attempted to load renderer at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()) + "\nAttempting to continue loading world...");
-				continue;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Failed to load world. Attempted to load renderer at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()));
+				return false;
 			}
 			subrenderer = result;
 			renderers[kvp.first] = subrenderer;
@@ -71,6 +71,8 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 		if (node->dependencies.empty())
 			leaves.emplace_back(node);
 	}
+
+	return true;
 }
 
 void DependencyGraph::execute() {

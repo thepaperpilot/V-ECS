@@ -47,9 +47,7 @@ namespace vecs {
 				return;
 			}
 
-			dependencyGraph.init(engine->device, &engine->renderer, &lua, config);
-
-			isValid = true;
+			isValid = dependencyGraph.init(engine->device, &engine->renderer, &lua, config);
 		};
 
 		World(Engine* engine, sol::table worldConfig) {
@@ -57,9 +55,7 @@ namespace vecs {
 
 			setupState(engine);
 
-			dependencyGraph.init(engine->device, &engine->renderer, &lua, worldConfig);
-
-			isValid = true;
+			isValid = dependencyGraph.init(engine->device, &engine->renderer, &lua, worldConfig);
 		};
 
 		uint32_t createEntities(uint32_t amount = 1);

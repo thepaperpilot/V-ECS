@@ -50,7 +50,7 @@ namespace vecs {
 
 	class DependencyGraph {
 	public:
-		void init(Device* device, Renderer* renderer, sol::state* lua, sol::table config);
+		bool init(Device* device, Renderer* renderer, sol::state* lua, sol::table config);
 
 		void execute();
 		void windowRefresh(bool numImagesChanged, int imageCount);
