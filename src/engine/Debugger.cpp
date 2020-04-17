@@ -1,5 +1,8 @@
 #include "Debugger.h"
+
 #include "../util/VulkanUtils.h"
+
+#include <GLFW\glfw3.h>
 
 #include <vector>
 #include <iostream>
@@ -30,9 +33,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
     return VK_FALSE;
 }
 
+void Debugger::setupLogFile(std::string filename) {
+    freopen(filename.c_str(), "w", stdout);
+}
+
 void Debugger::addLog(DebugLevel debugLevel, std::string message) {
     log.emplace_back(debugLevel, message);
-    std::cout << message << std::endl;
+    std::cout << glfwGetTime() << " " << message << std::endl;
 }
 
 void Debugger::setupDebugMessenger(VkInstance instance) {

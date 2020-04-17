@@ -44,6 +44,7 @@ namespace vecs {
 		// but if its set to verbose everything will get printed
 		static VkDebugUtilsMessageSeverityFlagBitsEXT logLevel;
 
+		static void setupLogFile(std::string filename);
 		static void addLog(DebugLevel debugLevel, std::string message);
 		static std::vector<Log> getLog() { return log; };
 		static void clearLog() { log.clear(); };
