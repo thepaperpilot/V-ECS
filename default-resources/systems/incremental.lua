@@ -67,16 +67,16 @@ return {
 		ig.text("You currently have "..tostring(self.currency).." "..self.currencyName)
 
 		if self.producers > 0 then
-			ig.text("You currently have "..tostring(self.producers).." "..self.currencyName.." producers")
+			ig.text("You currently have "..tostring(self.producers).." "..self.currencyName.." producers producing "..tostring(math.ceil(self.producers * self.producerMulti)).." "..self.currencyName.." per second")
 		end
 
 		if self.producersProducers > 0 then
-			ig.text("You currently have "..tostring(self.producersProducers).." "..self.currencyName.." producer producers")
+			ig.text("You currently have "..tostring(self.producersProducers).." "..self.currencyName.." producer producers producing "..tostring(self.producersProducers).." "..self.currencyName.." producers per second")
 		end
 
 		ig.separator()
 
-		if ig.button("Produce "..self.currencyName) then
+		if ig.button("Produce "..self.manualMulti.." "..self.currencyName) then
 			self.currency = self.currency + self.manualMulti
 			currencyIncreased = true
 
@@ -86,7 +86,7 @@ return {
 		end
 
 		if self.hitTen then
-			local producerCost = math.floor((self.producers + 9) ^ 1.1)
+			local producerCost = math.floor((self.producers + 7) ^ 1.2)
 			if ig.button("Purchase 1 "..self.currencyName.." producer for "..tostring(producerCost).." "..self.currencyName) then
 				if self.currency >= producerCost then
 					self.currency = self.currency - producerCost
