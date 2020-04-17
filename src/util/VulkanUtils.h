@@ -215,9 +215,7 @@ static const VkShaderModule getCompiledShader(VkDevice* device, const std::strin
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
         // Create the shader module
-        if (vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
-        }
+        VK_CHECK_RESULT(vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule));
     } else {
         // from source: "ShInitialize() should be called exactly once per process, not per thread."
         if (!glslangInitialized) {
@@ -295,9 +293,7 @@ static const VkShaderModule getCompiledShader(VkDevice* device, const std::strin
         createInfo.pCode = reinterpret_cast<const uint32_t*>(SpirV.data());
 
         // Create the shader module
-        if (vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
-        }
+        VK_CHECK_RESULT(vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule));
     }
 
     return shaderModule;

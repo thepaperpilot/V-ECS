@@ -144,15 +144,11 @@ void Engine::createInstance(sol::table manifest) {
 
     // Attempt to actually create the instance
     // Throwing an error if it fails for any reason
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create instance!");
-    }
+    VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &instance));
 }
 
 void Engine::createSurface() {
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create window surface!");
-    }
+    VK_CHECK_RESULT(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 }
 
 std::vector<const char*> Engine::getRequiredExtensions() {

@@ -4,6 +4,24 @@
 
 #include <string>
 #include <vector>
+#include <cassert>
+
+// Credit to Sascha Willems for this macro (plus a lot more lol)
+#define VK_CHECK_RESULT(f)																				\
+{																										\
+	VkResult res = (f);																					\
+	if (res != VK_SUCCESS)																				\
+	{																									\
+        std::string message = "Fatal : VkResult is \"";                                                 \
+		message += vecs::Debugger::getErrorString(res);                                                 \
+		message += "\" in ";                                                                            \
+        message += __FILE__;                                                                            \
+		message += " at line ";                                                                         \
+		message += std::to_string(__LINE__);                                                            \
+		vecs::Debugger::addLog(DEBUG_LEVEL_ERROR, message);                                             \
+		assert(res == VK_SUCCESS);																		\
+	}																									\
+}
 
 namespace vecs {
 
@@ -48,6 +66,8 @@ namespace vecs {
 		static void addLog(DebugLevel debugLevel, std::string message);
 		static std::vector<Log> getLog() { return log; };
 		static void clearLog() { log.clear(); };
+
+		static std::string getErrorString(VkResult errorCode);
 
 		void setupDebugMessenger(VkInstance instance);
 		bool checkValidationLayerSupport();

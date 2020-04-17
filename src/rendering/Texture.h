@@ -2,6 +2,7 @@
 
 #include "../engine/Buffer.h"
 #include "../engine/Device.h"
+#include "../engine/Debugger.h"
 
 #include <vulkan/vulkan.h>
 
@@ -41,9 +42,7 @@ namespace vecs {
 			viewInfo.subresourceRange.baseArrayLayer = 0;
 			viewInfo.subresourceRange.layerCount = 1;
 
-			if (vkCreateImageView(device->logical, &viewInfo, nullptr, view) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create texture image view!");
-			}
+			VK_CHECK_RESULT(vkCreateImageView(device->logical, &viewInfo, nullptr, view));
 		}
 
 		Texture(SubRenderer* subrenderer, const char* filename,

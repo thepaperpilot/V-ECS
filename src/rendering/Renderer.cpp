@@ -112,9 +112,7 @@ void Renderer::presentImage() {
 
     // Submit our image to the graphic queue
     vkResetFences(*device, 1, &inFlightFences[currentFrame]);
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
+    VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
 
     // Get ready to present the image to the screen
     VkPresentInfoKHR presentInfo = {};
@@ -244,9 +242,7 @@ void Renderer::createRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create render pass!");
-    }
+    VK_CHECK_RESULT(vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass));
 }
 
 void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
@@ -379,9 +375,7 @@ void Renderer::createFramebuffers() {
         framebufferInfo.layers = 1;
 
         // Create the frame buffer!
-        if (vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
+        VK_CHECK_RESULT(vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
     }
 }
 
@@ -424,9 +418,7 @@ void Renderer::buildCommandBuffer() {
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
 
     // End the command buffer
-    if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
+    VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffers[imageIndex]));
 
     secondaryBuffers.clear();
 }

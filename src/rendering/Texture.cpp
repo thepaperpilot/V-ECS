@@ -126,9 +126,7 @@ void Texture::createImage(VkFormat format, VkImageUsageFlags usageFlags) {
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
-	if (vkCreateImage(*device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create image!");
-	}
+	VK_CHECK_RESULT(vkCreateImage(*device, &imageInfo, nullptr, &image));
 
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(*device, image, &memRequirements);
@@ -139,9 +137,7 @@ void Texture::createImage(VkFormat format, VkImageUsageFlags usageFlags) {
 	allocInfo.memoryTypeIndex =
 		device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	if (vkAllocateMemory(*device, &allocInfo, nullptr, &deviceMemory) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate image memory!");
-	}
+	VK_CHECK_RESULT(vkAllocateMemory(*device, &allocInfo, nullptr, &deviceMemory));
 
 	vkBindImageMemory(*device, image, deviceMemory, 0);
 }
@@ -244,7 +240,5 @@ void Texture::createTextureSampler(VkFilter filter) {
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if (vkCreateSampler(*device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create texture sampler!");
-	}
+	VK_CHECK_RESULT(vkCreateSampler(*device, &samplerInfo, nullptr, &sampler));
 }

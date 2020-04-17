@@ -198,9 +198,7 @@ void SubRenderer::createDescriptorSetLayout() {
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    if (vkCreateDescriptorSetLayout(*device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
-    }
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(*device, &layoutInfo, nullptr, &descriptorSetLayout));
 }
 
 void SubRenderer::createDescriptorPool(size_t imageCount) {
@@ -218,9 +216,7 @@ void SubRenderer::createDescriptorPool(size_t imageCount) {
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(imageCount);
 
-    if (vkCreateDescriptorPool(*device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor pool!");
-    }
+    VK_CHECK_RESULT(vkCreateDescriptorPool(*device, &poolInfo, nullptr, &descriptorPool));
 }
 
 void SubRenderer::createDescriptorSets(size_t imageCount) {
@@ -234,9 +230,7 @@ void SubRenderer::createDescriptorSets(size_t imageCount) {
     allocInfo.pSetLayouts = layouts.data();
 
     descriptorSets.resize(imageCount);
-    if (vkAllocateDescriptorSets(*device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(*device, &allocInfo, descriptorSets.data()));
 
     for (size_t i = 0; i < imageCount; i++) {
         std::vector<VkWriteDescriptorSet> descriptorWrites = getDescriptorWrites(descriptorSets[i]);
@@ -464,9 +458,7 @@ void SubRenderer::createGraphicsPipeline() {
     pipelineLayoutInfo.pushConstantRangeCount = (uint32_t)pushConstantRanges.size();
     pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 
-    if (vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create pipeline layout!");
-    }
+    VK_CHECK_RESULT(vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
     // Bring everything together for creating the actual pipeline
     VkGraphicsPipelineCreateInfo pipelineInfo = {};
@@ -486,9 +478,7 @@ void SubRenderer::createGraphicsPipeline() {
     pipelineInfo.subpass = 0;
 
     // Create the graphics pipeline!
-    if (vkCreateGraphicsPipelines(*device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(*device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
 }
 
 void SubRenderer::createInheritanceInfo(size_t imageCount) {

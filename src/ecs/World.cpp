@@ -627,9 +627,7 @@ void World::setupState(Engine* engine) {
 			allocateInfo.descriptorSetCount = 1;
 			allocateInfo.pSetLayouts = &renderer.descriptorSetLayout;
 
-			if (vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet) != VK_SUCCESS) {
-				throw std::runtime_error("failed to allocate descriptor set for imgui texture!");
-			}
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet));
 
 			VkDescriptorImageInfo descriptorImage[1] = { texture->descriptor };
 			VkWriteDescriptorSet writeDescriptor[1] = {};
@@ -778,9 +776,7 @@ void World::setupState(Engine* engine) {
 			pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
 			pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
 			pool_info.pPoolSizes = pool_sizes;
-			if (vkCreateDescriptorPool(device->logical, &pool_info, nullptr, &subrenderer->imguiDescriptorPool) != VK_SUCCESS) {
-				throw std::runtime_error("failed to setup imgui descriptor pool!");
-			}
+			VK_CHECK_RESULT(vkCreateDescriptorPool(device->logical, &pool_info, nullptr, &subrenderer->imguiDescriptorPool));
 		},
 		"init", [this](SubRenderer* subrenderer) {
 			// Create our font texture from ImGUI's pixel data
@@ -799,9 +795,7 @@ void World::setupState(Engine* engine) {
 			allocateInfo.descriptorSetCount = 1;
 			allocateInfo.pSetLayouts = &subrenderer->descriptorSetLayout;
 
-			if (vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet) != VK_SUCCESS) {
-				throw std::runtime_error("failed to allocate descriptor set for imgui texture!");
-			}
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device->logical, &allocateInfo, &descriptorSet));
 
 			VkDescriptorImageInfo descriptorImage[1] = { fontTexture->descriptor };
 			VkWriteDescriptorSet writeDescriptor[1] = {};
@@ -877,9 +871,7 @@ void World::setupState(Engine* engine) {
 			range[1].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 			range[1].memory = engine->imguiIndexBuffer.memory;
 			range[1].size = VK_WHOLE_SIZE;
-			if (vkFlushMappedMemoryRanges(device->logical, 2, range) != VK_SUCCESS) {
-				throw std::runtime_error("failed to flush memory!");
-			}
+			VK_CHECK_RESULT(vkFlushMappedMemoryRanges(device->logical, 2, range));
 			engine->imguiVertexBuffer.unmap();
 			engine->imguiIndexBuffer.unmap();
 

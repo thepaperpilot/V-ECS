@@ -1,5 +1,7 @@
 #include "Device.h"
 
+#include "Debugger.h"
+
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <map>
@@ -20,9 +22,7 @@ VkCommandPool Device::createCommandPool(uint32_t queueFamilyIndex, VkCommandPool
     cmdPoolInfo.flags = createFlags;
 
     VkCommandPool commandPool;
-    if (vkCreateCommandPool(logical, &cmdPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    VK_CHECK_RESULT(vkCreateCommandPool(logical, &cmdPoolInfo, nullptr, &commandPool));
 
     return commandPool;
 }
@@ -38,9 +38,7 @@ Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer.buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create buffer!");
-    }
+    VK_CHECK_RESULT(vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer.buffer));
 
     // Assign memory to our buffer
     // First define our memory requirements
@@ -54,9 +52,7 @@ Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
     // Allocate memory
-    if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer.memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate buffer memory!");
-    }
+    VK_CHECK_RESULT(vkAllocateMemory(logical, &allocInfo, nullptr, &buffer.memory));
 
     // Bind this memory to our new buffer
     vkBindBufferMemory(logical, buffer.buffer, buffer.memory, 0);
@@ -75,9 +71,7 @@ void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer->buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
-    }
+    VK_CHECK_RESULT(vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer->buffer));
 
     // Assign memory to our buffer
     // First define our memory requirements
@@ -91,9 +85,7 @@ void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
     // Allocate memory
-    if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer->memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
-    }
+    VK_CHECK_RESULT(vkAllocateMemory(logical, &allocInfo, nullptr, &buffer->memory));
 
     // Bind this memory to our new buffer
     vkBindBufferMemory(logical, buffer->buffer, buffer->memory, 0);
@@ -130,9 +122,7 @@ VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkComman
 
     // Create the buffer
     VkCommandBuffer buffer;
-    if (vkAllocateCommandBuffers(logical, &allocInfo, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffer!");
-    }
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(logical, &allocInfo, &buffer));
 
     if (begin) beginCommandBuffer(buffer);
 
@@ -152,9 +142,7 @@ std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel l
 
     // Create the buffers
     std::vector<VkCommandBuffer> buffers(amount);
-    if (vkAllocateCommandBuffers(logical, &allocInfo, buffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffer!");
-    }
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(logical, &allocInfo, buffers.data()));
 
     if (begin)
         for (VkCommandBuffer buffer : buffers) beginCommandBuffer(buffer);
@@ -166,9 +154,7 @@ void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkComman
     if (commandPool == nullptr)
         commandPool = this->commandPool;
 
-    if (vkEndCommandBuffer(buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
+    VK_CHECK_RESULT(vkEndCommandBuffer(buffer));
 
     // Submit our command buffer to its queue
     VkSubmitInfo submitInfo = {};
@@ -410,9 +396,7 @@ void Device::createLogicalDevice() {
     createInfo.ppEnabledExtensionNames = deviceExtensions;
     
     // Create the logical device and throw an error if anything goes wrong
-    if (vkCreateDevice(physical, &createInfo, nullptr, &logical) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    VK_CHECK_RESULT(vkCreateDevice(physical, &createInfo, nullptr, &logical));
 }
 
 void Device::beginCommandBuffer(VkCommandBuffer buffer) {
@@ -420,9 +404,7 @@ void Device::beginCommandBuffer(VkCommandBuffer buffer) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     // Being the command buffer
-    if (vkBeginCommandBuffer(buffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    VK_CHECK_RESULT(vkBeginCommandBuffer(buffer, &beginInfo));
 }
 
 void Device::beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info) {
@@ -432,7 +414,5 @@ void Device::beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBuffer
     beginInfo.pInheritanceInfo = info;
 
     // Being the command buffer
-    if (vkBeginCommandBuffer(buffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    VK_CHECK_RESULT(vkBeginCommandBuffer(buffer, &beginInfo));
 }

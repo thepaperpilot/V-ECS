@@ -1,11 +1,11 @@
 #include "Buffer.h"
 
+#include "Debugger.h"
+
 using namespace vecs;
 
 void* Buffer::map(VkDeviceSize size, VkDeviceSize offset) {
-	if (vkMapMemory(*device, memory, offset, size, 0, &mapped) != VK_SUCCESS) {
-		throw std::runtime_error("failed to map memory!");
-	}
+	VK_CHECK_RESULT(vkMapMemory(*device, memory, offset, size, 0, &mapped));
 	return mapped;
 }
 
