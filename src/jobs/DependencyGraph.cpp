@@ -23,7 +23,13 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 		sol::table system;
 		if (type == sol::type::string) {
 			std::string filename = "resources/" + kvp.second.as<std::string>();
-			system = lua->script_file(filename);
+			auto result = lua->script_file(filename);
+			if (!result.valid()) {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Attempted to load system at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()) + "\nAttempting to continue loading world...");
+				continue;
+			}
+			system = result;
 			systems[kvp.first] = system;
 		} else if (type == sol::type::table) {
 			system = systems[kvp.first];
@@ -38,7 +44,13 @@ void DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 		sol::table subrenderer;
 		if (type == sol::type::string) {
 			std::string filename = "resources/" + kvp.second.as<std::string>();
-			subrenderer = lua->script_file(filename);
+			auto result = lua->script_file(filename);
+			if (!result.valid()) {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Attempted to load renderer at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()) + "\nAttempting to continue loading world...");
+				continue;
+			}
+			subrenderer = result;
 			renderers[kvp.first] = subrenderer;
 		} else if (type == sol::type::table) {
 			subrenderer = renderers[kvp.first];

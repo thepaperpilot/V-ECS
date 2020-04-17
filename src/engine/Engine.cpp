@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <examples\imgui_impl_glfw.h>
 
+#define SOL_DEFAULT_PASS_ON_ERROR 1
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
@@ -201,8 +202,8 @@ void Engine::updateWorld() {
             // TODO find way to make windowRefresh faster in this situation
             // Also may not be necessary anymore?
             this->world->windowRefresh(true, renderer.imageCount);
-            nextWorld = "";
         }
+        nextWorld = "";
     }
 }
 

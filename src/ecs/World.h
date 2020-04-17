@@ -5,6 +5,7 @@
 #include <set>
 #include <unordered_map>
 #include <iostream>
+#include <filesystem>
 
 #include "../engine/Engine.h"
 #include "../jobs/DependencyGraph.h"
@@ -32,12 +33,17 @@ namespace vecs {
 
 			setupState(engine);
 
+			if (!std::filesystem::exists(filename)) {
+				Debugger::addLog(DEBUG_LEVEL_WARN, "[WORLD] Attempted to load world at \"" + filename + "\" but file does not exist.");
+				return;
+			}
+
 			auto result = lua.script_file(filename);
 			if (result.valid()) {
 				config = result;
 			} else {
 				sol::error err = result;
-				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[WORLD] Attempted to load world at \"" + filename + "\" but lua parsing failed with error:\n[LUA] " + std::string(err.what()));
 				return;
 			}
 
