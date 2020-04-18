@@ -9,8 +9,8 @@ return {
 		[1] = vertexComponents.R32G32B32,
 		[2] = vertexComponents.R32G32
 	},
-	loadDistance = 4,
-	chunkSize = 8,
+	loadDistance = 8,
+	chunkSize = 16,
 	preInit = function(self, world, renderer)
 		self.renderer = renderer
 		-- setup block archetypes

@@ -149,6 +149,19 @@ void World::setupState(Engine* engine) {
 	};
 	lua["loadWorld"] = [engine](std::string filename) { engine->setWorld(filename); };
 
+	lua.new_enum("sizes",
+		"Float", sizeof(float),
+		"Vec2", sizeof(glm::vec2),
+		"Vec3", sizeof(glm::vec3),
+		"Vec4", sizeof(glm::vec4),
+		"Mat4", sizeof(glm::mat4)
+	);
+
+	// time namespace
+	lua["time"] = lua.create_table_with(
+		"getDeltaTime", [this]() -> float { return deltaTime; }
+	);
+
 	lua.new_enum("debugLevels",
 		"Error", DEBUG_LEVEL_ERROR,
 		"Warn", DEBUG_LEVEL_WARN,
@@ -429,19 +442,6 @@ void World::setupState(Engine* engine) {
 		"RightAlt", GLFW_KEY_RIGHT_ALT,
 		"RightSuper", GLFW_KEY_RIGHT_SUPER
 	);
-	// not technically an enum but they are a read-only lookup table, so calling it an enum works well
-	lua.new_enum("sizes",
-		"Float", sizeof(float),
-		"Vec2", sizeof(glm::vec2),
-		"Vec3", sizeof(glm::vec3),
-		"Vec4", sizeof(glm::vec4),
-		"Mat4", sizeof(glm::mat4)
-	);
-
-	// time namespace
-	lua["time"] = lua.create_table_with(
-		"getDeltaTime", [this]() -> float { return deltaTime; }
-	);
 
 	// glfw namespace
 	lua["glfw"] = lua.create_table_with(
@@ -713,7 +713,9 @@ void World::setupState(Engine* engine) {
 					"p", rect.x / (float)texSize.w,
 					"q", rect.y / (float)texSize.h,
 					"s", (rect.x + rect.w) / (float)texSize.w,
-					"t", (rect.y + rect.h) / (float)texSize.h
+					"t", (rect.y + rect.h) / (float)texSize.h,
+					"width", rect.w,
+					"height", rect.h
 				);
 				for (int y = 0; y < rect.h; y++) {
 					int mainOffset = (rect.y + y) * (texSize.w * 4) + rect.x * 4;
@@ -998,14 +1000,22 @@ void World::setupState(Engine* engine) {
 			Image((ImTextureID)texture->imguiTexId, ImVec2(size.x, size.y), ImVec2(uv.p, uv.t), ImVec2(uv.s, uv.q));
 		},
 		"sameLine", []() { SameLine(); },
+		"getCursorPos", []() -> glm::vec2 {
+			auto pos = GetCursorPos();
+			return glm::vec2(pos.x, pos.y);
+		},
+		"setCursorPos", [](float x, float y) { SetCursorPos(ImVec2(x, y)); },
 		"text", [](std::string text) { Text(text.c_str()); },
 		"textWrapped", [](std::string text) { TextWrapped(text.c_str()); },
 		"textUnformatted", [](std::string text) { TextUnformatted(text.c_str()); },
-		"button", [](std::string text) -> bool { return Button(text.c_str()); },
+		"button", sol::overload([](std::string text) -> bool { return Button(text.c_str()); }, [](std::string text, glm::vec2 size) -> bool { return Button(text.c_str(), ImVec2(size.x, size.y)); }),
 		"checkbox", [](std::string label, bool value) -> bool {
 			Checkbox(label.c_str(), &value);
 			return value;
 		},
+		"progressBar", [](float percent) { ProgressBar(percent); },
+		"isItemHovered", []() -> bool { return IsItemHovered(); },
+		"isMouseClicked", []() -> bool { return IsMouseClicked(ImGuiMouseButton_Left); },
 		"separator", &Separator,
 		"showDemoWindow", []() { ShowDemoWindow(); },
 		"inputText", [](std::string label, std::string input, std::vector<ImGuiInputTextFlags> flags, sol::table self, sol::function callback) -> std::tuple<bool,std::string> {
