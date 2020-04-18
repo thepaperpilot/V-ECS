@@ -978,12 +978,16 @@ void World::setupState(Engine* engine) {
 			BeginChild(title.c_str(), ImVec2(size.x, size.y), border, windowFlags);
 		},
 		"endChild", &EndChild,
+		"beginTooltip", []() { BeginTooltip(); },
+		"endTooltip", []() { EndTooltip(); },
 		"logToClipboard", []() { LogToClipboard(); },
 		"logFinish", &LogFinish,
 		"pushStyleColor", [](ImGuiCol idx, glm::vec4 color) { PushStyleColor(idx, ImVec4(color.r, color.g, color.b, color.a)); },
 		"popStyleColor", [](int amount) { PopStyleColor(amount); },
 		"pushStyleVar", sol::overload([](ImGuiStyleVar idx, float val) { PushStyleVar(idx, val); }, [](ImGuiStyleVar idx, float v1, float v2) { PushStyleVar(idx, ImVec2(v1, v2)); }),
 		"popStyleVar", [](int amount) { PopStyleVar(amount); },
+		"pushTextWrapPos", [](float pos) { PushTextWrapPos(pos); },
+		"popTextWrapPos", []() { PopTextWrapPos(); },
 		"setKeyboardFocusHere", sol::overload([]() { SetKeyboardFocusHere(); }, &SetKeyboardFocusHere),
 		"getScrollY", &GetScrollX,
 		"getScrollY", &GetScrollY,
@@ -1017,6 +1021,7 @@ void World::setupState(Engine* engine) {
 		"isItemHovered", []() -> bool { return IsItemHovered(); },
 		"isMouseClicked", []() -> bool { return IsMouseClicked(ImGuiMouseButton_Left); },
 		"separator", &Separator,
+		"spacing", &Spacing,
 		"showDemoWindow", []() { ShowDemoWindow(); },
 		"inputText", [](std::string label, std::string input, std::vector<ImGuiInputTextFlags> flags, sol::table self, sol::function callback) -> std::tuple<bool,std::string> {
 			ImGuiInputTextFlags inputTextFlags = 0;
