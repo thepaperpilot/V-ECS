@@ -61,15 +61,6 @@ uint32_t World::createEntities(uint32_t amount) {
 	return firstEntity;
 }
 
-void World::deleteEntity(uint32_t entity) {
-	for (auto archetype : archetypes) {
-		if (archetype->hasEntity(entity)) {
-			archetype->removeEntities({ entity });
-			return;
-		}			
-	}
-}
-
 Archetype* World::getArchetype(std::unordered_set<std::string> componentTypes, sol::table sharedComponents) {
 	auto itr = std::find_if(archetypes.begin(), archetypes.end(), [&componentTypes, &sharedComponents](Archetype* archetype) {
 		// TODO I don't think this'll deeply compare if the shared component tables are the same
@@ -90,20 +81,6 @@ Archetype* World::getArchetype(std::unordered_set<std::string> componentTypes, s
 	}
 
 	return *itr;
-}
-
-Archetype* World::getArchetype(uint32_t entity) {
-	for (auto archetype : archetypes) {
-		if (archetype->hasEntity(entity)) {
-			return archetype;
-		}
-	}
-	return nullptr;
-}
-
-bool World::hasComponentType(uint32_t entity, std::string component_t) {
-	Archetype* archetype = getArchetype(entity);
-	return archetype->componentTypes.count(component_t);
 }
 
 void World::addQuery(EntityQuery* query) {
@@ -546,7 +523,7 @@ void World::setupState(Engine* engine) {
 			return archetype.getComponentList(componentType);
 		},
 		"getSharedComponent", [](Archetype& archetype, std::string component_t) -> sol::table { return archetype.getSharedComponent(component_t); },
-		"createEntity", [](Archetype& archetype) -> std::pair<uint32_t, size_t> { return archetype.createEntities(1); },
+		"createEntity", [](Archetype& archetype) -> std::pair<uint32_t, uint32_t> { return archetype.createEntities(1); },
 		"createEntities", &Archetype::createEntities
 	);
 	lua.new_usertype<EntityQuery>("query",
@@ -601,9 +578,10 @@ void World::setupState(Engine* engine) {
 				return noise;
 			}
 		),
-		"getNoiseSet", [](HastyNoise::NoiseSIMD& noise, int chunkX, int chunkY, int chunkZ, int chunkSize) -> sol::as_table_t<std::vector<float>> {
-			auto floatBuffer = noise.GetNoiseSet(chunkX * chunkSize, chunkY * chunkSize, chunkZ * chunkSize, chunkSize, chunkSize, chunkSize);
-			return std::vector<float>(floatBuffer.get(), floatBuffer.get() + chunkSize * chunkSize * chunkSize);
+		// sol2 automatically deals with FloatBuffer and provides us the pointer
+		"getNoiseSet", [](HastyNoise::NoiseSIMD& noise, float* buffer, int chunkX, int chunkY, int chunkZ, const int chunkSize) -> sol::as_table_t<std::vector<float>> {
+			noise.FillSet(buffer, chunkX * chunkSize, chunkY * chunkSize, chunkZ * chunkSize, chunkSize, chunkSize, chunkSize);
+			return sol::as_table(std::vector<float>(buffer, buffer + chunkSize * chunkSize * chunkSize));
 		},
 		"setCellularReturnType", &HastyNoise::NoiseSIMD::SetCellularReturnType,
 		"setCellularJitter", &HastyNoise::NoiseSIMD::SetCellularJitter,
@@ -613,6 +591,9 @@ void World::setupState(Engine* engine) {
 		"setPerturbFractalOctaves", &HastyNoise::NoiseSIMD::SetPerturbFractalOctaves,
 		"setPerturbFractalLacunarity", &HastyNoise::NoiseSIMD::SetPerturbFractalLacunarity,
 		"setPerturbFractalGain", &HastyNoise::NoiseSIMD::SetPerturbFractalGain
+	);
+	lua.new_usertype<HastyNoise::FloatBuffer>("noiseBuffer",
+		"new", sol::factories([engine](int chunkSize) -> HastyNoise::FloatBuffer { return HastyNoise::GetEmptySet(chunkSize * chunkSize * chunkSize, engine->fastestSimd); })
 	);
 
 	// rendering

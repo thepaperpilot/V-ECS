@@ -15,16 +15,12 @@ Archetype::Archetype(World* world, std::unordered_set<std::string> componentType
 	}
 }
 
+sol::table Archetype::getSharedComponent(std::string componentType) {
+	return sharedComponents[componentType];
+}
+
 sol::table Archetype::getComponentList(std::string componentType) {
 	return components[componentType];
-}
-
-bool Archetype::hasEntity(uint32_t entity) {
-	return std::find(entities.begin(), entities.end(), entity) != entities.end();
-}
-
-ptrdiff_t Archetype::getIndex(uint32_t entity) {
-	return std::distance(this->entities.begin(), std::find(this->entities.begin(), this->entities.end(), entity));
 }
 
 bool Archetype::checkQuery(EntityQuery* query) {
@@ -45,45 +41,30 @@ bool Archetype::checkQuery(EntityQuery* query) {
 	return true;
 }
 
-// Returns pair of data representing the first entity ID, and index within the archetype
-std::pair<uint32_t, size_t> Archetype::createEntities(uint32_t amount) {
-	std::vector<uint32_t> entities(amount);
+std::pair<uint32_t, uint32_t> Archetype::createEntities(uint32_t amount) {
 	uint32_t firstEntity = world->createEntities(amount);
-	std::iota(entities.begin(), entities.end(), firstEntity);
+	uint32_t lastEntity = firstEntity + amount - 1;
 
-	size_t firstIndex = this->entities.size();
-	this->entities.insert(this->entities.end(), entities.begin(), entities.end());
-	size_t newCapacity = this->entities.size();
 	for (auto& kvp : components) {
-		for (size_t index = firstIndex; index < newCapacity; index++) {
-			kvp.second[index + 1] = kvp.second.create();
+		for (uint32_t index = firstEntity; index <= lastEntity; index++) {
+			kvp.second[index] = kvp.second.create();
 		}
 	}
 
-	return std::make_pair(firstEntity + 1, firstIndex + 1);
+	return std::make_pair(firstEntity, lastEntity);
 }
 
-size_t Archetype::addEntities(std::vector<uint32_t> entities) {
-	size_t firstIndex = this->entities.size();
-	this->entities.insert(this->entities.end(), entities.begin(), entities.end());
-	size_t newCapacity = this->entities.size();
+void Archetype::addEntities(std::vector<uint32_t> entities) {
 	for (auto kvp : components) {
-		for (size_t i = firstIndex; i < newCapacity; i++) {
-			kvp.second[i + 1] = kvp.second.create();
-		}
+		for (uint32_t index : entities)
+			kvp.second[index] = kvp.second.create();
 	}
-	return firstIndex + 1;
 }
 
 void Archetype::removeEntities(std::vector<uint32_t> entities) {
 	for (uint32_t entity : entities) {
-		auto index = getIndex(entity);
-		this->entities[index] = this->entities.back();
-		this->entities.pop_back();
 		for (auto kvp : components) {
-			size_t size = kvp.second.size();
-			kvp.second[index] = kvp.second[size];
-			kvp.second[size] = sol::nil;
+			kvp.second[entity] = sol::nil;
 		}
 	}
 }

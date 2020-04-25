@@ -12,7 +12,7 @@ return {
 			"Camera"
 		})
 		if cameraArchetype:isEmpty() then
-			local id, index = cameraArchetype:createEntity()
+			local index,_ = cameraArchetype:createEntity()
 			self.main = cameraArchetype:getComponents("Camera")[index]
 			self.main.position = vec3.new(0, 2, 0)
 			self.main.forward = vec3.new(0, 0, 1)

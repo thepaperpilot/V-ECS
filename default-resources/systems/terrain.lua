@@ -32,7 +32,7 @@ return {
 			"Seed"
 		})
 		if seedArchetype:isEmpty() then
-			local id, index = seedArchetype:createEntity()
+			local index,_ = seedArchetype:createEntity()
 			seedArchetype:getComponents("Seed")[index].seed = 1337
 			self.seed = 1337
 		else
@@ -43,7 +43,7 @@ return {
 		for key,filename in pairs(getResources("terrain", ".lua")) do
 			-- Note we strip the ".lua"  from the filename
 			local generator = require(filename:sub(1,filename:len()-4))
-			generator:init(self.seed)
+			generator:init(world, self.seed)
 			table.insert(terrainGens, generator)
 		end
 		-- sort our terrain generators by priority
@@ -61,8 +61,9 @@ return {
 		-- TODO is storing 3D array of chunk indices going to be okay?
 		self.chunks = {}
 		if chunkArchetype:isEmpty() then
-			local firstId, firstIndex = chunkArchetype:createEntities((2 * world.renderers.voxel.loadDistance) ^ 3)
-			local currIndex = firstIndex
+			debugger.addLog(debugLevels.Info, "about to start terrain gen")
+			local index,_ = chunkArchetype:createEntities((2 * world.renderers.voxel.loadDistance) ^ 3)
+			local currIndex = index
 			for x = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 				self.chunks[x] = {}
 				for y = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
@@ -74,7 +75,8 @@ return {
 					end
 				end
 			end
-			currIndex = firstIndex
+			debugger.addLog(debugLevels.Info, "finished fill step")
+			currIndex = index
 			for x = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 				for y = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
 					for z = -world.renderers.voxel.loadDistance, world.renderers.voxel.loadDistance - 1 do
@@ -83,6 +85,7 @@ return {
 					end
 				end
 			end
+			debugger.addLog(debugLevels.Info, "finished mesh step")
 		end
 	end,
 	fillChunk = function(self, world, x, y, z, index)
@@ -106,6 +109,7 @@ return {
 	end,
 	createMesh = function(self, world, x, y, z, index)
 		local chunk = self.chunkComponents[index]
+
 		local chunkSize = world.renderers.voxel.chunkSize
 		local chunkSizeSquared = chunkSize ^ 2
 		local axisSize = chunkSize - 1
@@ -181,7 +185,6 @@ return {
 		chunk.indexCount = numIndices
 		if numIndices > 0 then
 			-- build our vertex and index buffers
-			-- TODO use one buffer for all terrain and assign parts of it for each chunk
 			chunk.vertexBuffer = buffer.new(bufferUsage.VertexBuffer, numVertices * 8 * sizes.Float)
 			chunk.vertexBuffer:setDataFloats(vertices)
 			chunk.indexBuffer = buffer.new(bufferUsage.IndexBuffer, numIndices * sizes.Float)

@@ -2,13 +2,14 @@
 
 return {
 	priority = 100,
-	init = function(self, seed)
+	init = function(self, world, seed)
 		self.caveNoise = noise.new(noiseType.Cellular, seed, .01)
+		self.noiseBuffer = noiseBuffer.new(world.renderers.voxel.chunkSize)
 	end,
 	generateChunk = function(self, world, chunk, x, y, z)
 		if y > -2 then return end
 		local chunkSize = world.renderers.voxel.chunkSize
-		local noiseSet = self.caveNoise:getNoiseSet(x, y, z, chunkSize)
+		local noiseSet = self.caveNoise:getNoiseSet(self.noiseBuffer, x, y, z, chunkSize)
 		for point,density in pairs(noiseSet) do
 			if y < -3 then
 				if density < 0.01 then

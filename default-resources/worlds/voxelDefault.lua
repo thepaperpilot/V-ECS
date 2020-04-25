@@ -10,7 +10,6 @@ return {
 	},
 	renderers = {
 		skybox = "renderers/skybox.lua",
-		gundam = "renderers/example_gundam.lua",
 		voxel = "renderers/voxel.lua",
 		imgui = "renderers/imgui.lua"
 	}
