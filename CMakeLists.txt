@@ -54,6 +54,12 @@ hunter_add_package(stb)
 find_package(stb CONFIG REQUIRED)
 target_link_libraries(vecs PUBLIC stb::stb)
 
+# VulkanMemoryAllocator https://hunter.readthedocs.io/en/latest/packages/pkg/VulkanMemoryAllocator.html
+# failed to install, so we're just going to use the git repo
+#hunter_add_package(VulkanMemoryAllocator)
+#find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+#target_link_libraries(vecs PUBLIC VulkanMemoryAllocator::VulkanMemoryAllocator)
+
 # HastyNoise https://hunter.readthedocs.io/en/latest/packages/pkg/HastyNoise.html
 hunter_add_package(HastyNoise)
 find_package(HastyNoise CONFIG REQUIRED)
@@ -76,6 +82,12 @@ target_link_libraries(vecs PRIVATE ${Vulkan_LIBRARIES})
 target_include_directories(vecs PRIVATE ${Vulkan_INCLUDE_DIRS})
 
 # TODO use ExternalProject_Add for all these git repos?
+
+# VulkanMemoryAllocator
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator)
+	execute_process(COMMAND git clone https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator)
+endif()
+target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator/src/vk_mem_alloc.h)
 
 # glslang
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/glslang)

@@ -109,7 +109,7 @@ void World::cleanup() {
 
 	// Destroy any buffers created by this world
 	for (auto buffer : buffers)
-		buffer.cleanup();
+		device->cleanupBuffer(buffer);
 }
 
 void World::setupState(Engine* engine) {
@@ -714,16 +714,22 @@ void World::setupState(Engine* engine) {
 	lua.new_usertype<Buffer>("buffer",
 		"new", sol::factories(
 			[this](VkBufferUsageFlags usageFlags, VkDeviceSize size) -> Buffer {
-				Buffer buffer = device->createBuffer(size, usageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				Buffer buffer = device->createBuffer(size, usageFlags);
 				buffers.emplace_back(buffer);
 				return buffer;
 			}
 		),
-		"setDataInts", [](Buffer buffer, std::vector<int> data) {
-			buffer.copyTo(data.data(), data.size() * sizeof(int));
+		"setDataInts", [this, engine](Buffer buffer, std::vector<int> data) {
+			Buffer staging = device->createStagingBuffer(data.size() * sizeof(int));
+			staging.copyTo(data.data(), data.size() * sizeof(int));
+			device->copyBuffer(&staging, &buffer, engine->renderer.graphicsQueue);
+			device->cleanupBuffer(staging);
 		},
-		"setDataFloats", [](Buffer buffer, std::vector<float> data) {
-			buffer.copyTo(data.data(), data.size() * sizeof(float));
+		"setDataFloats", [this, engine](Buffer buffer, std::vector<float> data) {
+			Buffer staging = device->createStagingBuffer(data.size() * sizeof(float));
+			staging.copyTo(data.data(), data.size() * sizeof(float));
+			device->copyBuffer(&staging, &buffer, engine->renderer.graphicsQueue);
+			device->cleanupBuffer(staging);
 		}
 	);
 
@@ -815,11 +821,11 @@ void World::setupState(Engine* engine) {
 				while (size < vertexSize)
 					size <<= 1;
 				// recreate our vertex buffer with the new size
-				engine->imguiVertexBuffer.cleanup();
+				device->cleanupBuffer(engine->imguiVertexBuffer);
 				engine->imguiVertexBuffer = device->createBuffer(
 					size * sizeof(ImDrawVert),
 					VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+					VMA_MEMORY_USAGE_CPU_TO_GPU);
 				engine->imguiVertexBufferSize = size;
 			}
 			if (engine->imguiIndexBufferSize < indexSize) {
@@ -828,11 +834,11 @@ void World::setupState(Engine* engine) {
 				while (size < indexSize)
 					size <<= 1;
 				// recreate our index buffer with the new size
-				engine->imguiIndexBuffer.cleanup();
+				device->cleanupBuffer(engine->imguiIndexBuffer);
 				engine->imguiIndexBuffer = device->createBuffer(
 					size * sizeof(ImDrawIdx),
 					VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+					VMA_MEMORY_USAGE_CPU_TO_GPU);
 				engine->imguiIndexBufferSize = size;
 			}
 
@@ -847,14 +853,11 @@ void World::setupState(Engine* engine) {
 				idx_dst += cmd_list->IdxBuffer.Size;
 			}
 			// Flush our memory
-			VkMappedMemoryRange range[2] = {};
-			range[0].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-			range[0].memory = engine->imguiVertexBuffer.memory;
-			range[0].size = VK_WHOLE_SIZE;
-			range[1].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-			range[1].memory = engine->imguiIndexBuffer.memory;
-			range[1].size = VK_WHOLE_SIZE;
-			VK_CHECK_RESULT(vkFlushMappedMemoryRanges(device->logical, 2, range));
+			VmaAllocation flushAllocations[2] = { engine->imguiVertexBuffer.allocation, engine->imguiIndexBuffer.allocation };
+			VkDeviceSize flushOffsets[2] = { 0, 0 };
+			VkDeviceSize flushSizes[2] = { engine->imguiVertexBuffer.size, engine->imguiIndexBuffer.size };
+			VK_CHECK_RESULT(vmaFlushAllocations(device->allocator, 2, flushAllocations, flushOffsets, flushSizes));
+			// Unmap our memory
 			engine->imguiVertexBuffer.unmap();
 			engine->imguiIndexBuffer.unmap();
 

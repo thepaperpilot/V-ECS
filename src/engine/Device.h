@@ -40,6 +40,7 @@ namespace vecs {
 	public:
 		VkPhysicalDevice physical;
 		VkDevice logical;
+		VmaAllocator allocator;
 
 		QueueFamilyIndices queueFamilyIndices;
 		SwapChainSupportDetails swapChainSupport;
@@ -52,8 +53,9 @@ namespace vecs {
 
 		VkCommandPool createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, Buffer* buffer);
+		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage allocUsage = VMA_MEMORY_USAGE_GPU_ONLY);
+		Buffer createStagingBuffer(VkDeviceSize size);
+		void cleanupBuffer(Buffer buffer);
 		void beginCommandBuffer(VkCommandBuffer buffer);
 		void beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info);
 		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
@@ -73,5 +75,7 @@ namespace vecs {
 		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
 		void createLogicalDevice();
+
+		void createMemoryAllocator(VkInstance instance);
 	};
 }

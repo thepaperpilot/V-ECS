@@ -55,11 +55,11 @@ void Model::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout)
 }
 
 void Model::cleanup() {
-	indexBuffer.cleanup();
-	vertexBuffer.cleanup();
+	device->cleanupBuffer(indexBuffer);
+	device->cleanupBuffer(vertexBuffer);
 
 	if (hasMaterial)
-		materialBuffer.cleanup();
+		device->cleanupBuffer(materialBuffer);
 }
 
 void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
@@ -109,11 +109,11 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 		}
 
 		VkDeviceSize size = materialValues.size() * sizeof(float);
-		device->createBuffer(size,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&materialBuffer);
-		materialBuffer.copyTo(materialValues.data(), size);
+		materialBuffer = device->createBuffer(size,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		Buffer staging = device->createStagingBuffer(size);
+		staging.copyTo(materialValues.data(), size);
+		device->copyBuffer(&staging, &materialBuffer, copyQueue);
 
 		materialBufferInfo.buffer = materialBuffer;
 		materialBufferInfo.offset = 0;
@@ -212,8 +212,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	uint32_t iBufferSize = static_cast<uint32_t>(indices.size()) * sizeof(uint32_t);
 
 	// Use staging buffer to move vertex and index buffer to device local memory
-	Buffer vertexStaging = device->createBuffer(vBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	Buffer vertexStaging = device->createStagingBuffer(vBufferSize);
 	void* head = vertexStaging.map();
 	for (void* vertex : vertices) {
 		vertexStaging.copyTo(head, vertex, vertexLayout->stride);
@@ -223,18 +222,12 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	}
 	vertexStaging.unmap();
 
-	Buffer indexStaging = device->createBuffer(iBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	Buffer indexStaging = device->createStagingBuffer(iBufferSize);
 	indexStaging.copyTo(indices.data(), iBufferSize);
 
 	// Initialize our device local target buffers
-	device->createBuffer(vBufferSize,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer);
-
-	device->createBuffer(iBufferSize,
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer);
+	vertexBuffer = device->createBuffer(vBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	indexBuffer = device->createBuffer(iBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 	// Copy from staging buffers
 	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
@@ -250,6 +243,6 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	device->submitCommandBuffer(copyCmd, copyQueue);
 
 	// Destroy staging resources
-	vertexStaging.cleanup();
-	indexStaging.cleanup();
+	device->cleanupBuffer(vertexStaging);
+	device->cleanupBuffer(indexStaging);
 }

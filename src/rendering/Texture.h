@@ -63,14 +63,14 @@ namespace vecs {
 	private:
 		Device* device;
 
-		void init(Buffer* buffer, VkQueue copyQueue, VkFilter filter,
+		void init(Buffer buffer, VkQueue copyQueue, VkFilter filter,
 			VkImageUsageFlags usageFlags, VkImageLayout imageLayout);
 
 		Buffer readImageData(const char* filename);
 		Buffer readPixels(unsigned char* pixels, int width, int height);
 		void createImage(VkFormat format, VkImageUsageFlags usageFlags);
 		void transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-		void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer);
+		void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer);
 		void createTextureSampler(VkFilter filter);
 	};
 }

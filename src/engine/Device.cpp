@@ -1,8 +1,8 @@
+#define VMA_IMPLEMENTATION
 #include "Device.h"
 
 #include "Debugger.h"
 
-#include <vulkan/vulkan.h>
 #include <vector>
 #include <map>
 #include <set>
@@ -12,6 +12,7 @@ using namespace vecs;
 Device::Device(VkInstance instance, VkSurfaceKHR surface) {
     pickPhysicalDevice(instance, surface);
     createLogicalDevice();
+    createMemoryAllocator(instance);
     commandPool = createCommandPool(queueFamilyIndices.graphics.value());
 }
 
@@ -27,68 +28,49 @@ VkCommandPool Device::createCommandPool(uint32_t queueFamilyIndex, VkCommandPool
     return commandPool;
 }
 
-Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
-    // Create a new struct to wrap around the VkBuffer
-    Buffer buffer(&logical, size, usage, properties);
+Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage allocUsage) {
+    VkBufferCreateInfo vbInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    vbInfo.size = size;
+    vbInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage;
+    vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    // Create our new buffer with the given size
-    VkBufferCreateInfo bufferInfo = {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VmaAllocationCreateInfo info;
+    info.flags = 0;
+    info.requiredFlags = 0;
+    info.preferredFlags = 0;
+    info.memoryTypeBits = 0;
+    info.usage = allocUsage;
+    info.pool = VMA_NULL;
 
-    VK_CHECK_RESULT(vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer.buffer));
-
-    // Assign memory to our buffer
-    // First define our memory requirements
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(logical, buffer.buffer, &memRequirements);
-
-    // Define our memory allocation request
-    VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // Allocate memory
-    VK_CHECK_RESULT(vkAllocateMemory(logical, &allocInfo, nullptr, &buffer.memory));
-
-    // Bind this memory to our new buffer
-    vkBindBufferMemory(logical, buffer.buffer, buffer.memory, 0);
-
+    Buffer buffer(allocator);
+    buffer.size = size;
+    VK_CHECK_RESULT(vmaCreateBuffer(allocator, &vbInfo, &info, &buffer.buffer, &buffer.allocation, nullptr));
     return buffer;
 }
 
-void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, Buffer* buffer) {
-    // Create a new struct to wrap around the VkBuffer
-    buffer->init(&logical, size, usage, properties);
+Buffer Device::createStagingBuffer(VkDeviceSize size) {
+    VkBufferCreateInfo vbInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    vbInfo.size = size;
+    vbInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    // Create our new buffer with the given size
-    VkBufferCreateInfo bufferInfo = {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VmaAllocationCreateInfo info;
+    info.flags = 0;
+    info.requiredFlags = 0;
+    info.preferredFlags = 0;
+    info.memoryTypeBits = 0;
+    info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    info.pool = VMA_NULL;
 
-    VK_CHECK_RESULT(vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer->buffer));
+    Buffer buffer(allocator);
+    buffer.size = size;
+    VK_CHECK_RESULT(vmaCreateBuffer(allocator, &vbInfo, &info, &buffer.buffer, &buffer.allocation, nullptr));
+    return buffer;
+}
 
-    // Assign memory to our buffer
-    // First define our memory requirements
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(logical, buffer->buffer, &memRequirements);
-
-    // Define our memory allocation request
-    VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // Allocate memory
-    VK_CHECK_RESULT(vkAllocateMemory(logical, &allocInfo, nullptr, &buffer->memory));
-
-    // Bind this memory to our new buffer
-    vkBindBufferMemory(logical, buffer->buffer, buffer->memory, 0);
+void Device::cleanupBuffer(Buffer buffer) {
+    vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
+    buffer.buffer = VK_NULL_HANDLE;
 }
 
 void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion) {
@@ -187,6 +169,9 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
 }
 
 void Device::cleanup() {
+    // Destroy our memory allocator
+    vmaDestroyAllocator(allocator);
+
     // Destroy our command pool
     vkDestroyCommandPool(logical, commandPool, nullptr);
 
@@ -397,6 +382,15 @@ void Device::createLogicalDevice() {
     
     // Create the logical device and throw an error if anything goes wrong
     VK_CHECK_RESULT(vkCreateDevice(physical, &createInfo, nullptr, &logical));
+}
+
+void Device::createMemoryAllocator(VkInstance instance) {
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = physical;
+    allocatorInfo.device = logical;
+    allocatorInfo.instance = instance;
+
+    VK_CHECK_RESULT(vmaCreateAllocator(&allocatorInfo, &allocator));
 }
 
 void Device::beginCommandBuffer(VkCommandBuffer buffer) {

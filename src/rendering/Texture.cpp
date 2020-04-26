@@ -17,7 +17,7 @@ Texture::Texture(SubRenderer* subrenderer, const char* filename,
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
-	init(&stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+	init(stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
@@ -31,7 +31,7 @@ Texture::Texture(SubRenderer* subrenderer, unsigned char* pixels, int width, int
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
 
-	init(&stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+	init(stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
@@ -44,7 +44,7 @@ void Texture::cleanup() {
 	vkFreeMemory(*device, deviceMemory, nullptr);
 }
 
-void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+void Texture::init(Buffer buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 	this->imageLayout = imageLayout;
 
 	// Creating our image is going to require several commands, so we'll create a buffer for them
@@ -63,7 +63,7 @@ void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUs
 	device->submitCommandBuffer(commandBuffer, copyQueue);
 
 	// Destroy our staging buffer now that we're done with it
-	buffer->cleanup();
+	device->cleanupBuffer(buffer);
 
 	// Create our image view
 	Texture::createImageView(device, image, format, &view);
@@ -100,9 +100,7 @@ Buffer Texture::readPixels(unsigned char* pixels, int width, int height) {
 	VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
 	// Create a staging buffer to transfer the image to the GPU
-	Buffer stagingBuffer = device->createBuffer(imageSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	Buffer stagingBuffer = device->createStagingBuffer(imageSize);
 
 	// Copy our image data to the staging buffer
 	stagingBuffer.copyTo(pixels, imageSize);
@@ -192,7 +190,7 @@ void Texture::transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat form
 	);
 }
 
-void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer) {
+void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer) {
 	VkBufferImageCopy region = {};
 	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
@@ -213,7 +211,7 @@ void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer) {
 	// Add our copy command to our buffer
 	vkCmdCopyBufferToImage(
 		commandBuffer,
-		buffer->buffer,
+		buffer.buffer,
 		image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,

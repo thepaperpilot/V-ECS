@@ -215,9 +215,9 @@ void Engine::cleanup() {
 
     ImGui_ImplGlfw_Shutdown();
     if (imguiVertexBuffer.buffer != VK_NULL_HANDLE)
-        imguiVertexBuffer.cleanup();
+        device->cleanupBuffer(imguiVertexBuffer);
     if (imguiIndexBuffer.buffer != VK_NULL_HANDLE)
-        imguiIndexBuffer.cleanup();
+        device->cleanupBuffer(imguiIndexBuffer);
 
     renderer.cleanup();
 
