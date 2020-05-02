@@ -7,7 +7,8 @@ return {
 	vertexLayout = {
 		[0] = vertexComponents.R32G32B32,
 		[1] = vertexComponents.R32G32B32,
-		[2] = vertexComponents.R32G32
+		[2] = vertexComponents.R32G32,
+		[3] = vertexComponents.R32G32B32A32
 	},
 	loadDistance = 8,
 	chunkSize = 16,
