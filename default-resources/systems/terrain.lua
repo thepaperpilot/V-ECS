@@ -101,11 +101,11 @@ return {
 			generator:generateChunk(world, chunk, x, y, z)
 		end
 	end,
-	doesBlockExist = function(self, x, y, z, point)
+	getBlock = function(self, x, y, z, point)
 		if self.chunks[x] ~= nil and self.chunks[x][y] ~= nil and self.chunks[x][y][z] ~= nil then
-			return self.chunkComponents[self.chunks[x][y][z]].blocks[point] ~= nil
+			return self.chunkComponents[self.chunks[x][y][z]].blocks[point]
 		end
-		return false
+		return nil
 	end,
 	createMesh = function(self, world, x, y, z, index)
 		local chunk = self.chunkComponents[index]
@@ -113,18 +113,9 @@ return {
 		chunk.y = y
 		chunk.z = z
 
+		-- pre-calculate these so we don't have to do it in each of the 6 sweeps
 		local chunkSize = world.renderers.voxel.chunkSize
 		local chunkSizeSquared = chunkSize ^ 2
-
-		-- currently chunk.blocks maps points to their archetype
-		-- we want a map of archetypes to the points using it
-		local archetypes = {}
-		for point,archetype in pairs(chunk.blocks) do
-			if archetypes[archetype] == nil then
-				archetypes[archetype] = {}
-			end
-			archetypes[archetype][point] = point
-		end
 
 		-- create the block entities and add their faces to a mesh
 		-- References:
@@ -135,15 +126,11 @@ return {
 		local indices = {}
 		chunk.vertexCount = 0
 		chunk.indexCount = 0
-		for archetype, points in pairs(archetypes) do
-			local firstId, firstIndex = archetype:createEntities(#points)
-			local block = archetype:getSharedComponent("Block")
-			-- sweep over 3-axes
-			for d = 0, 2 do
-				-- we do two axis sweeps with backface and frontface
-				self:axisSweep(chunk, block, points, chunkSize, chunkSizeSquared, vertices, indices, d, true)
-				self:axisSweep(chunk, block, points, chunkSize, chunkSizeSquared, vertices, indices, d, false)
-			end
+		-- sweep over 3-axes
+		for d = 0, 2 do
+			-- we do two axis sweeps with backface and frontface
+			self:axisSweep(chunk, chunkSize, chunkSizeSquared, vertices, indices, d, true)
+			self:axisSweep(chunk, chunkSize, chunkSizeSquared, vertices, indices, d, false)
 		end
 
 		if chunk.indexCount > 0 then
@@ -154,7 +141,7 @@ return {
 			chunk.indexBuffer:setDataInts(indices)
 		end
 	end,
-	axisSweep = function(self, chunk, block, points, chunkSize, chunkSizeSquared, vertices, indices, d, backface)
+	axisSweep = function(self, chunk, chunkSize, chunkSizeSquared, vertices, indices, d, backface)
 		-- calculate chunk's position offsets
 		local chunkX = chunk.x * chunkSize
 		local chunkY = chunk.y * chunkSize
@@ -171,26 +158,9 @@ return {
 		-- TODO figure out why this offset is necessary to make the voxels line up
 		local r = { [0] = 0, [1] = 0, [2] = 0 }
 		r[v] = -1
-		
-		local UVs
-		if d == 0 then
-			UVs = backface and block.right or block.left
-		elseif d == 1 then
-			UVs = backface and block.top or block.bottom
-		else
-			UVs = backface and block.front or block.back
-		end
 
-		local texSize = {
-			-- start UVs
-			p = UVs.p,
-			q = UVs.q,
-			-- size of each dimension
-			s = UVs.s - UVs.p,
-			t = UVs.t - UVs.q
-		}
-
-		-- make our bit mask
+		-- make our mask
+		-- each point will either be false or the archetype at that position
 		local mask = {}
 		x[d] = -1
 		while x[d] < chunkSize do
@@ -200,19 +170,38 @@ return {
 				x[u] = 0
 				while x[u] < chunkSize do
 					-- compare the two blocks sharing this face
-					-- a and b are each true if that block exists in that spot and is this archetype
-					-- which means disparate archetypes don't get merged together
-					-- in the future we may also add a equality check so an archetype can specify whether two blocks can be merged
-					-- e.g. maybe a "wool" archetype can't merge two wool blocks, if they're different colors
-					-- TODO inter-chunk culling, not having to iterate over every block for each archetype
-					local a = x[d] >= 0 and points[x[0] * chunkSizeSquared + x[1] * chunkSize + x[2]] ~= nil
-					local b = x[d] < chunkSize - 1 and points[(x[0] + q[0]) * chunkSizeSquared + (x[1] + q[1]) * chunkSize + x[2] + q[2]] ~= nil
-					if a == b then
-						-- if they're the same then we don't render this face
+					-- we either want to render a, b, or neither (in the case both blocks exist and are opague then we can cull this face)
+					local a, b
+					-- first check the face between this chunk and the one before it
+					if x[d] == -1 then
+						-- if we're at the edge of one chunk, we can't just add q to get to the neighboring block,
+						-- because its coordinates local to the adjacent chunk will be on the other edge
+						-- fortunately that means we can just add chunkSize instead of 1 on that side,
+						-- so effectively all we need to do is add q[index] * chunkSize
+						local point = (x[0] + q[0] * chunkSize) * chunkSizeSquared + (x[1] + q[1] * chunkSize) * chunkSize + x[2] + q[2] * chunkSize
+						-- a is in a different chunk, so we use this method to get it:
+						-- note it returns nil if the chunk isn't loaded or generated
+						a = self:getBlock(chunk.x - q[0], chunk.y - q[1], chunk.z - q[2], point)
+						b = chunk.blocks[(x[0] + q[0]) * chunkSizeSquared + (x[1] + q[1]) * chunkSize + x[2] + q[2]]
+					-- second, check the face between this chunk and the next
+					elseif x[d] == chunkSize - 1 then
+						-- this is similar to the previous case, just flipped
+						local point = (x[0] - q[0] * (chunkSize - 1)) * chunkSizeSquared + (x[1] - q[1] * (chunkSize - 1)) * chunkSize + x[2] - q[2] * (chunkSize - 1)
+						a = chunk.blocks[x[0] * chunkSizeSquared + x[1] * chunkSize + x[2]]
+						b = self:getBlock(chunk.x + q[0], chunk.y + q[1], chunk.z + q[2], point)
+					-- lastly, handle all the in-between values
+					else
+						a = chunk.blocks[x[0] * chunkSizeSquared + x[1] * chunkSize + x[2]]
+						b = chunk.blocks[(x[0] + q[0]) * chunkSizeSquared + (x[1] + q[1]) * chunkSize + x[2] + q[2]]
+					end
+
+					-- if both blocks exist draw neither
+					if a ~= nil and b ~= nil then
 						mask[n] = false
 					else
-						-- if they're different then we use a if we're doing the backface,
-						-- and b if we're doing the frontface
+						-- if they're different then we use a if we're doing the backface, and b if we're doing the frontface
+						-- this means if one exists then this face will only get rendered in one pass and not the other,
+						-- and if neither exist then this face won't get rendered in either pass (since nil is falsey)
 						if backface then
 							mask[n] = a
 						else
@@ -234,6 +223,11 @@ return {
 				local i = 0
 				while i < chunkSize do
 					if mask[n] then
+						-- get the archetype
+						-- TODO each chunk gets the archetype 6 times. Is that okay?
+						local archetype = mask[n]
+						local block = archetype:getSharedComponent("Block")
+
 						-- compute width
 						local w = 1
 						while mask[n + w] and i + w < chunkSize do w = w + 1 end
@@ -245,6 +239,28 @@ return {
 							if k < w then break end
 							h = h + 1
 						end
+
+						-- create entities for each of the blocks
+						-- TODO determine if the archetype has per-entity data, and only create entities if that's the case?
+						--local firstId, firstIndex = archetype:createEntities(w * h)
+
+						local UVs
+						if d == 0 then
+							UVs = backface and block.right or block.left
+						elseif d == 1 then
+							UVs = backface and block.top or block.bottom
+						else
+							UVs = backface and block.front or block.back
+						end
+
+						local texSize = {
+							-- start UVs
+							p = UVs.p,
+							q = UVs.q,
+							-- size of each dimension
+							s = UVs.s - UVs.p,
+							t = UVs.t - UVs.q
+						}
 
 						-- add face
 						x[u] = i
@@ -263,7 +279,7 @@ return {
 							baseY,
 							baseZ,
 							q, backface and -1 or 1, 0, 0, texSize)
-						
+
 						if d == 0 then
 							-- left/right faces are handled very slightly differently,
 							-- but enough to make a layer of abstraction too annoying to implement,

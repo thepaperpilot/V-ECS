@@ -25,8 +25,6 @@ return {
 			local noiseSet = self.terrainNoise:getNoiseSet(self.noiseBuffer, x, y, z, chunkSize)
 			for point, density in pairs(noiseSet) do
 				local internalY = math.floor((point - 1) % (chunkSize * chunkSize) / chunkSize)
-				-- TODO need to add z in order for chunks to line up, but it makes the world tilted
-				-- figure out how to make them line up properly
 				local archetype = chunkBiome.getArchetype(density, y * chunkSize + internalY)
 				
 				if archetype ~= false then
