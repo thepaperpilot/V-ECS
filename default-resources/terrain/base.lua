@@ -8,8 +8,10 @@ end
 return {
 	priority = 1,
 	init = function(self, world, seed)
-		self.terrainNoise = noise.new(noiseType.Simplex, seed, .01)
+		self.terrainNoise = noise.new(noiseType.Simplex, seed, .1)
+		self.largeNoise = noise.new(noiseType.Simplex, seed + 1, .001)
 		self.noiseBuffer = noiseBuffer.new(world.renderers.voxel.chunkSize)
+		self.largeNoiseBuffer = noiseBuffer.new(world.renderers.voxel.chunkSize)
 	end,
 	generateChunk = function(self, world, chunk, x, y, z)
 		local chunkSize = world.renderers.voxel.chunkSize
@@ -23,9 +25,10 @@ return {
 			-- we can't fill the chunk
 			-- generate noise and calculate each block
 			local noiseSet = self.terrainNoise:getNoiseSet(self.noiseBuffer, x, y, z, chunkSize)
+			local largeNoiseSet = self.largeNoise:getNoiseSet(self.largeNoiseBuffer, x, y, z, chunkSize)
 			for point, density in pairs(noiseSet) do
 				local internalY = math.floor((point - 1) % (chunkSize * chunkSize) / chunkSize)
-				local archetype = chunkBiome.getArchetype(density, y * chunkSize + internalY)
+				local archetype = chunkBiome.getArchetype(density, largeNoiseSet[point], y * chunkSize + internalY)
 				
 				if archetype ~= false then
 					chunk.blocks[point - 1] = world.renderers.voxel.blockArchetypes[archetype]
