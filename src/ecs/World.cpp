@@ -583,6 +583,7 @@ void World::setupState(Engine* engine) {
 			noise.FillSet(buffer, chunkX * chunkSize, chunkY * chunkSize, chunkZ * chunkSize, chunkSize, chunkSize, chunkSize);
 			return sol::as_table(std::vector<float>(buffer, buffer + chunkSize * chunkSize * chunkSize));
 		},
+		"setAxisScales", &HastyNoise::NoiseSIMD::SetAxisScales,
 		"setCellularReturnType", &HastyNoise::NoiseSIMD::SetCellularReturnType,
 		"setCellularJitter", &HastyNoise::NoiseSIMD::SetCellularJitter,
 		"setPerturbType", &HastyNoise::NoiseSIMD::SetPerturbType,
@@ -661,8 +662,7 @@ void World::setupState(Engine* engine) {
 				int texChannels, texWidth, texHeight;
 				subtextures[texIdx].pixels = stbi_load(image.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 				subtextures[texIdx].filename = std::filesystem::path(image).filename().string();
-				// We add a pixel to the height and left to help prevent bleeding
-				rects[texIdx] = { 0, 0, texWidth, texHeight };
+				rects[texIdx] = { 0, 0, texWidth + 2, texHeight + 2 };
 				texIdx++;
 			}
 
@@ -690,6 +690,10 @@ void World::setupState(Engine* engine) {
 			unsigned char* pixels = new unsigned char[texSize.w * texSize.h * 4];
 			for (int i = 0; i < subtextures.size(); i++) {
 				auto rect = rects[i];
+				rect.x++;
+				rect.y++;
+				rect.w -= 2;
+				rect.h -= 2;
 				map[subtextures[i].filename] = lua.create_table_with(
 					"p", rect.x / (float)texSize.w,
 					"q", rect.y / (float)texSize.h,
@@ -705,6 +709,25 @@ void World::setupState(Engine* engine) {
 						pixels[mainOffset + x] = subtextures[i].pixels[subOffset + x];
 					}
 				}
+				// Extend the last pixel on each side by one, to help with floating point errors
+				for (int y = 0; y < rect.h; y++) {
+					// Left side
+					int mainOffset = (rect.y + y) * (texSize.w * 4) + (rect.x - 1) * 4;
+					for (int x = 0; x < 4; x++)
+						pixels[mainOffset + x] = subtextures[i].pixels[y * (rect.w * 4) + x];
+					// Right side
+					mainOffset = (rect.y + y) * (texSize.w * 4) + (rect.x + rect.w) * 4;
+					for (int x = 0; x < 4; x++)
+						pixels[mainOffset + x] = subtextures[i].pixels[(y + 1) * (rect.w * 4) - 4 + x];
+				}
+				// Top side
+				int topMainOffset = (rect.y - 1) * (texSize.w * 4) + rect.x * 4;
+				for (int x = 0; x < rect.w * 4; x++)
+					pixels[topMainOffset + x] = subtextures[i].pixels[x];
+				// Bottom side
+				int botMainOffset = (rect.y + rect.h) * (texSize.w * 4) + rect.x * 4;
+				for (int x = 0; x < rect.w * 4; x++)
+					pixels[botMainOffset + x] = subtextures[i].pixels[(rect.h - 1) * (rect.w * 4) + x];
 			}
 
 			// Create our texture and release the stbi pixel data
