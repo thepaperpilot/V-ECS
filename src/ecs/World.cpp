@@ -790,6 +790,9 @@ void World::setupState(Engine* engine) {
 			pool_info.pPoolSizes = pool_sizes;
 			VK_CHECK_RESULT(vkCreateDescriptorPool(device->logical, &pool_info, nullptr, &subrenderer->imguiDescriptorPool));
 		},
+		"addFont", [this](std::string fileTTF, float sizePixels) -> ImFont* {
+			return ImGui::GetIO().Fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels);
+		},
 		"init", [this](SubRenderer* subrenderer) {
 			// Create our font texture from ImGUI's pixel data
 			ImGuiIO& io = ImGui::GetIO();
@@ -995,6 +998,8 @@ void World::setupState(Engine* engine) {
 		"popStyleVar", [](int amount) { PopStyleVar(amount); },
 		"pushTextWrapPos", [](float pos) { PushTextWrapPos(pos); },
 		"popTextWrapPos", []() { PopTextWrapPos(); },
+		"pushFont", [](ImFont* font) { PushFont(font); },
+		"popFont", []() { PopFont(); },
 		"setKeyboardFocusHere", sol::overload([]() { SetKeyboardFocusHere(); }, &SetKeyboardFocusHere),
 		"getScrollY", &GetScrollX,
 		"getScrollY", &GetScrollY,

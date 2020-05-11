@@ -116,6 +116,12 @@ local rpUpgrades = function() return {
 	}
 } end
 
+function center(message, centerX)
+	local textWidth, textHeight = ig.calcTextSize(message)
+	ig.setCursorPos(centerX - textWidth / 2, ig.getCursorPos().y)
+	ig.text(message)
+end
+
 return {
 	currencyName = "currency",
 	currency = 0,
@@ -144,6 +150,9 @@ return {
 	forwardDependencies = {
 		imgui = "renderer"
 	},
+	preInit = function(self, world)
+		self.largeFont = ig.addFont("resources/fonts/Roboto-Medium.ttf", 24)
+	end,
 	init = function(self, world)
 		local upgradesTex, upgradesMap = world.renderers.imgui:addStitchedTexture(getResources("textures/incremental", ".png"))
 		self.upgradesTex = upgradesTex
@@ -174,14 +183,14 @@ return {
 
 		local currencyIncreased = false
 
-		local message = "You currently have "..tostring(self.currency).." "..self.currencyName
+		ig.pushFont(self.largeFont)
+		center("You currently have "..tostring(self.currency).." "..self.currencyName, width / 2)
+		ig.popFont()
 		local nextTimeSlot = 10 ^ (self.timeSlots + 3)
 
 		if self.timeSlots > 0 then
-			message = message.." (Next time slot in "..tostring(nextTimeSlot - self.currency).." "..self.currencyName..")"
+			center("Next time slot in "..tostring(nextTimeSlot - self.currency).." "..self.currencyName, width / 2)
 		end
-
-		ig.text(message)
 
 		if self.producers > 0 then
 			ig.text("You currently have "..tostring(self.producers).." "..self.currencyName.." producers producing "..tostring(math.ceil(self.producers * self.producerMulti)).." "..self.currencyName.." per tick")
@@ -222,7 +231,9 @@ return {
 			if self.producers > 2 then
 				ig.separator()
 
+				ig.pushFont(self.largeFont)
 				ig.text("Upgrades")
+				ig.popFont()
 
 				if currencyIncreased then
 					for index, upgrade in ipairs(self.upgrades) do
@@ -237,7 +248,9 @@ return {
 			end
 		else
 			-- Post-ascension
+			ig.pushFont(self.largeFont)
 			ig.text("Jobs")
+			ig.popFont()
 
 			if currencyIncreased then
 				if self.currency >= nextTimeSlot then
@@ -254,7 +267,9 @@ return {
 			if self.secretShop then
 				ig.separator()
 
+				ig.pushFont(self.largeFont)
 				ig.text("Secret Shop")
+				ig.popFont()
 
 				self:upgradesDisplay("secretUpgrades", "currency")
 			end
@@ -263,12 +278,16 @@ return {
 		if self.nextRp ~= 0 or self.rpAllTime ~= 0 then
 			ig.separator()
 
+			ig.pushFont(self.largeFont)
 			ig.text("Transcend")
+			ig.popFont()
 			ig.text("You currently have "..tostring(self.rp).." research points")
 
 			if self.nextRp > 0 then
 				-- we don't use the button's callback because it won't work anytime the text on the button updates between mouse down and up
+				ig.pushFont(self.largeFont)
 				ig.button("Transcend for "..tostring(self.nextRp).." research points")
+				ig.popFont()
 
 				if ig.isItemHovered() and ig.isMouseClicked() then
 					self.currency = self.initialCurrency
@@ -441,13 +460,15 @@ return {
 			ig.endTooltip()
 		end
 
-		if self.rpAllTime then
+		if self.rpAllTime > 0 then
 			ig.sameLine()
 
 			local multiplierCost = 2 ^ ((self.jobMultipliers[job.name] or 1) - 1)
 
 			ig.beginChild("jobMultipliers"..job.name, vec2.new(250, 75), true, {})
+			ig.pushFont(self.largeFont)
 			ig.text("Speed multiplier: x"..tostring(self.jobMultipliers[job.name] or 1))
+			ig.popFont()
 			if ig.button("Increase for "..tostring(multiplierCost).." research points", vec2.new(-1, 0)) and self.rp >= multiplierCost then
 				self.rp = self.rp - multiplierCost
 				self.jobMultipliers[job.name] = (self.jobMultipliers[job.name] or 1) + 1

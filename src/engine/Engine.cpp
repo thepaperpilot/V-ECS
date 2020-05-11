@@ -96,6 +96,9 @@ void Engine::initImGui() {
 
     // Setup GLFW + Vulkan implementation
     ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    // Setup default font first, so it gets used as the default :)
+    ImGui::GetIO().Fonts->AddFontDefault();
 }
 
 void Engine::createInstance(sol::table manifest) {

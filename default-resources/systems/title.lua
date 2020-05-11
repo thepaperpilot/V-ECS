@@ -2,6 +2,9 @@ return {
 	forwardDependencies = {
 		imgui = "renderer"
 	},
+	preInit = function(self, world)
+		self.largeFont = ig.addFont("resources/fonts/Roboto-Medium.ttf", 72)
+	end,
 	init = function(self, world)
 		self.worlds = {}
 		local worlds = getResources("worlds", ".lua")
@@ -28,7 +31,9 @@ return {
 			windowFlags.NoBringToFrontOnFocus
 		})
 
+		ig.pushFont(self.largeFont)
 		ig.text("V-ECS")
+		ig.popFont()
 		ig.separator()
 
 		for name, world in pairs(self.worlds) do

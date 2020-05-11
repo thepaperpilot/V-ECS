@@ -106,6 +106,13 @@ DependencyNode::DependencyNode(Device* device, Renderer* renderer, DependencyNod
 
 	if (type == DEPENDENCY_NODE_TYPE_RENDERER)
 		subrenderer = new SubRenderer(device, renderer, worldConfig, config);
+	else if (config["preInit"].get_type() == sol::type::function) {
+		auto result = config["preInit"](config, worldConfig);
+		if (!result.valid()) {
+			sol::error err = result;
+			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+		}
+	}
 }
 
 void DependencyNode::init(sol::table worldConfig) {
