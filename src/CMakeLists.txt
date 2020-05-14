@@ -1,4 +1,4 @@
-target_sources(vecs PRIVATE main.cpp)
+target_sources(vecs PRIVATE main.cpp icon.rc)
 
 add_subdirectory(ecs)
 add_subdirectory(engine)
