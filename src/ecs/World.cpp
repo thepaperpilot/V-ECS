@@ -107,12 +107,21 @@ void World::cleanup() {
 	// Destroy our systems and sub-renderers
 	dependencyGraph.cleanup();
 
+	// Destroy our thread resources
+	resources.cleanup();
+
 	// Destroy any buffers created by this world
 	for (auto buffer : buffers)
 		device->cleanupBuffer(buffer);
+
+	// Set a flag so our event listeners will stop running
+	// (There is no EventManager::RemoveListener since index is not guaranteed and the
+	//  listeners map doesn't store the callbacks directly so getting the index is nontrivial)
+	isDisposed = false;
 }
 
 void World::setupState(Engine* engine) {
+	status->currentStep = WORLD_LOAD_STEP_SETUP;
 	lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string, sol::lib::table);
 
 	// Utility functions
@@ -124,7 +133,6 @@ void World::setupState(Engine* engine) {
 				resources.push_back(entry.path().string());
 		return resources;
 	};
-	lua["loadWorld"] = [engine](std::string filename) { engine->setWorld(filename); };
 
 	lua.new_enum("sizes",
 		"Float", sizeof(float),
@@ -344,6 +352,18 @@ void World::setupState(Engine* engine) {
 		"WindowRounding", ImGuiStyleVar_WindowRounding,
 		"WindowTitleAlign", ImGuiStyleVar_WindowTitleAlign
 	);
+	lua.new_enum("worldLoadStep",
+		"Setup", WORLD_LOAD_STEP_SETUP,
+		"PreInit", WORLD_LOAD_STEP_PREINIT,
+		"Init", WORLD_LOAD_STEP_INIT,
+		"Finished", WORLD_LOAD_STEP_FINISHED
+	);
+	lua.new_enum("functionStatus",
+		"NotAvailable", DEPENDENCY_FUNCTION_NOT_AVAILABLE,
+		"Waiting", DEPENDENCY_FUNCTION_WAITING,
+		"Active", DEPENDENCY_FUNCTION_ACTIVE,
+		"Complete", DEPENDENCY_FUNCTION_COMPLETE
+	);
 	lua.new_enum("keys",
 		"Space", GLFW_KEY_SPACE,
 		"Apostrophe", GLFW_KEY_APOSTROPHE,
@@ -418,6 +438,22 @@ void World::setupState(Engine* engine) {
 		"RightControl", GLFW_KEY_RIGHT_CONTROL,
 		"RightAlt", GLFW_KEY_RIGHT_ALT,
 		"RightSuper", GLFW_KEY_RIGHT_SUPER
+	);
+
+	// world loading
+	lua["loadWorld"] = [engine](std::string filename) -> WorldLoadStatus* { return engine->setWorld(filename); };
+	lua.new_usertype<WorldLoadStatus>("worldLoadStatus",
+		sol::no_constructor,
+		"currentStep", &WorldLoadStatus::currentStep,
+		"isCancelled", &WorldLoadStatus::isCancelled,
+		"getSystems", [](WorldLoadStatus status) ->sol::as_table_t <std::vector<DependencyNodeLoadStatus*>> { return status.systems; },
+		"getRenderers", [](WorldLoadStatus status) -> sol::as_table_t<std::vector<DependencyNodeLoadStatus*>> { return status.renderers; }
+	);
+	lua.new_usertype<DependencyNodeLoadStatus>("nodeLoadStatus",
+		sol::no_constructor,
+		"name", &DependencyNodeLoadStatus::name,
+		"preInitStatus", &DependencyNodeLoadStatus::preInitStatus,
+		"initStatus", &DependencyNodeLoadStatus::initStatus
 	);
 
 	// glfw namespace
@@ -745,13 +781,13 @@ void World::setupState(Engine* engine) {
 		"setDataInts", [this, engine](Buffer buffer, std::vector<int> data) {
 			Buffer staging = device->createStagingBuffer(data.size() * sizeof(int));
 			staging.copyTo(data.data(), data.size() * sizeof(int));
-			device->copyBuffer(&staging, &buffer, engine->renderer.graphicsQueue);
+			device->copyBuffer(&staging, &buffer, resources.graphicsQueue, resources.commandPool);
 			device->cleanupBuffer(staging);
 		},
 		"setDataFloats", [this, engine](Buffer buffer, std::vector<float> data) {
 			Buffer staging = device->createStagingBuffer(data.size() * sizeof(float));
 			staging.copyTo(data.data(), data.size() * sizeof(float));
-			device->copyBuffer(&staging, &buffer, engine->renderer.graphicsQueue);
+			device->copyBuffer(&staging, &buffer, resources.graphicsQueue, resources.commandPool);
 			device->cleanupBuffer(staging);
 		}
 	);
@@ -791,14 +827,26 @@ void World::setupState(Engine* engine) {
 			VK_CHECK_RESULT(vkCreateDescriptorPool(device->logical, &pool_info, nullptr, &subrenderer->imguiDescriptorPool));
 		},
 		"addFont", [this](std::string fileTTF, float sizePixels) -> ImFont* {
-			return ImGui::GetIO().Fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels);
+			if (fonts == nullptr) {
+				fonts = new ImFontAtlas();
+				fonts->AddFontDefault();
+			}
+			return fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels);
 		},
 		"init", [this](SubRenderer* subrenderer) {
 			// Create our font texture from ImGUI's pixel data
 			ImGuiIO& io = ImGui::GetIO();
 			unsigned char* pixels;
 			int width, height;
-			io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+			// We store a font atlas on the world so fonts can be added asynchronously,
+			// so fonts can be loaded in a loading world - even if the active world is currently rendering
+			if (fonts == nullptr) {
+				fonts = new ImFontAtlas();
+				fonts->AddFontDefault();
+			}
+			fonts->Build();
+			fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+			// TODO ensure only one ImGUI context per world?
 			Texture* fontTexture = new Texture(subrenderer, pixels, width, height);
 
 			// Copied from renderer's addTexture function
@@ -823,7 +871,7 @@ void World::setupState(Engine* engine) {
 
 			vkUpdateDescriptorSets(device->logical, 1, writeDescriptor, 0, nullptr);
 
-			io.Fonts->TexID = (ImTextureID)descriptorSet;
+			fonts->TexID = (ImTextureID)descriptorSet;
 		},
 		"newFrame", []() {
 			ImGui_ImplGlfw_NewFrame();
@@ -932,7 +980,7 @@ void World::setupState(Engine* engine) {
 						clip_rect.z = (pcmd->ClipRect.z - clip_off.x) * clip_scale.x;
 						clip_rect.w = (pcmd->ClipRect.w - clip_off.y) * clip_scale.y;
 
-						if (clip_rect.x < subrenderer->renderer->swapChainExtent.width && clip_rect.y < subrenderer->renderer->swapChainExtent.height &&
+						if (clip_rect.x < engine->renderer.swapChainExtent.width && clip_rect.y < engine->renderer.swapChainExtent.height &&
 							clip_rect.z >= 0.0f && clip_rect.w >= 0.0f) {
 
 							// Negative offsets are illegal for vkCmdSetScissor
@@ -965,6 +1013,7 @@ void World::setupState(Engine* engine) {
 		},
 		"setNextWindowPos", [](int x, int y) { SetNextWindowPos(ImVec2(x, y)); },
 		"setNextWindowSize", [](int width, int height) { SetNextWindowSize(ImVec2(width, height)); },
+		"setNextWindowFocus", &SetNextWindowFocus,
 		"setWindowFontScale", &SetWindowFontScale,
 		"beginWindow", [](std::string title, bool* p_open, std::vector<ImGuiWindowFlags> flags) {
 			ImGuiWindowFlags windowFlags = 0;
@@ -1000,6 +1049,8 @@ void World::setupState(Engine* engine) {
 		"popTextWrapPos", []() { PopTextWrapPos(); },
 		"pushFont", [](ImFont* font) { PushFont(font); },
 		"popFont", []() { PopFont(); },
+		"pushItemWidth", [](float width) { PushItemWidth(width); },
+		"popItemWidth", []() { PopItemWidth(); },
 		"setKeyboardFocusHere", sol::overload([]() { SetKeyboardFocusHere(); }, &SetKeyboardFocusHere),
 		"getScrollY", &GetScrollX,
 		"getScrollY", &GetScrollY,

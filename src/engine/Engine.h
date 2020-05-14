@@ -18,6 +18,7 @@ namespace vecs {
     // Forward Declarations
     class Device;
     class World;
+    class WorldLoadStatus;
 
     // A lot of this is based on the Vulkan tutorial at https://vulkan-tutorial.com
     // The Engine is what handles using Vulkan and GLFW to create a window,
@@ -41,6 +42,13 @@ namespace vecs {
         Buffer imguiVertexBuffer;
         Buffer imguiIndexBuffer;
 
+        // We want to make sure we're using different graphics queues for different threads
+        // At the moment the first queue goes to the Renderer, and worlds will use either the second or third,
+        // flip-flopping so that the active world and loading world will use different queues
+        // Once we have a full job system the worker threads will persist across worlds and we won't need to get
+        // a queue every time we load a world
+        bool nextQueueIndex = false;
+
         Engine() : renderer(this) {
             // init noise
             HastyNoise::loadSimd("./simd");
@@ -49,14 +57,14 @@ namespace vecs {
 
         void init();
 
-        void setWorld(std::string filename);
+        WorldLoadStatus* setWorld(std::string filename);
 
         void updateWorld();
 
     private:
         VkInstance instance;
         VkSurfaceKHR surface;
-        std::string nextWorld = "";
+        World* nextWorld = nullptr;
 
         double lastFrameTime;
 

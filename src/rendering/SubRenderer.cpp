@@ -2,14 +2,16 @@
 #include "Renderer.h"
 #include "../engine/Device.h"
 #include "../util/VulkanUtils.h"
+#include "../jobs/ThreadResources.h"
 
 #include <vulkan/vulkan.h>
 
 using namespace vecs;
 
-SubRenderer::SubRenderer(Device* device, Renderer* renderer, sol::table worldConfig, sol::table config) {
+SubRenderer::SubRenderer(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig, sol::table config) {
     this->device = device;
     this->renderer = renderer;
+    this->resources = resources;
     this->config = config;
 
     vertexLayout = new VertexLayout(config.get_or("vertexLayout", sol::table()));
@@ -66,7 +68,7 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, sol::table worldCon
     // Cleanup our shader modules
     cleanShaderModules();
 
-    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderer->imageCount);
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderer->imageCount, resources->commandPool);
 }
 
 void SubRenderer::buildCommandBuffer(sol::table worldConfig) {
@@ -124,8 +126,8 @@ void SubRenderer::windowRefresh(bool numImagesChanged, int imageCount) {
     // Update everything that only updates when numImagesChanged
     if (numImagesChanged) {
         // Command Buffers
-        vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, imageCount);
+        vkFreeCommandBuffers(*device, resources->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, imageCount, resources->commandPool);
 
         // Descriptor Pool and Sets
         vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
@@ -142,7 +144,7 @@ void SubRenderer::cleanup() {
         model->cleanup();
 
     // Destroy our command buffers
-    vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    vkFreeCommandBuffers(*device, resources->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
     // Destroy our descriptor set layout
     vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);

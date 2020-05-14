@@ -9,9 +9,11 @@
 
 #include "../engine/Engine.h"
 #include "../jobs/DependencyGraph.h"
+#include "../jobs/ThreadResources.h"
 #include "../rendering/Renderer.h"
 #include "EntityQuery.h"
 #include "Archetype.h"
+#include "WorldLoadStatus.h"
 
 namespace vecs {
 
@@ -23,13 +25,19 @@ namespace vecs {
 		sol::table config;
 
 		bool isValid = false;
+		bool isDisposed = false;
+		WorldLoadStatus* status;
+
+		ImFontAtlas* fonts = nullptr;
 
 		double deltaTime = 0;
 
 		DependencyGraph dependencyGraph;
 
-		World(Engine* engine, std::string filename) {
+		World(Engine* engine, std::string filename, WorldLoadStatus* status) : resources(engine->device, 1 + engine->nextQueueIndex) {
 			device = engine->device;
+			this->status = status;
+			engine->nextQueueIndex = !engine->nextQueueIndex;
 
 			setupState(engine);
 
@@ -47,19 +55,24 @@ namespace vecs {
 				return;
 			}
 
-			isValid = dependencyGraph.init(engine->device, &engine->renderer, &lua, config);
+			isValid = dependencyGraph.init(engine->device, &engine->renderer, &resources, &lua, config, status);
+			status->currentStep = WORLD_LOAD_STEP_FINISHED;
+			if (status->isCancelled) cleanup();
 		};
 
-		World(Engine* engine, sol::table worldConfig) {
+		World(Engine* engine, sol::table worldConfig, WorldLoadStatus* status) : resources(engine->device, 1 + engine->nextQueueIndex) {
 			device = engine->device;
+			this->status = status;
+			engine->nextQueueIndex = !engine->nextQueueIndex;
 
 			setupState(engine);
 
-			isValid = dependencyGraph.init(engine->device, &engine->renderer, &lua, worldConfig);
+			isValid = dependencyGraph.init(engine->device, &engine->renderer, &resources, &lua, worldConfig, status);
+			status->currentStep = WORLD_LOAD_STEP_FINISHED;
+			if (status->isCancelled) cleanup();
 		};
 
 		uint32_t createEntities(uint32_t amount = 1);
-		void deleteEntity(uint32_t entity);
 
 		Archetype* getArchetype(std::unordered_set<std::string> componentTypes, sol::table sharedComponents = sol::table());
 
@@ -85,6 +98,11 @@ namespace vecs {
 		std::vector<Archetype*> archetypes;
 
 		std::vector<Buffer> buffers;
+
+		// Contains resources meant to be per-thread
+		// Later this will be split amongst different worker threads
+		// But for now each world just gets its own thread and corresponding resources
+		ThreadResources resources;
 
 		void setupState(Engine* engine);
 	};

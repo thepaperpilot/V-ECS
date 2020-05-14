@@ -6,7 +6,8 @@ return {
 		camera = "systems/camera.lua",
 		fps = "systems/fps.lua",
 		hotbar = "systems/hotbar.lua",
-		debug = "systems/debug.lua"
+		debug = "systems/debug.lua",
+		loading = "systems/loading.lua"
 	},
 	renderers = {
 		skybox = "renderers/skybox.lua",

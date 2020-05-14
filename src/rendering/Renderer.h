@@ -23,9 +23,6 @@ namespace vecs {
 	public:
 		GLFWwindow* window;
 
-		VkQueue graphicsQueue;
-		VkQueue presentQueue;
-
 		uint32_t imageCount = 0;
 		VkExtent2D swapChainExtent;
 
@@ -44,6 +41,9 @@ namespace vecs {
 		Device* device;
 		VkSurfaceKHR surface;
 
+		VkQueue graphicsQueue;
+		VkQueue presentQueue;
+
 		VkSurfaceFormatKHR surfaceFormat;
 		VkFormat swapChainImageFormat;
 		VkPresentModeKHR presentMode;
@@ -52,6 +52,7 @@ namespace vecs {
 		VkRenderPass renderPass;
 
 		VkSwapchainKHR swapChain;
+		VkCommandPool commandPool;
 		std::vector<VkImage> swapChainImages;
 		std::vector<VkImageView> swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -67,7 +68,7 @@ namespace vecs {
 
 		void createRenderPass();
 
-		void refreshWindow(RefreshWindowEvent* ignored);
+		bool refreshWindow(RefreshWindowEvent* ignored);
 		bool createSwapChain(VkSwapchainKHR* oldSwapChain = nullptr);
 		void createFramebuffers();
 		void createImageViews();

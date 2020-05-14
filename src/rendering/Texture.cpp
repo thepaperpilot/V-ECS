@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 #include "SubRenderer.h"
+#include "../jobs/ThreadResources.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -17,7 +18,7 @@ Texture::Texture(SubRenderer* subrenderer, const char* filename,
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
-	init(stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+	init(stagingBuffer, subrenderer->resources->graphicsQueue, subrenderer->resources->commandPool, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
@@ -30,8 +31,8 @@ Texture::Texture(SubRenderer* subrenderer, unsigned char* pixels, int width, int
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
-
-	init(stagingBuffer, subrenderer->renderer->graphicsQueue, filter, usageFlags, imageLayout);
+	ThreadResources* resources = subrenderer->resources;
+	init(stagingBuffer, resources->graphicsQueue, resources->commandPool, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
@@ -44,11 +45,11 @@ void Texture::cleanup() {
 	vkFreeMemory(*device, deviceMemory, nullptr);
 }
 
-void Texture::init(Buffer buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+void Texture::init(Buffer buffer, VkQueue copyQueue, VkCommandPool commandPool, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 	this->imageLayout = imageLayout;
 
 	// Creating our image is going to require several commands, so we'll create a buffer for them
-	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
 
 	// Create our VkImage and VkDeviceMemory objects to store this file in
 	createImage(format, usageFlags);
@@ -60,7 +61,7 @@ void Texture::init(Buffer buffer, VkQueue copyQueue, VkFilter filter, VkImageUsa
 	transitionImageLayout(commandBuffer, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageLayout);
 
 	// Submit our command buffer with all its commands in it
-	device->submitCommandBuffer(commandBuffer, copyQueue);
+	device->submitCommandBuffer(commandBuffer, copyQueue, commandPool);
 
 	// Destroy our staging buffer now that we're done with it
 	device->cleanupBuffer(buffer);

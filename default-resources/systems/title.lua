@@ -17,31 +17,36 @@ return {
 		end
 	end,
 	update = function(self, world)
-		local width, height = glfw.windowSize()
-		ig.setNextWindowPos(0, 0)
-		ig.setNextWindowSize(width, height)
+		if world.systems.loading == nil or world.systems.loading.status == nil then
+			local width, height = glfw.windowSize()
+			ig.setNextWindowPos(0, 0)
+			ig.setNextWindowSize(width, height)
 
-		ig.beginWindow("Title", nil, {
-			windowFlags.NoTitleBar,
-			windowFlags.NoMove,
-			windowFlags.NoResize,
-			windowFlags.NoCollapse,
-			windowFlags.NoNav,
-			windowFlags.NoBackground,
-			windowFlags.NoBringToFrontOnFocus
-		})
+			ig.beginWindow("Title", nil, {
+				windowFlags.NoTitleBar,
+				windowFlags.NoMove,
+				windowFlags.NoResize,
+				windowFlags.NoCollapse,
+				windowFlags.NoNav,
+				windowFlags.NoBackground,
+				windowFlags.NoBringToFrontOnFocus
+			})
 
-		ig.pushFont(self.largeFont)
-		ig.text("V-ECS")
-		ig.popFont()
-		ig.separator()
+			ig.pushFont(self.largeFont)
+			ig.text("V-ECS")
+			ig.popFont()
+			ig.separator()
 
-		for name, world in pairs(self.worlds) do
-			if ig.button(name) then
-				loadWorld(world)
+			for name, w in pairs(self.worlds) do
+				if ig.button(name) then
+					local status = loadWorld(w)
+					if world.systems.loading ~= nil then
+						world.systems.loading.status = status
+					end
+				end
 			end
-		end
 
-		ig.endWindow()
+			ig.endWindow()
+		end
 	end
 }

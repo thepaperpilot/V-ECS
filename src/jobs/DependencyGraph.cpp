@@ -6,7 +6,7 @@
 
 using namespace vecs;
 
-bool DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, sol::table config) {
+bool DependencyGraph::init(Device* device, Renderer* renderer, ThreadResources* resources, sol::state* lua, sol::table config, WorldLoadStatus* status) {
 	this->config = config;
 
 	sol::table systems = config["systems"];
@@ -34,7 +34,11 @@ bool DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 		} else if (type == sol::type::table) {
 			system = systems[kvp.first];
 		} else continue;
-		nodes.emplace_back(new DependencyNode(device, renderer, DEPENDENCY_NODE_TYPE_SYSTEM, config, system));
+		DependencyNodeLoadStatus* nodeStatus = new DependencyNodeLoadStatus(kvp.first.as<std::string>(),
+			system["preInit"].get_type() == sol::type::function ? DEPENDENCY_FUNCTION_WAITING : DEPENDENCY_FUNCTION_NOT_AVAILABLE,
+			system["init"].get_type() == sol::type::function ? DEPENDENCY_FUNCTION_WAITING : DEPENDENCY_FUNCTION_NOT_AVAILABLE);
+		nodes.emplace_back(new DependencyNode(DEPENDENCY_NODE_TYPE_SYSTEM, system, nodeStatus));
+		status->systems.emplace_back(nodeStatus);
 		systemsMap[kvp.first.as<std::string>()] = nodes[i];
 		i++;
 	}
@@ -55,10 +59,22 @@ bool DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 		} else if (type == sol::type::table) {
 			subrenderer = renderers[kvp.first];
 		} else continue;
-		nodes.emplace_back(new DependencyNode(device, renderer, DEPENDENCY_NODE_TYPE_RENDERER, config, subrenderer));
+		DependencyNodeLoadStatus* nodeStatus = new DependencyNodeLoadStatus(kvp.first.as<std::string>(),
+			subrenderer["preInit"].get_type() == sol::type::function ? DEPENDENCY_FUNCTION_WAITING : DEPENDENCY_FUNCTION_NOT_AVAILABLE,
+			subrenderer["init"].get_type() == sol::type::function ? DEPENDENCY_FUNCTION_WAITING : DEPENDENCY_FUNCTION_NOT_AVAILABLE);
+		nodes.emplace_back(new DependencyNode(DEPENDENCY_NODE_TYPE_RENDERER, subrenderer, nodeStatus));
+		status->renderers.emplace_back(nodeStatus);
 		renderersMap[kvp.first.as<std::string>()] = nodes[i];
 		i++;
 	}
+
+	status->currentStep = WORLD_LOAD_STEP_PREINIT;
+
+	for (auto node : nodes) {
+		node->preInit(device, renderer, resources, config);
+	}
+
+	status->currentStep = WORLD_LOAD_STEP_INIT;
 
 	// Make each node's list of dependents and dependencies
 	for (auto node : nodes) {
@@ -72,7 +88,7 @@ bool DependencyGraph::init(Device* device, Renderer* renderer, sol::state* lua, 
 			leaves.emplace_back(node);
 	}
 
-	return true;
+	return !status->isCancelled;
 }
 
 void DependencyGraph::execute() {
@@ -100,12 +116,12 @@ void DependencyGraph::cleanup() {
 	}
 }
 
-DependencyNode::DependencyNode(Device* device, Renderer* renderer, DependencyNodeType type, sol::table worldConfig, sol::table config) {
-	this->type = type;
-	this->config = config;
+void DependencyNode::preInit(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig) {
+	if (status->preInitStatus == DEPENDENCY_FUNCTION_WAITING)
+		status->preInitStatus = DEPENDENCY_FUNCTION_ACTIVE;
 
 	if (type == DEPENDENCY_NODE_TYPE_RENDERER)
-		subrenderer = new SubRenderer(device, renderer, worldConfig, config);
+		subrenderer = new SubRenderer(device, renderer, resources, worldConfig, config);
 	else if (config["preInit"].get_type() == sol::type::function) {
 		auto result = config["preInit"](config, worldConfig);
 		if (!result.valid()) {
@@ -113,9 +129,15 @@ DependencyNode::DependencyNode(Device* device, Renderer* renderer, DependencyNod
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 		}
 	}
+
+	if (status->preInitStatus == DEPENDENCY_FUNCTION_ACTIVE)
+		status->preInitStatus = DEPENDENCY_FUNCTION_COMPLETE;
 }
 
 void DependencyNode::init(sol::table worldConfig) {
+	if (status->initStatus == DEPENDENCY_FUNCTION_WAITING)
+		status->initStatus = DEPENDENCY_FUNCTION_ACTIVE;
+
 	if (config["init"].get_type() == sol::type::function) {
 		if (type == DEPENDENCY_NODE_TYPE_RENDERER) {
 			auto result = config["init"](config, worldConfig, subrenderer);
@@ -133,6 +155,9 @@ void DependencyNode::init(sol::table worldConfig) {
 			}
 		}
 	}
+
+	if (status->initStatus == DEPENDENCY_FUNCTION_ACTIVE)
+		status->initStatus = DEPENDENCY_FUNCTION_COMPLETE;
 }
 
 void DependencyNode::createEdges(std::map<std::string, DependencyNode*> systemsMap, std::map<std::string, DependencyNode*> renderersMap) {

@@ -45,8 +45,6 @@ namespace vecs {
 		QueueFamilyIndices queueFamilyIndices;
 		SwapChainSupportDetails swapChainSupport;
 
-		VkCommandPool commandPool;
-
 		operator VkDevice() { return logical; }
 
 		Device(VkInstance instance, VkSurfaceKHR surface);
@@ -58,10 +56,10 @@ namespace vecs {
 		void cleanupBuffer(Buffer buffer);
 		void beginCommandBuffer(VkCommandBuffer buffer);
 		void beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info);
-		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
-		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool = nullptr, bool begin = true);
-		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool = nullptr, bool begin = false);
-		void submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool = nullptr, bool free = true);
+		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkCommandPool commandPool, VkBufferCopy* copyRegion = nullptr);
+		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin = true);
+		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool, bool begin = false);
+		void submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool, bool free = true);
 
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 

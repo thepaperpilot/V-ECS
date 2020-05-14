@@ -20,6 +20,8 @@ return {
 		self.scrollToBottom = false
 		-- stores current visibility of the cursor when the console is opened, and restores it when closed (can be toggled via a command below)
 		self.showCursor = false
+		-- Store loading system here so we can use it later in the loadWorld command
+		self.loadingSystem = world.systems.loading
 
 		self.showInfo = true
 		self.showWarn = true
@@ -37,28 +39,28 @@ return {
 			ig.pushStyleVar(styleVars.WindowRounding, 0)
 
 			ig.pushStyleColor(styleColors.WindowBg, vec4.new(0, 0, 0, .5))
+			ig.pushStyleColor(styleColors.ChildBg, vec4.new(0, 0, 0, 1))
 			local width, height = glfw.windowSize()
 			ig.setNextWindowPos(0, 0)
 			ig.setNextWindowSize(width, height)
-			ig.beginWindow("background", nil, {
+
+			ig.beginWindow("Debug", nil, {
 				windowFlags.NoTitleBar,
-				windowFlags.NoResize,
-				windowFlags.NoBringToFrontOnFocus
+				windowFlags.NoResize
 			})
-			ig.endWindow()
-			ig.popStyleColor(1)
 
-			ig.setNextWindowPos(0, 0)
-			ig.setNextWindowSize(width, math.floor(height / 2))
+			ig.setCursorPos(0, 0)
 
-			ig.beginWindow("Console", nil, {
+			ig.beginChild("Console", vec2.new(width, math.floor(height / 2)), true, {
 				windowFlags.NoTitleBar,
 				windowFlags.NoMove,
 				windowFlags.NoResize,
 				windowFlags.NoNav
 			})
 
+			ig.pushItemWidth(250)
 			self.filter:draw("Filter (\"incl,-excl\") (\"error\")")
+			ig.popItemWidth()
 			ig.sameLine()
 			if ig.button("Clear") then
 				debugger.clearLog()
@@ -161,8 +163,11 @@ return {
 				self.commandLineText = newValue
 			end
 
+			ig.endChild()
+
 			ig.endWindow()
 
+			ig.popStyleColor(2)
 			ig.popStyleVar(1)
 
 			if self.showDemoWindow then
@@ -266,7 +271,10 @@ return {
 	end,
 	loadWorld = function(self, args)
 		if #args == 1 then
-			loadWorld(args[1])
+			local status = loadWorld(args[1])
+			if self.loadingSystem ~= nil then
+				self.loadingSystem.status = status
+			end
 		else
 			debugger.addLog(debugLevels.Warn, "Wrong number of parameters.\n"..self.commands["loadWorld"].help)
 		end

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../rendering/SubRenderer.h"
+#include "../ecs/WorldLoadStatus.h"
 
 #include <vector>
 #include <map>
@@ -23,7 +24,13 @@ namespace vecs {
 
 		uint8_t dependenciesRemaining;
 
-		DependencyNode(Device* device, Renderer* renderer, DependencyNodeType type, sol::table worldConfig, sol::table config);
+		DependencyNode(DependencyNodeType type, sol::table config, DependencyNodeLoadStatus* status) {
+			this->type = type;
+			this->config = config;
+			this->status = status;
+		}
+
+		void preInit(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig);
 
 		void init(sol::table worldConfig);
 
@@ -46,11 +53,12 @@ namespace vecs {
 		sol::table config;
 		SubRenderer* subrenderer = nullptr;
 		sol::function update;
+		DependencyNodeLoadStatus* status;
 	};
 
 	class DependencyGraph {
 	public:
-		bool init(Device* device, Renderer* renderer, sol::state* lua, sol::table config);
+		bool init(Device* device, Renderer* renderer, ThreadResources* resources, sol::state* lua, sol::table config, WorldLoadStatus* status);
 
 		void execute();
 		void windowRefresh(bool numImagesChanged, int imageCount);

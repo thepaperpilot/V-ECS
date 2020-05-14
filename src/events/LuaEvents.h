@@ -28,6 +28,10 @@ namespace vecs {
 	// Wrapper class for letting lua access c++ events
 	// Each c++ event must have a wrapper class that extends this,
 	// with the appropriate callback method (and register that callback, probably in the constructor)
+	// The callback should check if the world is disposed, and if so remove the listener
+	// Additionally if the world isn't valid then the world may still be being built in another thread,
+	// in which case using the lua object may cause problems, so its recommended to just ignore
+	// the event in that case
 	class LuaEventWrapper {
 	public:
 		LuaEvent event;
@@ -47,9 +51,7 @@ namespace vecs {
 			EventManager::addListener(this, &WindowRefreshLuaEvent::callback);
 		}
 
-		void callback(RefreshWindowEvent* eventData) {
-			event.fire(lua->create_table());
-		}
+		bool callback(RefreshWindowEvent* eventData);
 	};
 
 	class WindowResizeLuaEvent : public LuaEventWrapper {
@@ -58,12 +60,7 @@ namespace vecs {
 			EventManager::addListener(this, &WindowResizeLuaEvent::callback);
 		}
 
-		void callback(WindowResizeEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"width", eventData->width,
-				"height", eventData->height
-			));
-		}
+		bool callback(WindowResizeEvent* eventData);
 	};
 
 	class MouseMoveLuaEvent : public LuaEventWrapper {
@@ -72,12 +69,7 @@ namespace vecs {
 			EventManager::addListener(this, &MouseMoveLuaEvent::callback);
 		}
 
-		void callback(MouseMoveEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"xPos", eventData->xPos,
-				"yPos", eventData->yPos
-			));
-		}
+		bool callback(MouseMoveEvent* eventData);
 	};
 
 	// TODO convert mods to a table of booleans
@@ -87,11 +79,7 @@ namespace vecs {
 			EventManager::addListener(this, &LeftMousePressLuaEvent::callback);
 		}
 
-		void callback(LeftMousePressEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"mods", eventData->mods
-			));
-		}
+		bool callback(LeftMousePressEvent* eventData);
 	};
 
 	class LeftMouseReleaseLuaEvent : public LuaEventWrapper {
@@ -100,11 +88,7 @@ namespace vecs {
 			EventManager::addListener(this, &LeftMouseReleaseLuaEvent::callback);
 		}
 
-		void callback(LeftMouseReleaseEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"mods", eventData->mods
-			));
-		}
+		bool callback(LeftMouseReleaseEvent* eventData);
 	};
 
 	class RightMousePressLuaEvent : public LuaEventWrapper {
@@ -113,11 +97,7 @@ namespace vecs {
 			EventManager::addListener(this, &RightMousePressLuaEvent::callback);
 		}
 
-		void callback(RightMousePressEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"mods", eventData->mods
-			));
-		}
+		bool callback(RightMousePressEvent* eventData);
 	};
 
 	class RightMouseReleaseLuaEvent : public LuaEventWrapper {
@@ -126,11 +106,7 @@ namespace vecs {
 			EventManager::addListener(this, &RightMouseReleaseLuaEvent::callback);
 		}
 
-		void callback(RightMouseReleaseEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"mods", eventData->mods
-			));
-		}
+		bool callback(RightMouseReleaseEvent* eventData);
 	};
 
 	class VerticalScrollLuaEvent : public LuaEventWrapper {
@@ -139,11 +115,7 @@ namespace vecs {
 			EventManager::addListener(this, &VerticalScrollLuaEvent::callback);
 		}
 
-		void callback(VerticalScrollEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"yOffset", eventData->yOffset
-			));
-		}
+		bool callback(VerticalScrollEvent* eventData);
 	};
 
 	class HorizontalScrollLuaEvent : public LuaEventWrapper {
@@ -152,11 +124,7 @@ namespace vecs {
 			EventManager::addListener(this, &HorizontalScrollLuaEvent::callback);
 		}
 
-		void callback(HorizontalScrollEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"xOffset", eventData->xOffset
-			));
-		}
+		bool callback(HorizontalScrollEvent* eventData);
 	};
 
 	class KeyPressLuaEvent : public LuaEventWrapper {
@@ -165,13 +133,7 @@ namespace vecs {
 			EventManager::addListener(this, &KeyPressLuaEvent::callback);
 		}
 
-		void callback(KeyPressEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"key", eventData->key,
-				"scancode", eventData->scancode,
-				"mods", eventData->mods
-			));
-		}
+		bool callback(KeyPressEvent* eventData);
 	};
 
 	class KeyReleaseLuaEvent : public LuaEventWrapper {
@@ -180,12 +142,6 @@ namespace vecs {
 			EventManager::addListener(this, &KeyReleaseLuaEvent::callback);
 		}
 
-		void callback(KeyReleaseEvent* eventData) {
-			event.fire(lua->create_table_with(
-				"key", eventData->key,
-				"scancode", eventData->scancode,
-				"mods", eventData->mods
-			));
-		}
+		bool callback(KeyReleaseEvent* eventData);
 	};
 }

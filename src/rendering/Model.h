@@ -53,6 +53,6 @@ namespace vecs {
 		Buffer materialBuffer;
 
 		void init(SubRenderer* subrenderer, const char* filename);
-		void loadObj(VkQueue copyQueue, std::filesystem::path filepath);
+		void loadObj(VkQueue copyQueue, VkCommandPool commandPool, std::filesystem::path filepath);
 	};
 }

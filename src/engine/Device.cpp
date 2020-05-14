@@ -13,7 +13,6 @@ Device::Device(VkInstance instance, VkSurfaceKHR surface) {
     pickPhysicalDevice(instance, surface);
     createLogicalDevice();
     createMemoryAllocator(instance);
-    commandPool = createCommandPool(queueFamilyIndices.graphics.value());
 }
 
 VkCommandPool Device::createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags) {
@@ -73,9 +72,9 @@ void Device::cleanupBuffer(Buffer buffer) {
     buffer.buffer = VK_NULL_HANDLE;
 }
 
-void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion) {
+void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkCommandPool commandPool, VkBufferCopy* copyRegion) {
     // Get a command buffer to use
-    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
 
     // Determine how much to copy
     VkBufferCopy bufferCopy = {};
@@ -88,13 +87,10 @@ void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* 
     vkCmdCopyBuffer(copyCmd, src->buffer, dest->buffer, 1, &bufferCopy);
 
     // End our command buffer and submit it
-    submitCommandBuffer(copyCmd, queue);
+    submitCommandBuffer(copyCmd, queue, commandPool);
 }
 
 VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
     // Tell it which pool to create a command buffer for, with the given level
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -112,9 +108,6 @@ VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkComman
 }
 
 std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool, bool begin) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
     // Tell it which pool to create command buffers for, and how many, with the given level
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -133,9 +126,6 @@ std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel l
 }
 
 void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool, bool free) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
     VK_CHECK_RESULT(vkEndCommandBuffer(buffer));
 
     // Submit our command buffer to its queue
@@ -171,9 +161,6 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
 void Device::cleanup() {
     // Destroy our memory allocator
     vmaDestroyAllocator(allocator);
-
-    // Destroy our command pool
-    vkDestroyCommandPool(logical, commandPool, nullptr);
 
     // Destroy our logical device
     vkDestroyDevice(logical, nullptr);
@@ -354,13 +341,15 @@ void Device::createLogicalDevice() {
     std::set<uint32_t> uniqueQueueFamilies = { queueFamilyIndices.graphics.value(), queueFamilyIndices.present.value() };
     
     // We'll give them equal priority
-    const float queuePriority = 1.0f;
+    float queuePriorities[] = { 1.0f, 1.0f, 1.0f };
     for (uint32_t queueFamily : uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        // 1 for the Renderer and 2 for worlds (which will flip flop between the active and loading world)
+        // Later on this should be 1 + number of worker threads
+        queueCreateInfo.queueCount = 3;
+        queueCreateInfo.pQueuePriorities = queuePriorities;
         queueCreateInfos.push_back(queueCreateInfo);
     }
 

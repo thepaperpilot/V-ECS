@@ -30,7 +30,9 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
     createImageViews();
     createRenderPass();
     createFramebuffers();
-    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+    // Create our own command pool for making rendering command buffers
+    commandPool = device->createCommandPool(device->queueFamilyIndices.graphics.value());
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
 
     // Create semaphores and fences for asynchronous rendering
     imageAvailableSemaphores.resize(maxFramesInFlight);
@@ -150,7 +152,10 @@ void Renderer::cleanup() {
     }
 
     // Destroy our command buffers
-    vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+    // Destroy our command pool
+    vkDestroyCommandPool(*device, commandPool, nullptr);
 
     // Destroy our depth texture
     if (depthTexture.image)
@@ -245,7 +250,7 @@ void Renderer::createRenderPass() {
     VK_CHECK_RESULT(vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass));
 }
 
-void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
+bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // If we were minimized, wait until that changes
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
@@ -276,8 +281,8 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // Only update image views and primary command buffers if the number of swap images changed
     if (numImagesChanged) {
         // Command Buffers
-        vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+        vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
 
         // Sync objects
         imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
@@ -288,6 +293,9 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
 
     // Redraw screen
     engine->updateWorld();
+
+    // We always want to continue listening to this event
+    return true;
 }
 
 bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {

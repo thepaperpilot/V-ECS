@@ -18,11 +18,12 @@ namespace vecs {
 	// Forward Declarations
 	class Device;
 	class Renderer;
+	class ThreadResources;
 
 	class SubRenderer {
 	public:
 		Device* device;
-		Renderer* renderer;
+		ThreadResources* resources;
 
 		std::vector<Model*> models;
 		std::vector<Texture*> textures;
@@ -37,13 +38,15 @@ namespace vecs {
 		// many images with descriptor sets
 		VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
-		SubRenderer(Device* device, Renderer* renderer, sol::table worldConfig, sol::table config);
+		SubRenderer(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig, sol::table config);
 
 		void buildCommandBuffer(sol::table worldConfig);
 		void windowRefresh(bool numImagesChanged, int imageCount);
 		void cleanup();
 
 	private:
+		Renderer* renderer;
+
 		sol::table config;
 
 		std::vector<VkCommandBuffer> commandBuffers;

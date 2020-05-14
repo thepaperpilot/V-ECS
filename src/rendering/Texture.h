@@ -63,7 +63,7 @@ namespace vecs {
 	private:
 		Device* device;
 
-		void init(Buffer buffer, VkQueue copyQueue, VkFilter filter,
+		void init(Buffer buffer, VkQueue copyQueue, VkCommandPool commandPool, VkFilter filter,
 			VkImageUsageFlags usageFlags, VkImageLayout imageLayout);
 
 		Buffer readImageData(const char* filename);

@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "../rendering/Renderer.h"
 #include "../ecs/World.h"
+#include "../ecs/WorldLoadStatus.h"
 #include "../events/EventManager.h"
 #include "../events/GLFWEvents.h"
 
@@ -15,6 +16,7 @@
 
 #include <map>
 #include <set>
+#include <thread>
 
 using namespace vecs;
 
@@ -35,12 +37,22 @@ void Engine::init() {
     run(manifest["initialWorld"]);
 }
 
-void Engine::setWorld(std::string filename) {
+WorldLoadStatus* Engine::setWorld(std::string filename) {
+    WorldLoadStatus* status = new WorldLoadStatus;
     if (this->world == nullptr) {
-        this->world = new World(this, filename);
+        this->world = new World(this, filename, status);
+        if (this->world->fonts != nullptr)
+            ImGui::GetIO().Fonts = this->world->fonts;
     } else {
-        this->nextWorld = filename;
+        new std::thread([this](std::string filename, WorldLoadStatus* status) {
+            if (this->nextWorld != nullptr) {
+                this->nextWorld->status->isCancelled = true;
+                this->nextWorld->isValid = false;
+            }
+            this->nextWorld = new World(this, filename, status);
+        }, filename, status);
     }
+    return status;
 }
 
 void Engine::run(std::string worldFilename) {
@@ -96,9 +108,6 @@ void Engine::initImGui() {
 
     // Setup GLFW + Vulkan implementation
     ImGui_ImplGlfw_InitForVulkan(window, true);
-
-    // Setup default font first, so it gets used as the default :)
-    ImGui::GetIO().Fonts->AddFontDefault();
 }
 
 void Engine::createInstance(sol::table manifest) {
@@ -183,26 +192,22 @@ void Engine::mainLoop() {
 
 void Engine::updateWorld() {
     double currentTime = glfwGetTime();
-    vkDeviceWaitIdle(*device);
     renderer.acquireImage();
-    vkDeviceWaitIdle(*device);
     world->update(currentTime - lastFrameTime);
-    vkDeviceWaitIdle(*device);
     renderer.presentImage();
     lastFrameTime = currentTime;
 
-    if (nextWorld != "") {
-        World* world = new World(this, nextWorld);
-        if (world->isValid) {
-            vkDeviceWaitIdle(*device);
-            // Handle world trade-off
-            this->world->cleanup();
-            this->world = world;
-            // TODO find way to make windowRefresh faster in this situation
-            // Also may not be necessary anymore?
-            this->world->windowRefresh(true, renderer.imageCount);
-        }
-        nextWorld = "";
+    if (nextWorld != nullptr && nextWorld->isValid) {
+        vkDeviceWaitIdle(*device);
+        // Handle world trade-off
+        world->cleanup();
+        world = nextWorld;
+        if (world->fonts != nullptr)
+            ImGui::GetIO().Fonts = world->fonts;
+        // TODO find way to make windowRefresh faster in this situation
+        // Also may not be necessary anymore?
+        world->windowRefresh(true, renderer.imageCount);
+        nextWorld = nullptr;
     }
 }
 
@@ -210,6 +215,8 @@ void Engine::cleanup() {
     // Cleanup our active world
     if (world != nullptr)
         world->cleanup();
+    if (nextWorld != nullptr)
+        nextWorld->cleanup();
 
     // If we're in debug mode, destroy our debug messenger
     if (debugger.enableValidationLayers) {

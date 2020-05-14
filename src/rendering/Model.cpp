@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 #include "SubRenderer.h"
+#include "../jobs/ThreadResources.h"
 #include "../engine/Debugger.h"
 
 #include <cstdlib>
@@ -36,7 +37,7 @@ void Model::init(SubRenderer* subrenderer, const char* filename) {
 	auto extension = filepath.extension();
 
 	if (extension == ".obj") {
-		loadObj(subrenderer->renderer->graphicsQueue, filepath);
+		loadObj(subrenderer->resources->graphicsQueue, subrenderer->resources->commandPool, filepath);
 	}
 	else {
 		Debugger::addLog(DEBUG_LEVEL_ERROR, "[MODEL] " + filepath.string() + " has unknown file format \"" + extension.string() + "\"");
@@ -62,7 +63,7 @@ void Model::cleanup() {
 		device->cleanupBuffer(materialBuffer);
 }
 
-void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
+void Model::loadObj(VkQueue copyQueue, VkCommandPool commandPool, std::filesystem::path filepath) {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
@@ -113,7 +114,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		Buffer staging = device->createStagingBuffer(size);
 		staging.copyTo(materialValues.data(), size);
-		device->copyBuffer(&staging, &materialBuffer, copyQueue);
+		device->copyBuffer(&staging, &materialBuffer, copyQueue, commandPool);
 
 		materialBufferInfo.buffer = materialBuffer;
 		materialBufferInfo.offset = 0;
@@ -230,7 +231,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	indexBuffer = device->createBuffer(iBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 	// Copy from staging buffers
-	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
 
 	VkBufferCopy copyRegion{};
 
@@ -240,7 +241,7 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	copyRegion.size = iBufferSize;
 	vkCmdCopyBuffer(copyCmd, indexStaging.buffer, indexBuffer.buffer, 1, &copyRegion);
 
-	device->submitCommandBuffer(copyCmd, copyQueue);
+	device->submitCommandBuffer(copyCmd, copyQueue, commandPool);
 
 	// Destroy staging resources
 	device->cleanupBuffer(vertexStaging);
