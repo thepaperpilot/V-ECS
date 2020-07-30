@@ -2,14 +2,30 @@
 
 #include "Renderer.h"
 #include "SubRenderer.h"
-#include "../jobs/ThreadResources.h"
+#include "../jobs/Worker.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
 using namespace vecs;
 
-Texture::Texture(SubRenderer* subrenderer, const char* filename,
+void Texture::createImageView(Device* device, VkImage image, VkFormat format, VkImageView* view, VkImageAspectFlags aspectFlags) {
+
+	VkImageViewCreateInfo viewInfo = {};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = aspectFlags;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VK_CHECK_RESULT(vkCreateImageView(*device, &viewInfo, nullptr, view));
+}
+
+Texture::Texture(SubRenderer* subrenderer, Worker* worker, const char* filename,
 	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
 	this->device = subrenderer->device;
@@ -18,12 +34,12 @@ Texture::Texture(SubRenderer* subrenderer, const char* filename,
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
-	init(stagingBuffer, subrenderer->resources->graphicsQueue, subrenderer->resources->commandPool, filter, usageFlags, imageLayout);
+	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
 
-Texture::Texture(SubRenderer* subrenderer, unsigned char* pixels, int width, int height,
+Texture::Texture(SubRenderer* subrenderer, Worker* worker, unsigned char* pixels, int width, int height,
 	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
 	this->device = subrenderer->device;
@@ -31,8 +47,7 @@ Texture::Texture(SubRenderer* subrenderer, unsigned char* pixels, int width, int
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
-	ThreadResources* resources = subrenderer->resources;
-	init(stagingBuffer, resources->graphicsQueue, resources->commandPool, filter, usageFlags, imageLayout);
+	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
 
 	subrenderer->textures.emplace_back(this);
 }
@@ -45,11 +60,11 @@ void Texture::cleanup() {
 	vkFreeMemory(*device, deviceMemory, nullptr);
 }
 
-void Texture::init(Buffer buffer, VkQueue copyQueue, VkCommandPool commandPool, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+void Texture::init(Buffer buffer, Worker* worker, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 	this->imageLayout = imageLayout;
 
 	// Creating our image is going to require several commands, so we'll create a buffer for them
-	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
+	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, worker->commandPool);
 
 	// Create our VkImage and VkDeviceMemory objects to store this file in
 	createImage(format, usageFlags);
@@ -61,7 +76,7 @@ void Texture::init(Buffer buffer, VkQueue copyQueue, VkCommandPool commandPool, 
 	transitionImageLayout(commandBuffer, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageLayout);
 
 	// Submit our command buffer with all its commands in it
-	device->submitCommandBuffer(commandBuffer, copyQueue, commandPool);
+	device->submitCommandBuffer(commandBuffer, worker);
 
 	// Destroy our staging buffer now that we're done with it
 	device->cleanupBuffer(buffer);

@@ -1,9 +1,11 @@
 #include "Engine.h"
-#include "../rendering/Renderer.h"
+
+#include "Device.h"
 #include "../ecs/World.h"
 #include "../ecs/WorldLoadStatus.h"
 #include "../events/EventManager.h"
 #include "../events/GLFWEvents.h"
+#include "../rendering/Renderer.h"
 
 #include <GLFW/glfw3.h>
 
@@ -33,6 +35,7 @@ void Engine::init() {
     initVulkan(manifest);
     initImGui();
     renderer.init(device, surface, window);
+    jobManager.init();
 
     run(manifest["initialWorld"]);
 }
@@ -40,7 +43,12 @@ void Engine::init() {
 WorldLoadStatus* Engine::setWorld(std::string filename) {
     WorldLoadStatus* status = new WorldLoadStatus;
     if (this->world == nullptr) {
-        this->world = new World(this, filename, status);
+        // Since this is our first world, wait until its loaded
+        this->world = new World(this, filename, status, true);
+        if (status->isCancelled) {
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "Failed to load initial world. Exitting...");
+            exit(0);
+        }
         if (this->world->fonts != nullptr)
             ImGui::GetIO().Fonts = this->world->fonts;
     } else {
@@ -70,12 +78,14 @@ void Engine::initWindow(sol::table manifest) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
     std::string windowTitle = manifest["name"];
+#ifndef NDEBUG
+    windowTitle += " [DEBUG]";
+#endif
     window = glfwCreateWindow(manifest["width"], manifest["height"], windowTitle.c_str(), nullptr, nullptr);
 
-    // Hunter version is out of date, so this feature has been disabled:
     // Enable raw mouse motion when cursor is disabled
-    //if (glfwRawMouseMotionSupported())
-    //    glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    if (glfwRawMouseMotionSupported())
+        glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
     // Register GLFW callbacks
     glfwSetWindowUserPointer(window, this);
@@ -146,13 +156,13 @@ void Engine::createInstance(sol::table manifest) {
     if (debugger.enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(debugger.validationLayers.size());
         createInfo.ppEnabledLayerNames = debugger.validationLayers.data();
-
-        debugger.populateDebugMessengerCreateInfo(debugCreateInfo);
-        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
     } else {
         createInfo.enabledLayerCount = 0;
-        createInfo.pNext = nullptr;
     }
+    if (debugger.enableDebugMessenger) {
+        debugger.populateDebugMessengerCreateInfo(debugCreateInfo);
+        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+    } else createInfo.pNext = nullptr;
 
     // Attempt to actually create the instance
     // Throwing an error if it fails for any reason
@@ -194,8 +204,14 @@ void Engine::updateWorld() {
     double currentTime = glfwGetTime();
     renderer.acquireImage();
     world->update(currentTime - lastFrameTime);
+    jobManager.resetFrame();
     renderer.presentImage();
     lastFrameTime = currentTime;
+
+    if (nextInputMode != -1) {
+        glfwSetInputMode(window, GLFW_CURSOR, nextInputMode);
+        nextInputMode = -1;
+    }
 
     if (nextWorld != nullptr && nextWorld->isValid) {
         vkDeviceWaitIdle(*device);
@@ -204,9 +220,6 @@ void Engine::updateWorld() {
         world = nextWorld;
         if (world->fonts != nullptr)
             ImGui::GetIO().Fonts = world->fonts;
-        // TODO find way to make windowRefresh faster in this situation
-        // Also may not be necessary anymore?
-        world->windowRefresh(true, renderer.imageCount);
         nextWorld = nullptr;
     }
 }
@@ -217,6 +230,9 @@ void Engine::cleanup() {
         world->cleanup();
     if (nextWorld != nullptr)
         nextWorld->cleanup();
+
+    // Destroy our worker threads
+    jobManager.cleanup();
 
     // If we're in debug mode, destroy our debug messenger
     if (debugger.enableValidationLayers) {

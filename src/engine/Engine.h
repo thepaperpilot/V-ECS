@@ -6,8 +6,14 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+#define SOL_DEFAULT_PASS_ON_ERROR 1
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol\sol.hpp>
+
 #include "Debugger.h"
+#include "Buffer.h"
 #include "../rendering/Renderer.h"
+#include "../jobs/JobManager.h"
 
 // Forward Declarations
 struct GLFWwindow;
@@ -33,9 +39,12 @@ namespace vecs {
         Device* device;
         GLFWwindow* window;
         World* world = nullptr;
+        World* nextWorld = nullptr;
+        int nextInputMode = -1;
 
         Renderer renderer;
         Debugger debugger;
+        JobManager jobManager;
 
         size_t imguiVertexBufferSize = 0;
         size_t imguiIndexBufferSize = 0;
@@ -49,7 +58,7 @@ namespace vecs {
         // a queue every time we load a world
         bool nextQueueIndex = false;
 
-        Engine() : renderer(this) {
+        Engine() : renderer(this), jobManager(this) {
             // init noise
             HastyNoise::loadSimd("./simd");
             fastestSimd = HastyNoise::GetFastestSIMD();
@@ -64,7 +73,6 @@ namespace vecs {
     private:
         VkInstance instance;
         VkSurfaceKHR surface;
-        World* nextWorld = nullptr;
 
         double lastFrameTime;
 

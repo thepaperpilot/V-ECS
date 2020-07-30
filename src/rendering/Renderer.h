@@ -1,12 +1,13 @@
 #pragma once
 
 #include "DepthTexture.h"
-#include "SubRenderer.h"
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+
 #include <vector>
 #include <set>
+#include <mutex>
 
 const uint32_t maxFramesInFlight = 2;
 const int START_RENDERING_PRIORITY = 2000;
@@ -17,9 +18,13 @@ namespace vecs {
 	class Engine;
 	class Device;
 	struct RefreshWindowEvent;
+	class SecondaryCommandBuffer;
+	class Worker;
 
 	class Renderer {
 	friend class SubRenderer;
+	friend class SecondaryCommandBuffer;
+	friend class Worker;
 	public:
 		GLFWwindow* window;
 
@@ -58,6 +63,7 @@ namespace vecs {
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 		std::vector<VkCommandBuffer> commandBuffers;
 		std::vector<VkCommandBuffer> secondaryBuffers;
+		std::mutex secondaryBufferMutex;
 
 		size_t currentFrame = 0;
 		uint32_t imageIndex;

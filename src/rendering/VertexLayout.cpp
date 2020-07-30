@@ -1,13 +1,30 @@
 #include "VertexLayout.h"
 
+#include "../engine/Debugger.h"
+#include "../lua/LuaVal.h"
+
 using namespace vecs;
 
-VertexLayout::VertexLayout(sol::table config) {
+VertexLayout::VertexLayout(LuaVal config) {
+    if (config.type != LUA_TYPE_TABLE) {
+        Debugger::addLog(DEBUG_LEVEL_ERROR, "Vertex layout must be a table");
+        return;
+    }
+    LuaVal::MapType* configMap = std::get<LuaVal::MapType*>(config.value);
     // Calculate numFloats and attribute descriptions
-    attributeDescriptions.reserve(config.size());
-    for (auto kvp : config) {
-        uint8_t location = kvp.first.as<uint8_t>();
-        VertexComponent component = kvp.second.as<VertexComponent>();
+    attributeDescriptions.reserve(configMap->size());
+    for (auto kvp : *configMap) {
+        if (kvp.first.type != LUA_TYPE_NUMBER) {
+            Debugger::addLog(DEBUG_LEVEL_WARN, "Vertex layout contained non-numeric key");
+            continue;
+        }
+        if (kvp.second.type != LUA_TYPE_NUMBER) {
+            Debugger::addLog(DEBUG_LEVEL_WARN, "Vertex layout contained non-numeric value");
+            continue;
+        }
+
+        uint8_t location = std::get<double>(kvp.first.value);
+        VertexComponent component = kvp.second.getEnum<VertexComponent>();
         components.insert({ location, component });
 
         VkVertexInputAttributeDescription attribute = {};

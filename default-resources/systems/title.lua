@@ -2,10 +2,10 @@ return {
 	forwardDependencies = {
 		imgui = "renderer"
 	},
-	preInit = function(self, world)
+	preInit = function(self)
 		self.largeFont = ig.addFont("resources/fonts/Roboto-Medium.ttf", 72)
 	end,
-	init = function(self, world)
+	init = function(self)
 		self.worlds = {}
 		local worlds = getResources("worlds", ".lua")
 		for i=1, #worlds do
@@ -15,9 +15,14 @@ return {
 				self.worlds[world["name"]] = filename
 			end
 		end
+
+		self.loading = archetype.new({
+			"LoadStatus"
+		})
 	end,
-	update = function(self, world)
-		if world.systems.loading == nil or world.systems.loading.status == nil then
+	update = function(self)
+		if self.loading:isEmpty() then
+			ig.lock()
 			local width, height = glfw.windowSize()
 			ig.setNextWindowPos(0, 0)
 			ig.setNextWindowSize(width, height)
@@ -37,16 +42,15 @@ return {
 			ig.popFont()
 			ig.separator()
 
-			for name, w in pairs(self.worlds) do
+			for name, w in self.worlds:iterate() do
 				if ig.button(name) then
-					local status = loadWorld(w)
-					if world.systems.loading ~= nil then
-						world.systems.loading.status = status
-					end
+					local id,index = self.loading:createEntity()
+					self.loading:getComponents("LoadStatus")[id].status = loadWorld(w)
 				end
 			end
 
 			ig.endWindow()
+			ig.release()
 		end
 	end
 }

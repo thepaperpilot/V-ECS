@@ -26,7 +26,7 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
 
     // Initialize everything for our render pass
     createSwapChain();
-    depthTexture.init(device, graphicsQueue, swapChainExtent);
+    depthTexture.init(device, swapChainExtent);
     createImageViews();
     createRenderPass();
     createFramebuffers();
@@ -114,7 +114,12 @@ void Renderer::presentImage() {
 
     // Submit our image to the graphic queue
     vkResetFences(*device, 1, &inFlightFences[currentFrame]);
+    std::mutex* queueLock = engine->jobManager.getQueueLock(0);
+    if (queueLock != nullptr)
+        queueLock->lock();
     VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+    if (queueLock != nullptr)
+        queueLock->unlock();
 
     // Get ready to present the image to the screen
     VkPresentInfoKHR presentInfo = {};
@@ -129,7 +134,12 @@ void Renderer::presentImage() {
     presentInfo.pImageIndices = &imageIndex;
 
     // Present the image to the screen
+    // Check if our graphicsqueue and presentqueue are the same, and if so lock the queue if necessary
+    if (queueLock != nullptr && device->queueFamilyIndices.graphics.value() == device->queueFamilyIndices.present.value())
+        queueLock->lock();
     VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+    if (queueLock != nullptr && device->queueFamilyIndices.graphics.value() == device->queueFamilyIndices.present.value())
+        queueLock->unlock();
 
     // Check if the image is out of date, so we can pre-emptively recreate the swap chain before next frame
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
@@ -274,7 +284,7 @@ bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // If it returns true we'll need to reconstruct a bunch of other stuff to
     bool numImagesChanged = createSwapChain(&swapChain);
     // Other resources always need to be updated when the window size changes
-    depthTexture.init(device, graphicsQueue, swapChainExtent);
+    depthTexture.init(device, swapChainExtent);
     createImageViews();
     createFramebuffers();
 
@@ -288,8 +298,14 @@ bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
         imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
     }
 
-    // Tell sub-renderers the window size changed as well
-    engine->world->windowRefresh(numImagesChanged, imageCount);
+    // Tell worker the window size changed as well
+    engine->jobManager.windowRefresh();
+
+    // Update worlds
+    if (engine->world != nullptr)
+        engine->world->windowRefresh(imageCount);
+    if (engine->nextWorld != nullptr)
+        engine->nextWorld->windowRefresh(imageCount);
 
     // Redraw screen
     engine->updateWorld();
@@ -420,6 +436,7 @@ void Renderer::buildCommandBuffer() {
     vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
     // Run our secondary command buffers
+    secondaryBufferMutex.lock(); // shouldn't ever be contested, but just in case
     vkCmdExecuteCommands(commandBuffers[imageIndex], secondaryBuffers.size(), secondaryBuffers.data());
 
     // End the render pass
@@ -429,6 +446,7 @@ void Renderer::buildCommandBuffer() {
     VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffers[imageIndex]));
 
     secondaryBuffers.clear();
+    secondaryBufferMutex.unlock();
 }
 
 VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {

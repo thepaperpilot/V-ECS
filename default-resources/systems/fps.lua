@@ -3,6 +3,7 @@ return {
 		imgui = "renderer"
 	},
 	update = function(self, world)
+		ig.lock()
 		local width, height = glfw.windowSize()
 		ig.setNextWindowPos(width - 100, 0)
 		ig.setNextWindowSize(100, 20)
@@ -19,5 +20,6 @@ return {
 		ig.text(tostring(math.floor(1 / time.getDeltaTime())).." fps")
 
 		ig.endWindow()
+		ig.release()
 	end
 }

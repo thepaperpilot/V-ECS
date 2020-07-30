@@ -28,8 +28,9 @@ namespace vecs {
 		std::set<std::string> disallowed;
 	};
 
-	// This struct becomes a container to track entities matching the filter
-	struct EntityQuery {
+	// This becomes a container to track entities matching the filter
+	class EntityQuery {
+	public:
 		ComponentFilter filter;
 		ComponentFilter sharedFilter;
 

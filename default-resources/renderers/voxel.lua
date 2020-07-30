@@ -10,67 +10,98 @@ return {
 		[2] = vertexComponents.R32G32,
 		[3] = vertexComponents.R32G32B32A32
 	},
-	loadDistance = 8,
-	chunkSize = 16,
-	preInit = function(self, world, renderer)
-		self.renderer = renderer
-		-- setup block archetypes
-		local texture, map = texture.createStitched(renderer, getResources("textures/blocks", ".png"))
-		self.textureMap = map
-		self.blockArchetypes = {}
+	lightPos = vec3.new(0, 1, 0),
+	ambient = 0.8,
+	preInit = function(self, renderer)
+		-- setup blocks texture map
+		local pixels, width, height, map = texture.createStitched(getResources("textures/blocks", ".png"))
+		texture.new(renderer, pixels, width, height)
+
+		-- create block archetypes
+		local blockArchetypes = {}
+		local blockUtils = {
+			getBlockFromTexture = function (UVs)
+				local top = {
+					p = UVs.p,
+					q = UVs.q,
+					s = UVs.s,
+					t = UVs.t
+				}
+				local bottom = {
+					p = UVs.p,
+					q = UVs.t,
+					s = UVs.s,
+					t = UVs.q
+				}
+				return archetype.new({}, {
+					Block = {
+						top = top,
+						bottom = bottom,
+						front = top,
+						back = bottom,
+						left = top,
+						right = top
+					}
+				})
+			end
+		}
 		for key,filename in pairs(getResources("blocks", ".lua")) do
 			local block = require(filename:sub(1,filename:len()-4))
-			self.blockArchetypes[block.id] = block.getArchetype(world)
+			blockArchetypes[block.id] = block.getArchetype(map, blockUtils)
 		end
-	end,
-	init = function(self, world, renderer)
-		self.chunksQuery = query.new({
-			"Chunk"
+		
+		-- save block archetypes to entity
+		createEntity({
+			Blocks = {
+				archetypes = blockArchetypes
+			}
 		})
+
+		-- setup uniform buffer
+		self.ubo = renderer:createUBO(shaderStages.Vertex, 4 * sizes.Float)
+		self.ubo:setDataFloats({ self.lightPos.x, self.lightPos.y, self.lightPos.z, self.ambient })
+
+		self.camera = archetype.new({ "Camera" })
+		self.chunksQuery = query.new({ "Chunk" })
 	end,
 	dependencies = {
 		camera = "system",
 		skybox = "renderer"
 	},
-	render = function(self, world)
-		local viewProj = world.systems.camera.main.viewProjectionMatrix
-		self.renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
-		self.renderer:pushConstantVec3(shaderStages.Vertex, sizes.Mat4, world.systems.camera.main.position)
+	forwardDependencies = {
+		imgui = "renderer"
+	},
+	render = function(self, renderer)
+		if not self.camera:isEmpty() then
+			for id,c in self.camera:getComponents("Camera"):iterate() do
+				local viewProj = c.viewProjectionMatrix
+				local cullFrustum = frustum.new(viewProj)
 
-		local cullFrustum = frustum.new(viewProj)
-
-		-- TODO sort by distance from player and attempt to perform occlusion culling
-		for key,archetype in pairs(self.chunksQuery:getArchetypes()) do
-			for id,chunk in pairs(archetype:getComponents("Chunk")) do
-				if chunk.indexCount > 0 and cullFrustum:isBoxVisible(chunk.minBounds, chunk.maxBounds) then
-					self.renderer:drawVertices(chunk.vertexBuffer, chunk.indexBuffer, chunk.indexCount)
+				-- TODO sort by distance from player and attempt to perform occlusion culling
+				for key,archetype in pairs(self.chunksQuery:getArchetypes()) do
+					local data = luaVal.new({
+						chunks = archetype,
+						viewProj = viewProj,
+						cameraPos = c.position,
+						cullFrustum = cullFrustum,
+						renderer = renderer
+					})
+					jobs.createParallel(self.renderChunks, data, archetype, 64):submit()
 				end
 			end
 		end
 	end,
-	getBlockFromTexture = function(self, texture)
-		local UVs = self.textureMap[texture]
-		local top = {
-			p = UVs.p,
-			q = UVs.q,
-			s = UVs.s,
-			t = UVs.t
-		}
-		local bottom = {
-			p = UVs.p,
-			q = UVs.t,
-			s = UVs.s,
-			t = UVs.q
-		}
-		return archetype.new({}, {
-			Block = {
-				top = top,
-				bottom = bottom,
-				front = top,
-				back = bottom,
-				left = top,
-				right = top
-			}
-		})
+	renderChunks = function(data, first, last)
+		local commandBuffer = data.renderer:startRendering()
+		data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, data.viewProj)
+		data.renderer:pushConstantVec3(commandBuffer, shaderStages.Vertex, sizes.Mat4, data.cameraPos)
+		data.chunks:lock_shared()
+		for id,chunk in data.chunks:getComponents("Chunk"):iterate_range(luaVal.new(first), luaVal.new(last)) do
+			if chunk.valid and data.cullFrustum:isBoxVisible(chunk.minBounds, chunk.maxBounds) then
+				data.renderer:drawVertices(commandBuffer, chunk.vertexBuffer, chunk.indexBuffer, chunk.indexCount)
+			end
+		end
+		data.chunks:unlock_shared()
+		data.renderer:finishRendering(commandBuffer)
 	end
 }

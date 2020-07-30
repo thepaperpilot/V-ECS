@@ -6,12 +6,15 @@
 
 #include <vector>
 #include <iostream>
+#include <mutex>
 
 using namespace vecs;
 
 VkDebugUtilsMessageSeverityFlagBitsEXT Debugger::logLevel = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
 
 std::vector<Log> Debugger::log = std::vector<Log>();
+
+std::mutex debugMutex;
 
 // TODO look at the Vulkan debug docs to make this more robust
 // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_EXT_debug_utils
@@ -34,12 +37,16 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
 }
 
 void Debugger::setupLogFile(std::string filename) {
+#ifdef NDEBUG
     freopen(filename.c_str(), "w", stdout);
+#endif
 }
 
 void Debugger::addLog(DebugLevel debugLevel, std::string message) {
+    debugMutex.lock();
     log.emplace_back(debugLevel, message);
     std::cout << glfwGetTime() << " " << message << std::endl;
+    debugMutex.unlock();
 }
 
 std::string Debugger::getErrorString(VkResult errorCode) {
@@ -76,7 +83,7 @@ std::string Debugger::getErrorString(VkResult errorCode) {
 }
 
 void Debugger::setupDebugMessenger(VkInstance instance) {
-    if (!enableValidationLayers) return;
+    if (!enableDebugMessenger) return;
 
     // Register our debug messenger that prints out our validation layer's logs
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
@@ -116,6 +123,7 @@ bool Debugger::checkValidationLayerSupport() {
 
         // Return false if one of our required layers wasn't found
         if (!layerFound) {
+            std::cout << "Could not find layer " << layerName << std::endl;
             return false;
         }
     }

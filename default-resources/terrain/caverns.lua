@@ -1,7 +1,8 @@
 -- Based off the cave demo settings, as found in a screen shot here: https://github.com/Auburns/FastNoiseSIMD/issues/37
+
 return {
 	priority = 100,
-	init = function(self, world, seed)
+	init = function(self, chunkSize, seed)
 		self.caveNoise = noise.new(noiseType.Cellular, seed, .003)
 		self.caveNoise:setCellularReturnType(cellularReturnType.Distance2Cave)
 		self.caveNoise:setCellularJitter(.3)
@@ -11,14 +12,13 @@ return {
 		self.caveNoise:setPerturbFractalOctaves(2)
 		self.caveNoise:setPerturbFractalLacunarity(12)
 		self.caveNoise:setPerturbFractalGain(.08)
-		self.noiseBuffer = noiseBuffer.new(world.renderers.voxel.chunkSize)
 	end,
-	generateChunk = function(self, world, chunk, x, y, z)
-		if y > -5 then return end
-		local chunkSize = world.renderers.voxel.chunkSize
-		local noiseSet = self.caveNoise:getNoiseSet(self.noiseBuffer, x, y, z, chunkSize)
+	generateChunk = function(self, archetypes, chunkSize, chunk)
+		if chunk.y > -5 then return end
+		local caveNoiseBuffer = noiseBuffer.new(chunkSize)
+		local noiseSet = self.caveNoise:getNoiseSet(caveNoiseBuffer, chunk.x, chunk.y, chunk.z, chunkSize)
 		for point,density in pairs(noiseSet) do
-			if y < -6 then
+			if chunk.y < -6 then
 				if density > 0.88 then
 					chunk.blocks[point - 1] = nil
 				end

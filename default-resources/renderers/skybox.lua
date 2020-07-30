@@ -8,16 +8,27 @@ return {
 	vertexLayout = {
 		[0] = vertexComponents.Position
 	},
-	init = function(self, world, renderer)
-		self.renderer = renderer
+	init = function(self, renderer)
 		self.cube = model.new(renderer, "resources/models/skybox.obj")
+
+		self.camera = archetype.new({ "Camera" })
 	end,
 	dependencies = {
 		camera = "system"
 	},
-	render = function(self, world)
-		local viewProj = world.systems.camera.main.projectionMatrix * world.systems.camera.getViewMatrix(vec3.new(0, 0, 0), world.systems.camera.main.forward)
-		self.renderer:pushConstantMat4(shaderStages.Vertex, 0, viewProj)
-		self.renderer:draw(self.cube)
+	render = function(self, renderer)
+		if not self.camera:isEmpty() then
+			for index,c in self.camera:getComponents("Camera"):iterate() do
+				local commandBuffer = renderer:startRendering()
+				local viewProj = c.projectionMatrix * c.getViewMatrix(vec3.new(0, 0, 0), c.forward)
+				renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, viewProj)
+				renderer:draw(commandBuffer, self.cube)
+
+				renderer:finishRendering(commandBuffer)
+				
+				-- don't want us pushing too many constants
+				return
+			end
+		end
 	end
 }

@@ -1,36 +1,53 @@
 #include "SubRenderer.h"
+
 #include "Renderer.h"
+#include "Model.h"
+#include "SecondaryCommandBuffer.h"
+#include "Texture.h"
+#include "VertexLayout.h"
+#include "../ecs/World.h"
+#include "../ecs/WorldLoadStatus.h"
 #include "../engine/Device.h"
+#include "../jobs/Worker.h"
+#include "../lua/LuaVal.h"
 #include "../util/VulkanUtils.h"
-#include "../jobs/ThreadResources.h"
 
 #include <vulkan/vulkan.h>
 
 using namespace vecs;
 
-SubRenderer::SubRenderer(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig, sol::table config) {
-    this->device = device;
-    this->renderer = renderer;
-    this->resources = resources;
-    this->config = config;
+SubRenderer::SubRenderer(LuaVal* config, Worker* worker, Device* device, Renderer* renderer, DependencyNodeLoadStatus* status)
+    : config(config), worker(worker), device(device), renderer(renderer) {
+    vertexLayout = new VertexLayout(config->get("vertexLayout"));
 
-    vertexLayout = new VertexLayout(config.get_or("vertexLayout", sol::table()));
+    LuaVal preInit = config->get("preInit");
+    if (preInit.type == LUA_TYPE_FUNCTION) {
+        sol::load_result loadResult = worker->lua.load(std::get<sol::bytecode>(preInit.value).as_string_view());
+        if (!loadResult.valid()) {
+            sol::error err = loadResult;
+            Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+            status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
+            // TODO cancel world loading and future jobs
+            return;
+        }
 
-    if (config["preInit"].get_type() == sol::type::function) {
-        auto result = config["preInit"](config, worldConfig, this);
+        auto result = loadResult(config, this);
         if (!result.valid()) {
             sol::error err = result;
             Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+            status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
+            // TODO cancel world loading and future jobs
+            return;
         }
     }
 
-    numTextures = textures.size();
+    numTextures = static_cast<uint32_t>(textures.size());
     imageInfos.reserve(numTextures);
     for (auto texture : textures)
         imageInfos.emplace_back(texture->descriptor);
 
     for (auto model : models) {
-        numTextures += model->textures.size();
+        numTextures += static_cast<uint32_t>(model->textures.size());
         for (auto texture : model->textures)
             imageInfos.emplace_back(texture.descriptor);
         if (model->hasMaterial) {
@@ -49,8 +66,6 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, ThreadResources* re
 
     createDescriptorLayoutBindings();
     createDescriptorSetLayout();
-    createDescriptorPool(renderer->imageCount);
-    createDescriptorSets(renderer->imageCount);
 
     createShaderStages();
     createVertexInput();
@@ -63,20 +78,49 @@ SubRenderer::SubRenderer(Device* device, Renderer* renderer, ThreadResources* re
     createPushConstantRanges();
 
     createGraphicsPipeline();
-    createInheritanceInfo(renderer->imageCount);
 
     // Cleanup our shader modules
     cleanShaderModules();
-
-    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, renderer->imageCount, resources->commandPool);
 }
 
-void SubRenderer::buildCommandBuffer(sol::table worldConfig) {
-    uint32_t imageIndex = renderer->imageIndex;
+SecondaryCommandBuffer* SubRenderer::startRendering(Worker* worker) {
+    // Find index of the descriptor pool to use
+    uint32_t imageIndex = static_cast<uint32_t>(allocatedDescriptorSets);
+    allocatedDescriptorSets++;
 
-    // Begin the command buffer
-    activeCommandBuffer = commandBuffers[imageIndex];
-    device->beginSecondaryCommandBuffer(activeCommandBuffer, &inheritanceInfo[imageIndex]);
+    // Resize array of descriptor pools as necessary
+    if (imageIndex >= numDescriptorPools) {
+        // We need to lock the descriptor pools vector so we're not accessing elements during re-allocation.
+        // We lock it before calculating the new size so that if two threads need to add elements at the same
+        // time they'll have the most up-to-date size of the vector.
+        descriptorPoolsMutex.lock();
+        uint32_t newSize = numDescriptorPools;
+        uint32_t oldSize = newSize;
+        if (newSize == 0) newSize = 1;
+        while (imageIndex >= newSize)
+            newSize *= 2;
+
+        // Check if they're different, which could be the case if another thread already added new descriptor pools
+        if (newSize != oldSize) {
+            // Create new descriptor pools, each for renderer->imageCount descriptor sets. Since each descriptor pool can only be used
+            // on a single thread, we can't destroy and re-create one pool whenever we need more descritptor sets, because that'd interfere
+            // with the other threads already using descriptorSets from the pool we're destroying. Having this array of descriptor pools and associated
+            // descriptor sets allows us to have one pool on each thread, resetting each frame. If we need more pools in a single frame, we can add them to the
+            // list without needing to destroy any already created pools or sets.
+            descriptorPools.reserve(newSize);
+            descriptorSets.reserve(newSize);
+            numDescriptorPools = newSize;
+            for (uint32_t i = oldSize; i < newSize; i++) {
+                VkDescriptorPool pool = createDescriptorPool(renderer->imageCount);
+                descriptorPools.emplace_back(pool);
+                descriptorSets.emplace_back(createDescriptorSets(pool, renderer->imageCount));
+            }
+        }
+        descriptorPoolsMutex.unlock();
+    }
+
+    // Get an active command buffer
+    SecondaryCommandBuffer* activeCommandBuffer = new SecondaryCommandBuffer(renderer, worker->getCommandBuffer(), renderer->imageIndex);
 
     // Set viewport and scissor
     VkViewport viewport = {};
@@ -86,53 +130,47 @@ void SubRenderer::buildCommandBuffer(sol::table worldConfig) {
     viewport.height = (float)renderer->swapChainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(activeCommandBuffer, 0, 1, &viewport);
+    vkCmdSetViewport(*activeCommandBuffer, 0, 1, &viewport);
 
     VkRect2D scissor = {};
     scissor.offset = { 0,0 };
     scissor.extent = renderer->swapChainExtent;
-    vkCmdSetScissor(activeCommandBuffer, 0, 1, &scissor);
+    vkCmdSetScissor(*activeCommandBuffer, 0, 1, &scissor);
 
     // Bind our descriptor sets
-    if (descriptorSets.size() > 0)
-        vkCmdBindDescriptorSets(activeCommandBuffer,
+    if (bindings.size() > 0) {
+        descriptorPoolsMutex.lock_shared();
+        vkCmdBindDescriptorSets(*activeCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             pipelineLayout, 0,
-            1, &descriptorSets[imageIndex],
+            1, &descriptorSets[imageIndex][renderer->imageIndex],
             0, NULL);
-
-    // Bind our graphics pipeline
-    vkCmdBindPipeline(activeCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-    // Run our renderer
-    auto result = config["render"](config, worldConfig);
-    if (!result.valid()) {
-        sol::error err = result;
-        Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-        return;
+        descriptorPoolsMutex.unlock_shared();
     }
 
-    // End the command buffer
-    vkEndCommandBuffer(activeCommandBuffer);
-    renderer->secondaryBuffers.push_back(activeCommandBuffer);
-    activeCommandBuffer = VK_NULL_HANDLE;
+    // Bind our graphics pipeline
+    vkCmdBindPipeline(*activeCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+    return activeCommandBuffer;
 }
 
-void SubRenderer::windowRefresh(bool numImagesChanged, int imageCount) {
-    // Frame buffers get remade every time window refreshes, so our secondary command buffer
-    // inheritance info needs to be remade
-    createInheritanceInfo(imageCount);
+void SubRenderer::finishRendering(VkCommandBuffer activeCommandBuffer) {
+    // End the command buffer
+    vkEndCommandBuffer(activeCommandBuffer);
+    renderer->secondaryBufferMutex.lock();
+    renderer->secondaryBuffers.push_back(activeCommandBuffer);
+    renderer->secondaryBufferMutex.unlock();
+}
 
-    // Update everything that only updates when numImagesChanged
-    if (numImagesChanged) {
-        // Command Buffers
-        vkFreeCommandBuffers(*device, resources->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, imageCount, resources->commandPool);
+void SubRenderer::windowRefresh(int imageCount) {
+    // No need to worry about multithreading issues because this will only be called during glfw's pollEvents call,
+    // during which there *should be* no rendering jobs
+    if (numDescriptorPools <= 0 || descriptorSets[0].size() == imageCount) return;
 
-        // Descriptor Pool and Sets
-        vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
-        createDescriptorPool(imageCount);
-        createDescriptorSets(imageCount);
+    for (int i = 0; i < descriptorPools.size(); i++) {
+        vkDestroyDescriptorPool(*device, descriptorPools[i], nullptr);
+        descriptorPools[i] = createDescriptorPool(imageCount);
+        descriptorSets[i] = createDescriptorSets(descriptorPools[i], imageCount);
     }
 }
 
@@ -143,12 +181,10 @@ void SubRenderer::cleanup() {
     for (auto model : models)
         model->cleanup();
 
-    // Destroy our command buffers
-    vkFreeCommandBuffers(*device, resources->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-
     // Destroy our descriptor set layout
     vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);
-    vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
+    for (auto descriptorPool : descriptorPools)
+        vkDestroyDescriptorPool(*device, descriptorPool, nullptr);
 
     // Destroy our imgui descriptor pool
     vkDestroyDescriptorPool(*device, imguiDescriptorPool, nullptr);
@@ -156,6 +192,26 @@ void SubRenderer::cleanup() {
     // Destroy our graphics pipeline
     vkDestroyPipeline(*device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(*device, pipelineLayout, nullptr);
+}
+
+void SubRenderer::addVertexUniform(Buffer* buffer, VkDeviceSize size) {    
+    VkDescriptorBufferInfo bufferInfo = {};
+    bufferInfo.buffer = *buffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = size;
+
+    numVertexUniforms++;
+    vertexUniformBufferInfos.emplace_back(bufferInfo);
+}
+
+void SubRenderer::addFragmentUniform(Buffer* buffer, VkDeviceSize size) {
+    VkDescriptorBufferInfo bufferInfo = {};
+    bufferInfo.buffer = *buffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = size;
+
+    numFragmentUniforms++;
+    fragmentUniformBufferInfos.emplace_back(bufferInfo);
 }
 
 // TODO refactor vertex/fragment uniform buffer-specific code to utilize a vertex stage -> uniform buffers map
@@ -203,8 +259,9 @@ void SubRenderer::createDescriptorSetLayout() {
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(*device, &layoutInfo, nullptr, &descriptorSetLayout));
 }
 
-void SubRenderer::createDescriptorPool(size_t imageCount) {
-    if (bindings.size() == 0) return;
+VkDescriptorPool SubRenderer::createDescriptorPool(size_t imageCount) {
+    VkDescriptorPool descriptorPool;
+    if (bindings.size() == 0) return nullptr;
 
     std::vector<VkDescriptorPoolSize> poolSizes(bindings.size());
     for (int i = (int)bindings.size() - 1; i >= 0; i--) {
@@ -219,10 +276,13 @@ void SubRenderer::createDescriptorPool(size_t imageCount) {
     poolInfo.maxSets = static_cast<uint32_t>(imageCount);
 
     VK_CHECK_RESULT(vkCreateDescriptorPool(*device, &poolInfo, nullptr, &descriptorPool));
+    return descriptorPool;
 }
 
-void SubRenderer::createDescriptorSets(size_t imageCount) {
-    if (bindings.size() == 0) return;
+std::vector<VkDescriptorSet> SubRenderer::createDescriptorSets(VkDescriptorPool descriptorPool, size_t imageCount) {
+    std::vector<VkDescriptorSet> descriptorSets;
+    descriptorSets.resize(imageCount);
+    if (bindings.size() == 0) return descriptorSets;
 
     std::vector<VkDescriptorSetLayout> layouts(imageCount, descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo = {};
@@ -231,7 +291,6 @@ void SubRenderer::createDescriptorSets(size_t imageCount) {
     allocInfo.descriptorSetCount = static_cast<uint32_t>(imageCount);
     allocInfo.pSetLayouts = layouts.data();
 
-    descriptorSets.resize(imageCount);
     VK_CHECK_RESULT(vkAllocateDescriptorSets(*device, &allocInfo, descriptorSets.data()));
 
     for (size_t i = 0; i < imageCount; i++) {
@@ -239,6 +298,8 @@ void SubRenderer::createDescriptorSets(size_t imageCount) {
 
         vkUpdateDescriptorSets(*device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
+
+    return descriptorSets;
 }
 
 std::vector<VkWriteDescriptorSet> SubRenderer::getDescriptorWrites(VkDescriptorSet descriptorSet) {
@@ -287,11 +348,21 @@ std::vector<VkWriteDescriptorSet> SubRenderer::getDescriptorWrites(VkDescriptorS
 }
 
 void SubRenderer::createShaderStages() {
-    sol::table shaders = config["shaders"];
+    LuaVal shaders = config->get("shaders");
 
-    for (auto& kvp : shaders) {
-        auto name = kvp.first.as<std::string>();
-        auto stage = kvp.second.as<VkShaderStageFlagBits>();
+    if (shaders.type != LUA_TYPE_TABLE) return;
+
+    for (auto kvp : *std::get<LuaVal::MapType*>(shaders.value)) {
+        if (kvp.first.type != LUA_TYPE_STRING) {
+            Debugger::addLog(DEBUG_LEVEL_WARN, "Attempted to load shader with non-string filename key");
+            continue;
+        }
+        if (kvp.second.type != LUA_TYPE_NUMBER) {
+            Debugger::addLog(DEBUG_LEVEL_WARN, "Attempted to load shader with non-numeric value");
+            continue;
+        }
+        std::string name = std::get<std::string>(kvp.first.value);
+        VkShaderStageFlagBits stage = kvp.second.getEnum<VkShaderStageFlagBits>();
         VkShaderModule shaderModule = getCompiledShader(&device->logical, name);
         shaderModules.emplace_back(shaderModule);
 
@@ -326,7 +397,7 @@ void SubRenderer::createInputAssembly() {
 
 void SubRenderer::createRasterizer() {
     // using config.get_or was giving me compiler errors so I'm using this method instead
-    auto cullMode = config.get<sol::optional<VkCullModeFlagBits>>("cullMode");
+    LuaVal cullMode = config->get("cullMode");
 
     // Describe our rasterizer
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -346,7 +417,7 @@ void SubRenderer::createRasterizer() {
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasClamp = 0;
     // These two options determine how to calculate culling
-    rasterizer.cullMode = cullMode.has_value() ? cullMode.value() : VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = cullMode.type == LUA_TYPE_NUMBER ? cullMode.getEnum<VkCullModeFlagBits>() : VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 }
 
@@ -363,7 +434,8 @@ void SubRenderer::createMultisampling() {
 }
 
 void SubRenderer::createDepthStencil() {
-    VkBool32 performDepthTest = config.get_or("performDepthTest", true) ? VK_TRUE : VK_FALSE;
+    LuaVal depthTest = config->get("performDepthTest");
+    VkBool32 performDepthTest = depthTest.type == LUA_TYPE_BOOL ? std::get<bool>(depthTest.value) : VK_TRUE;
 
     // Describe the depth and stencil buffer
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -416,7 +488,8 @@ void SubRenderer::createDynamicStates() {
 }
 
 void SubRenderer::createPushConstantRanges() {
-    uint32_t size = config.get_or("pushConstantsSize", 0);
+    LuaVal sizeVal = config->get("pushConstantsSize");
+    uint32_t size = sizeVal.type == LUA_TYPE_NUMBER ? (uint32_t)std::get<double>(sizeVal.value) : 0;
 
     VkPushConstantRange pushConstantRange = {};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -457,7 +530,7 @@ void SubRenderer::createGraphicsPipeline() {
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = (uint32_t)pushConstantRanges.size();
+    pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
     pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 
     VK_CHECK_RESULT(vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
@@ -465,7 +538,7 @@ void SubRenderer::createGraphicsPipeline() {
     // Bring everything together for creating the actual pipeline
     VkGraphicsPipelineCreateInfo pipelineInfo = {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = shaderStages.size();
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineInfo.pStages = shaderStages.data();
     pipelineInfo.pVertexInputState = &vertexInput;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -481,19 +554,6 @@ void SubRenderer::createGraphicsPipeline() {
 
     // Create the graphics pipeline!
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(*device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
-}
-
-void SubRenderer::createInheritanceInfo(size_t imageCount) {
-    this->inheritanceInfo.resize(imageCount);
-    for (uint32_t i = 0; i < imageCount; i++) {
-        VkCommandBufferInheritanceInfo inheritanceInfo = {};
-        inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
-        inheritanceInfo.framebuffer = renderer->swapChainFramebuffers[i];
-        inheritanceInfo.renderPass = renderer->renderPass;
-        inheritanceInfo.subpass = 0;
-
-        this->inheritanceInfo[i] = inheritanceInfo;
-    }
 }
 
 void SubRenderer::cleanShaderModules() {

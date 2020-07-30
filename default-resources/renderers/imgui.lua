@@ -11,22 +11,25 @@ return {
 	},
 	performDepthTest = false,
 	cullMode = cullModes.None,
-	preInit = function(self, world, renderer)
-		self.renderer = renderer
+	preInit = function(self, renderer)
 		ig.preInit(renderer)
 	end,
-	init = function(self, world)
-		ig.init(self.renderer)
+	init = function(self, renderer)
+		ig.init(renderer)
+
+		for _,event in archetype.new({ "RegisterTextureEvent" }):getComponents("RegisterTextureEvent"):iterate() do
+			if event.texture == nil then
+				event.texture = texture.new(renderer, event.pixels, event.width, event.height)
+				renderer:addTexture(event.texture)
+			end
+		end
 	end,
-	startFrame = function(self, world)
+	startFrame = function(self)
 		ig.newFrame()
 	end,
-	render = function(self, world)
-		ig.render(self.renderer)
-	end,
-	addStitchedTexture = function(self, filenames)
-		local texture, map = texture.createStitched(self.renderer, filenames)
-		self.renderer:addTexture(texture)
-		return texture, map
+	render = function(self, renderer)
+		local commandBuffer = renderer:startRendering()
+		ig.render(commandBuffer, renderer)
+		renderer:finishRendering(commandBuffer)
 	end
 }

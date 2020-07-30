@@ -8,52 +8,61 @@
 
 #include <array>
 #include <vector>
-
-#include "VertexLayout.h"
-#include "Model.h"
-#include "Texture.h"
+#include <atomic>
+#include <shared_mutex>
 
 namespace vecs {
 
 	// Forward Declarations
+	class Buffer;
+	class DependencyNodeLoadStatus;
 	class Device;
+	class LuaVal;
+	class Model;
 	class Renderer;
-	class ThreadResources;
+	class SecondaryCommandBuffer;
+	class Texture;
+	struct VertexLayout;
+	class Worker;
 
 	class SubRenderer {
 	public:
 		Device* device;
-		ThreadResources* resources;
+		Worker* worker;
 
 		std::vector<Model*> models;
 		std::vector<Texture*> textures;
 		std::vector<VkSampler> immutableSamplers;
 
 		VertexLayout* vertexLayout;
-		VkCommandBuffer activeCommandBuffer = VK_NULL_HANDLE;
 		VkPipelineLayout pipelineLayout;
 		VkDescriptorSetLayout descriptorSetLayout;
+		std::atomic_size_t allocatedDescriptorSets = 0;
+		std::atomic_uint32_t numDescriptorPools = 0;
 
 		// descriptor pool for use in imgui subrenderers that need to be able to load
 		// many images with descriptor sets
 		VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
-		SubRenderer(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig, sol::table config);
+		SubRenderer(LuaVal* config, Worker* worker, Device* device, Renderer* renderer, DependencyNodeLoadStatus* status);
 
-		void buildCommandBuffer(sol::table worldConfig);
-		void windowRefresh(bool numImagesChanged, int imageCount);
+		SecondaryCommandBuffer* startRendering(Worker* worker);
+		void finishRendering(VkCommandBuffer buffer);
+		void windowRefresh(int imageCount);
 		void cleanup();
+
+		void addVertexUniform(Buffer* buffer, VkDeviceSize size);
+		void addFragmentUniform(Buffer* buffer, VkDeviceSize size);
 
 	private:
 		Renderer* renderer;
 
-		sol::table config;
-
-		std::vector<VkCommandBuffer> commandBuffers;
+		LuaVal* config;
 
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-		std::vector<VkDescriptorSet> descriptorSets;
+		std::vector<VkDescriptorPool> descriptorPools;
+		std::vector<std::vector<VkDescriptorSet>> descriptorSets;
+		std::shared_mutex descriptorPoolsMutex;
 
 		std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 		std::vector<VkShaderModule> shaderModules;
@@ -69,7 +78,6 @@ namespace vecs {
 		std::vector<VkPushConstantRange> pushConstantRanges;
 
 		VkPipeline graphicsPipeline;
-		std::vector<VkCommandBufferInheritanceInfo> inheritanceInfo;
 
 		uint32_t numTextures = 0;
 		uint32_t numVertexUniforms = 0;
@@ -81,8 +89,8 @@ namespace vecs {
 
 		void createDescriptorLayoutBindings();
 		void createDescriptorSetLayout();
-		void createDescriptorPool(size_t imageCount);
-		void createDescriptorSets(size_t imageCount);
+		VkDescriptorPool createDescriptorPool(size_t imageCount);
+		std::vector<VkDescriptorSet> createDescriptorSets(VkDescriptorPool descriptorPool, size_t imageCount);
 		std::vector<VkWriteDescriptorSet> getDescriptorWrites(VkDescriptorSet descriptorSet);
 
 		void createShaderStages();
@@ -96,7 +104,6 @@ namespace vecs {
 		void createPushConstantRanges();
 
 		void createGraphicsPipeline();
-		void createInheritanceInfo(size_t imageCount);
 
 		void cleanShaderModules();
 	};

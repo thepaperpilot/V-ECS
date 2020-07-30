@@ -1,11 +1,12 @@
 #include "DepthTexture.h"
-#include "Texture.h"
 
+#include "Texture.h"
 #include "../engine/Debugger.h"
+#include "../engine/Device.h"
 
 using namespace vecs;
 
-void DepthTexture::init(Device* device, VkQueue copyQueue, VkExtent2D extent) {
+void DepthTexture::init(Device* device, VkExtent2D extent) {
 	this->device = device;
 	width = extent.width;
 	height = extent.height;

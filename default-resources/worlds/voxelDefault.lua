@@ -4,8 +4,8 @@ return {
 		terrain = "systems/terrain.lua",
 		noclip = "systems/noclip.lua",
 		camera = "systems/camera.lua",
-		fps = "systems/fps.lua",
 		hotbar = "systems/hotbar.lua",
+		fps = "systems/fps.lua",
 		debug = "systems/debug.lua",
 		loading = "systems/loading.lua"
 	},

@@ -1,6 +1,6 @@
 return {
 	id = "vecs:stone",
-	getArchetype = function(world)
-		return world.renderers.voxel:getBlockFromTexture("stone.png")
+	getArchetype = function(textureMap, util)
+		return util.getBlockFromTexture(textureMap["stone.png"])
 	end
 }

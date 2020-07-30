@@ -49,12 +49,15 @@ namespace vecs {
 		// These will check our code to make sure it doesn't get into an invalid state
 		const std::vector<const char*> validationLayers = {
 			"VK_LAYER_KHRONOS_validation"
+			//"VK_LAYER_LUNARG_api_dump"
 		};
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 		const bool enableValidationLayers = false;
+		const bool enableDebugMessenger = false;
 #else
 		const bool enableValidationLayers = true;
+		const bool enableDebugMessenger = false;//true;
 #endif
 
 		// How severe must an error be to be printed to stdout

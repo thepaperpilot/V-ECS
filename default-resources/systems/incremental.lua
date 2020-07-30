@@ -1,127 +1,3 @@
-local createJob = function(name, description, baseDuration, icon, effect, onUpgrade)
-	return {
-		name = name,
-		description = description,
-		duration = baseDuration,
-		icon = icon,
-		level = 1,
-		exp = 0,
-		progress = 0,
-		active = false,
-		effect = effect,
-		onUpgrade = onUpgrade
-	}
-end
-
-local teach = function() return createJob("Teach", "Improve how much each producer produces by teaching them how to produce", 10, "adventurer_stand.png", function(self, game, amount) game.producerMulti = game.producerMulti + .1 * amount end, nil) end
-local research = function(self) return createJob("Research time paradoxes", "Delve deep into long books looking for answers", self.researchSpeed, "tile_bookcaseFull.png", function(self, game, amount) game.nextRp = game.nextRp + amount end, nil) end
-local metaResearch = function() return createJob("Read ancient texts", "Find more information that can help speed up research", 100, "displayCaseBooks_S.png",
-	function(self, game, amount)
-		game.researchSpeed = game.researchSpeed * (.95 ^ amount)
-		-- find existing research job if it exists
-		for index,job in ipairs(game.jobs) do
-			if job.name == "Research time paradoxes" then
-				job.duration = job.duration * (.95 ^ amount)
-				break
-			end
-		end
-	end, nil) end
-local timeFlux = function() return createJob("Gather time flux", "Harvest a substance that can speed up everything", 20, "tile_flowerBlue.png", function(self, game, amount) game.tickSpeed = game.tickSpeed + .05 * amount end, nil) end
-local makeProducers = function() return createJob("Make producers", "Find more producers", 2, "pick_silver.png",
-	function(self, game, amount) game.producers = game.producers + amount end, -- effect
-	function(self, game) -- onUpgrade
-		if self.level == 2 then
-			table.insert(game.jobs, teach())
-			table.insert(game.jobs, research(game))
-		end
-	end
-) end
-
-local upgrades = function() return {
-	{
-		name = "Better producers",
-		description = "Increases how much each producer produces",
-		cost = 10,
-		effect = function(self) self.producerMulti = self.producerMulti + .5 end,
-		threshold = 0,
-		icon = "hammer.png"
-	},
-	{
-		name = "How to produce: A guide for dummies",
-		description = "Increases how much you can manually produce",
-		cost = 10,
-		effect = function(self) self.manualMulti = self.manualMulti + .5 end,
-		threshold = 0,
-		icon = "book.png"
-	},
-	{
-		name = "Ascension",
-		description = "Unlock a new kind of experience...",
-		cost = 200,
-		effect = function(self)
-			self.timeSlots = 1
-			self.producerMulti = 2
-			table.insert(self.jobs, makeProducers())
-		end,
-		threshold = 100,
-		icon = "drugs.png"
-	}
-} end
-
-local secretUpgrades = function() return {
-	{
-		name = "Ancestral Influence",
-		description = "Gain a tick speed multiplier based on how many research points gained all time",
-		cost = 1000,
-		effect = function(self) self.ancestralInfluence = 1 + self.rpAllTime * .1 end,
-		icon = "platformPack_tile011.png"
-	},
-	{
-		name = "Ancient texts",
-		description = "Unlocks a new job that influences research speed",
-		cost = 10000,
-		effect = function(self) table.insert(self.jobs, metaResearch()) end,
-		icon = "displayCaseBooks_S.png"
-	}
-} end
-
-local rpUpgrades = function() return {
-	{
-		name = "Secret Shop",
-		description = "Unlocks a new ascension shop with new upgrades",
-		cost = 1,
-		effect = function(self) self.secretShop = true end,
-		icon = "market_stallRed.png"
-	},
-	{
-		name = "A tiny loan",
-		description = "Start transcensions with more than nothing",
-		cost = 2,
-		effect = function(self)
-			self.initialCurrency = 250
-			self.currency = self.currency + 250
-			self.hitTen = true
-		end,
-		icon = "coin_01.png"
-	},
-	{
-		name = "Temporal flux",
-		description = "Unlocks a new job that influences everything's speed",
-		cost = 5,
-		effect = function(self)
-			self.timeFlux = true
-			table.insert(self.jobs, timeFlux())
-		end,
-		icon = "tile_flowerBlue.png"
-	}
-} end
-
-function center(message, centerX)
-	local textWidth, textHeight = ig.calcTextSize(message)
-	ig.setCursorPos(centerX - textWidth / 2, ig.getCursorPos().y)
-	ig.text(message)
-end
-
 return {
 	currencyName = "currency",
 	currency = 0,
@@ -140,9 +16,6 @@ return {
 	secretShop = false,
 	timeFlux = false,
 	initialCurrency = 0,
-	upgrades = upgrades(),
-	secretUpgrades = secretUpgrades(),
-	rpUpgrades = rpUpgrades(),
 	availableUpgrades = {},
 	jobs = {},
 	jobMultipliers = {},
@@ -150,23 +23,48 @@ return {
 	forwardDependencies = {
 		imgui = "renderer"
 	},
-	preInit = function(self, world)
+	preInit = function(self)
+		self.upgrades = self.getUpgrades()
+		self.secretUpgrades = self.getSecretUpgrades()
+		self.rpUpgrades = self.getRPUpgrades()
+
+		ig.lock()
 		self.largeFont = ig.addFont("resources/fonts/Roboto-Medium.ttf", 24)
-	end,
-	init = function(self, world)
-		local upgradesTex, upgradesMap = world.renderers.imgui:addStitchedTexture(getResources("textures/incremental", ".png"))
-		self.upgradesTex = upgradesTex
+		ig.release()
+
+		local pixels, width, height, upgradesMap = texture.createStitched(getResources("textures/incremental", ".png"))
 		self.upgradesMap = upgradesMap
 
-		if world.systems.debug ~= nil then
-			world.systems.debug:addCommand("currency", self, self.setName, "Usage: currency {name}\n\tSets the name of the currency you're producing")
-			world.systems.debug:addCommand("addCurrency", self, self.addCurrency, "Usage: addCurrency {amount}\n\tAdds {amount} currency")
-			world.systems.debug:addCommand("addProducers", self, self.addProducers, "Usage: addProducers {amount}\n\tAdds {amount} producers")
-			world.systems.debug:addCommand("addTimeSlots", self, self.addTimeSlots, "Usage: addTimeSlots {amount}\n\tAdds {amount} time slots")
-			world.systems.debug:addCommand("addRP", self, self.addRP, "Usage: addRP {amount}\n\tAdds {amount} research points")
+		-- Make event to register the texture in our imgui renderer
+		createEntity({
+			RegisterTextureEvent = {
+				pixels = pixels,
+				width = width,
+				height = height,
+				id = "incremental:upgradesTex"
+			}
+		})
+
+		local addCommandEventArchetype = archetype.new({ "AddCommandEvent" })
+		local index,_ = addCommandEventArchetype:createEntities(5)
+		local addCommantEvents = addCommandEventArchetype:getComponents("AddCommandEvent")
+		addCommantEvents[index] = { command = "currency", self = self, callback = self.setName, description = "Usage: currency {name}\n\tSets the name of the currency you're producing" }
+		addCommantEvents[index + 1] = { command = "addCurrency", self = self, callback = self.addCurrency, description = "Usage: addCurrency {amount}\n\tAdds {amount} currency" }
+		addCommantEvents[index + 2] = { command = "addProducers", self = self, callback = self.addProducers, description = "Usage: addProducers {amount}\n\tAdds {amount} producers" }
+		addCommantEvents[index + 3] = { command = "addTimeSlots", self = self, callback = self.addTimeSlots, description = "Usage: addTimeSlots {amount}\n\tAdds {amount} time slots" }
+		addCommantEvents[index + 4] = { command = "addRP", self = self, callback = self.addRP, description = "Usage: addRP {amount}\n\tAdds {amount} research points" }
+	end,
+	postInit = function(self)
+		local registerTextureEventArchetype = archetype.new({ "RegisterTextureEvent" })
+		for index,event in registerTextureEventArchetype:getComponents("RegisterTextureEvent"):iterate() do
+			if event.texture ~= nil and event.id == "incremental:upgradesTex" then
+				self.upgradesTex = event.texture
+				registerTextureEventArchetype:deleteEntity(index)
+			end
 		end
 	end,
-	update = function(self, world)
+	update = function(self)
+		ig.lock()
 		local width, height = glfw.windowSize()
 		ig.setNextWindowPos(0, 0)
 		ig.setNextWindowSize(width, height)
@@ -184,12 +82,12 @@ return {
 		local currencyIncreased = false
 
 		ig.pushFont(self.largeFont)
-		center("You currently have "..tostring(self.currency).." "..self.currencyName, width / 2)
+		self.center("You currently have "..tostring(self.currency).." "..self.currencyName, width / 2)
 		ig.popFont()
 		local nextTimeSlot = 10 ^ (self.timeSlots + 3)
 
 		if self.timeSlots > 0 then
-			center("Next time slot in "..tostring(nextTimeSlot - self.currency).." "..self.currencyName, width / 2)
+			self.center("Next time slot in "..tostring(nextTimeSlot - self.currency).." "..self.currencyName, width / 2)
 		end
 
 		if self.producers > 0 then
@@ -236,15 +134,15 @@ return {
 				ig.popFont()
 
 				if currencyIncreased then
-					for index, upgrade in ipairs(self.upgrades) do
+					for index, upgrade in self.upgrades:iterate() do
 						if upgrade.threshold <= self.currency then
-							table.insert(self.availableUpgrades, upgrade)
-							table.remove(self.upgrades, index)
+							self.availableUpgrades[#self.availableUpgrades + 1] = upgrade
+							self.upgrades[index] = nil
 						end
 					end
 				end
 
-				self:upgradesDisplay("availableUpgrades", "currency")
+				self:upgradesDisplay("availableUpgrades", "currency", self.currencyName)
 			end
 		else
 			-- Post-ascension
@@ -260,7 +158,7 @@ return {
 
 			ig.text("You currently have "..tostring(self.timeSlots - self.activeJobs).." time slots of "..tostring(self.timeSlots))
 
-			for _,job in ipairs(self.jobs) do
+			for _,job in self.jobs:iterate() do
 				self:jobDisplay(job)
 			end
 
@@ -271,7 +169,7 @@ return {
 				ig.text("Secret Shop")
 				ig.popFont()
 
-				self:upgradesDisplay("secretUpgrades", "currency")
+				self:upgradesDisplay("secretUpgrades", "currency", self.currencyName)
 			end
 		end
 
@@ -313,18 +211,19 @@ return {
 					self.activeJobs = 0
 
 					if self.timeFlux then
-						table.insert(self.jobs, timeFlux())
+						self.jobs[#self.jobs + 1] = timeFluxJob()
 					end
 				end
 			end			
 
-			self:upgradesDisplay("rpUpgrades", "rp")
+			self:upgradesDisplay("rpUpgrades", "rp", "Research Points")
 		end
 
 		ig.endWindow()
+		ig.release()
 	end,
-	upgradesDisplay = function(self, key, currency)
-		for index,upgrade in ipairs(self[key]) do
+	upgradesDisplay = function(self, key, currency, currencyName)
+		for index,upgrade in self[key]:iterate() do
 			ig.beginChild("upgrade"..key..tostring(index), vec2.new(125, 200), true, {})
 
 			ig.textWrapped(upgrade.name)
@@ -353,10 +252,10 @@ return {
 
 			ig.setCursorPos(cursorPos.x, 172)
 
-			if ig.button(upgrade.cost.." "..self.currencyName, vec2.new(-1, 0)) and self[currency] >= upgrade.cost then
+			if ig.button(upgrade.cost.." "..currencyName, vec2.new(-1, 0)) and self[currency] >= upgrade.cost then
 				self[currency] = self[currency] - upgrade.cost
 				upgrade.effect(self)
-				table.remove(self[key], index)
+				self[key][index] = nil
 			end
 
 			ig.endChild()
@@ -513,5 +412,123 @@ return {
 		else
 			debugger.addLog(debugLevels.Warn, "Wrong number of parameters.\nUsage: addRP {amount}\n\tAdds {amount} research points")
 		end
+	end,
+	createJob = function(name, description, baseDuration, icon, effect, onUpgrade)
+		return {
+			name = name,
+			description = description,
+			duration = baseDuration,
+			icon = icon,
+			level = 1,
+			exp = 0,
+			progress = 0,
+			active = false,
+			effect = effect,
+			onUpgrade = onUpgrade
+		}
+	end,
+	teachJob = function(self) return self.createJob("Teach", "Improve how much each producer produces by teaching them how to produce", 10, "adventurer_stand.png", function(self, game, amount) game.producerMulti = game.producerMulti + .1 * amount end, nil) end,
+	researchJob = function(self) return self.createJob("Research time paradoxes", "Delve deep into long books looking for answers", self.researchSpeed, "tile_bookcaseFull.png", function(self, game, amount) game.nextRp = game.nextRp + amount end, nil) end,
+	metaResearchJob = function(self) return self.createJob("Read ancient texts", "Find more information that can help speed up research", 100, "displayCaseBooks_S.png",
+		function(self, game, amount)
+			game.researchSpeed = game.researchSpeed * (.95 ^ amount)
+			-- find existing research job if it exists
+			for index,job in game.jobs:iterate() do
+				if job.name == "Research time paradoxes" then
+					job.duration = job.duration * (.95 ^ amount)
+					break
+				end
+			end
+		end, nil) end,
+	timeFluxJob = function(self) return self.createJob("Gather time flux", "Harvest a substance that can speed up everything", 20, "tile_flowerBlue.png", function(self, game, amount) game.tickSpeed = game.tickSpeed + .05 * amount end, nil) end,
+	makeProducersJob = function(self) return self.createJob("Make producers", "Find more producers", 2, "pick_silver.png",
+		function(self, game, amount) game.producers = game.producers + amount end, -- effect
+		function(self, game) -- onUpgrade
+			if self.level == 2 then
+				game.jobs[#game.jobs + 1] = game:teachJob()
+				game.jobs[#game.jobs + 1] = game:researchJob()
+			end
+		end
+	) end,
+	getUpgrades = function() return {
+		{
+			name = "Better producers",
+			description = "Increases how much each producer produces",
+			cost = 10,
+			effect = function(self) self.producerMulti = self.producerMulti + .5 end,
+			threshold = 0,
+			icon = "hammer.png"
+		},
+		{
+			name = "How to produce: A guide for dummies",
+			description = "Increases how much you can manually produce",
+			cost = 10,
+			effect = function(self) self.manualMulti = self.manualMulti + .5 end,
+			threshold = 0,
+			icon = "book.png"
+		},
+		{
+			name = "Ascension",
+			description = "Unlock a new kind of experience...",
+			cost = 200,
+			effect = function(self)
+				self.timeSlots = 1
+				self.producerMulti = 2
+				self.jobs[#self.jobs + 1] = self:makeProducersJob()
+			end,
+			threshold = 100,
+			icon = "drugs.png"
+		}
+	} end,
+	getSecretUpgrades = function() return {
+		{
+			name = "Ancestral Influence",
+			description = "Gain a tick speed multiplier based on how many research points gained all time",
+			cost = 1000,
+			effect = function(self) self.ancestralInfluence = 1 + self.rpAllTime * .1 end,
+			icon = "platformPack_tile011.png"
+		},
+		{
+			name = "Ancient texts",
+			description = "Unlocks a new job that influences research speed",
+			cost = 10000,
+			effect = function(self) self.jobs[#self.jobs + 1] = self:metaResearchJob() end,
+			icon = "displayCaseBooks_S.png"
+		}
+	} end,
+	getRPUpgrades = function() return {
+		{
+			name = "Secret Shop",
+			description = "Unlocks a new ascension shop with new upgrades",
+			cost = 1,
+			effect = function(self) self.secretShop = true end,
+			icon = "market_stallRed.png"
+		},
+		{
+			name = "A tiny loan",
+			description = "Start transcensions with more than nothing",
+			cost = 2,
+			effect = function(self)
+				self.initialCurrency = 250
+				self.currency = self.currency + 250
+				self.hitTen = true
+			end,
+			icon = "coin_01.png"
+		},
+		{
+			name = "Temporal flux",
+			description = "Unlocks a new job that influences everything's speed",
+			cost = 5,
+			effect = function(self)
+				self.timeFlux = true
+				self.jobs[#self.jobs + 1] = self:timeFluxJob()
+			end,
+			icon = "tile_flowerBlue.png"
+		}
+	} end,
+	center = function(message, centerX)
+		local textWidth, textHeight = ig.calcTextSize(message)
+		ig.setCursorPos(centerX - textWidth / 2, ig.getCursorPos().y)
+		ig.text(message)
 	end
 }

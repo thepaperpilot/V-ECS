@@ -2,6 +2,7 @@
 #include "Device.h"
 
 #include "Debugger.h"
+#include "../jobs/Worker.h"
 
 #include <vector>
 #include <map>
@@ -72,9 +73,9 @@ void Device::cleanupBuffer(Buffer buffer) {
     buffer.buffer = VK_NULL_HANDLE;
 }
 
-void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkCommandPool commandPool, VkBufferCopy* copyRegion) {
+void Device::copyBuffer(Buffer* src, Buffer* dest, Worker* worker, VkBufferCopy* copyRegion) {
     // Get a command buffer to use
-    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandPool);
+    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, worker->commandPool);
 
     // Determine how much to copy
     VkBufferCopy bufferCopy = {};
@@ -87,7 +88,7 @@ void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkCommandPool 
     vkCmdCopyBuffer(copyCmd, src->buffer, dest->buffer, 1, &bufferCopy);
 
     // End our command buffer and submit it
-    submitCommandBuffer(copyCmd, queue, commandPool);
+    submitCommandBuffer(copyCmd, worker);
 }
 
 VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin) {
@@ -125,7 +126,7 @@ std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel l
     return buffers;
 }
 
-void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool, bool free) {
+void Device::submitCommandBuffer(VkCommandBuffer buffer, Worker* worker, bool free) {
     VK_CHECK_RESULT(vkEndCommandBuffer(buffer));
 
     // Submit our command buffer to its queue
@@ -134,11 +135,17 @@ void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkComman
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &buffer;
 
-    vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(queue);
+    if (worker->queueLock != nullptr) {
+        worker->queueLock->lock();
+    }
+    vkQueueSubmit(worker->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(worker->graphicsQueue);
+    if (worker->queueLock != nullptr) {
+        worker->queueLock->unlock();
+    }
 
     // Destroy our command buffer
-    if (free) vkFreeCommandBuffers(logical, commandPool, 1, &buffer);
+    if (free) vkFreeCommandBuffers(logical, worker->commandPool, 1, &buffer);
 }
 
 uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -217,9 +224,12 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device, VkSurfaceK
 
     int i = 0;
     for (const auto& queueFamily : queueFamilies) {
-        // Check each queue family for one that supports VK_QUEUE_GRAPHICS_BIT
-        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        // Check each queue family for one that supports VK_QUEUE_GRAPHICS_BIT,
+        // selecting the one with the highest number of queues so we can have the
+        // highest chance of having enough for our optimal number of worker threads
+        if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && queueFamily.queueCount > indices.graphicsQueueCount) {
             indices.graphics = i;
+            indices.graphicsQueueCount = queueFamily.queueCount;
         }
 
         // Check each queue family for one that supports presenting to the window system
@@ -228,10 +238,6 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device, VkSurfaceK
         if (presentSupport) {
             indices.present = i;
         }
-
-        // Break out early if every feature has an index
-        if (indices.isComplete())
-            break;
 
         i++;
     }
@@ -338,20 +344,38 @@ void Device::createLogicalDevice() {
     // Create information structs for each of our device queue families
     // Configure it as appropriate and give it our queue family indices
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = { queueFamilyIndices.graphics.value(), queueFamilyIndices.present.value() };
     
     // We'll give them equal priority
-    float queuePriorities[] = { 1.0f, 1.0f, 1.0f };
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    std::vector<float> queuePriorities;
+    // 1 for the Renderer and 2 for worlds (which will flip flop between the active and loading world),
+    // and 1 for each worker thread. Since our main thread shouldn't have to compete with the worker threads,
+    // our preferred number of worker threads is thread::hardware_concurrency() - 1, and we're fine with the world loading
+    // thread having to compete because it is relatively rare over the application's lifetime
+    // Capped at max queue count in this family
+    uint32_t desiredQueues = std::max(1u, std::thread::hardware_concurrency()) + 3;
+    for (int i = std::min(desiredQueues, queueFamilyIndices.graphicsQueueCount) - 1; i >= 0; i--)
+        queuePriorities.push_back(1);
+
+    // Present queue
+    // If the queue families have the same index then the graphics queue
+    // will also act as our present queue
+    // (not vice versa, because we need more graphics queues than present queues)
+    if (queueFamilyIndices.graphics != queueFamilyIndices.present) {
         VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamily;
-        // 1 for the Renderer and 2 for worlds (which will flip flop between the active and loading world)
-        // Later on this should be 1 + number of worker threads
-        queueCreateInfo.queueCount = 3;
-        queueCreateInfo.pQueuePriorities = queuePriorities;
+        queueCreateInfo.queueFamilyIndex = queueFamilyIndices.present.value();
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = queuePriorities.data();
         queueCreateInfos.push_back(queueCreateInfo);
     }
+
+    // Graphics queue
+    VkDeviceQueueCreateInfo queueCreateInfo = {};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = queueFamilyIndices.graphics.value();
+    queueCreateInfo.queueCount = static_cast<uint32_t>(queuePriorities.size());
+    queueCreateInfo.pQueuePriorities = queuePriorities.data();
+    queueCreateInfos.push_back(queueCreateInfo);
 
     // List the physical device features we need our logical device to support
     VkPhysicalDeviceFeatures deviceFeatures = {};

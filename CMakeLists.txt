@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.13)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# enable AddressSantizer
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+
 #### Setup Libraries ####
 
 # ensure we have git
@@ -40,9 +44,10 @@ add_subdirectory(src)
 #target_link_libraries(vecs PUBLIC glslang::glslang)
 
 # glfw https://hunter.readthedocs.io/en/latest/packages/pkg/glfw.html
-hunter_add_package(glfw)
-find_package(glfw3 REQUIRED)
-target_link_libraries(vecs PRIVATE glfw)
+# Need an updated version so downloading it manually
+#hunter_add_package(glfw)
+#find_package(glfw3 REQUIRED)
+#target_link_libraries(vecs PRIVATE glfw)
 
 # glm https://hunter.readthedocs.io/en/latest/packages/pkg/glm.html
 hunter_add_package(glm)
@@ -82,6 +87,16 @@ target_link_libraries(vecs PRIVATE ${Vulkan_LIBRARIES})
 target_include_directories(vecs PRIVATE ${Vulkan_INCLUDE_DIRS})
 
 # TODO use ExternalProject_Add for all these git repos?
+
+# glfw
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/glfw)
+	execute_process(COMMAND git clone https://github.com/glfw/glfw.git ${CMAKE_CURRENT_BINARY_DIR}/glfw)
+endif()
+add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/glfw)
+target_link_libraries(vecs PRIVATE glfw)
 
 # VulkanMemoryAllocator
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator)

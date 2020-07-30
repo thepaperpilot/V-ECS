@@ -2,10 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-#define SOL_DEFAULT_PASS_ON_ERROR 1
-#define SOL_ALL_SAFETIES_ON 1
-#include <sol\sol.hpp>
-
 #include <vector>
 #include <map>
 
@@ -36,6 +32,9 @@ namespace vecs {
 		VERTEX_COMPONENT_R32G32B32A32_SINT
 	} VertexComponent;
 
+	// Forward Declarations
+	class LuaVal;
+
 	// Maps binding locations to vertex components
 	struct VertexLayout {
 	public:
@@ -44,6 +43,6 @@ namespace vecs {
 		VkVertexInputBindingDescription bindingDescription;
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 
-		VertexLayout(sol::table config);
+		VertexLayout(LuaVal config);
 	};
 }

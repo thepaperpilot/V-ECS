@@ -16,6 +16,7 @@ namespace vecs {
 	
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphics;
+		uint32_t graphicsQueueCount = 0;
 		std::optional<uint32_t> present;
 
 		bool isComplete() {
@@ -35,6 +36,9 @@ namespace vecs {
 		QueueFamilyIndices indices;
 		SwapChainSupportDetails swapChainSupport;
 	};
+
+	// Forward Declarations
+	class Worker;
 	
 	class Device {
 	public:
@@ -56,10 +60,10 @@ namespace vecs {
 		void cleanupBuffer(Buffer buffer);
 		void beginCommandBuffer(VkCommandBuffer buffer);
 		void beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info);
-		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkCommandPool commandPool, VkBufferCopy* copyRegion = nullptr);
+		void copyBuffer(Buffer* src, Buffer* dest, Worker* worker, VkBufferCopy* copyRegion = nullptr);
 		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin = true);
 		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool, bool begin = false);
-		void submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool, bool free = true);
+		void submitCommandBuffer(VkCommandBuffer buffer, Worker* worker, bool free = true);
 
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 

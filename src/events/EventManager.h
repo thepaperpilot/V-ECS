@@ -41,7 +41,7 @@ namespace vecs {
 			typename = std::enable_if_t<std::is_base_of_v<EventData, T>>>
 		static void fire(T event) {
 			auto eventListeners = listeners[typeid(T)];
-			for (int32_t i = eventListeners.size() - 1; i >= 0; i--) {
+			for (int32_t i = static_cast<uint32_t>(eventListeners.size()) - 1; i >= 0; i--) {
 				if (!eventListeners[i](&event)) {
 					// Remove callback by swapping it with the element at the back and popping it
 					eventListeners[i] = eventListeners[eventListeners.size() - 1];

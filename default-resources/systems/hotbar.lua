@@ -14,20 +14,82 @@ return {
 		"shovel_diamond.png",
 		"sword_diamond.png"
 	},
-	init = function(self, world)
-		glfw.events.VerticalScroll:add(self, self.onVerticalScroll)
-		glfw.events.KeyPress:add(self, self.onKeyPress)
-
-		local itemsTex, itemsMap = world.renderers.imgui:addStitchedTexture(getResources("textures/items", ".png"))
-		self.itemsTex = itemsTex
+	preInit = function(self)
+		local pixels, width, height, itemsMap = texture.createStitched(getResources("textures/items", ".png"))
 		self.itemsMap = itemsMap
 
-		if world.systems.debug ~= nil then
-			world.systems.debug:addCommand("numSlots", self, self.setNumSlots, "Usage: numSlots {slots}\n\tSets the number of hotbar slots to {slots}")
-			world.systems.debug:addCommand("hotbarWidth", self, self.setHotbarWidth, "Usage: hotbarWidth {width}\n\tSets what percentage of the width of the screen (from 0 to 1) does the hotbar take up")
+		-- Make event to register the texture in our imgui renderer
+		createEntity({
+			RegisterTextureEvent = {
+				pixels = pixels,
+				width = width,
+				height = height,
+				id = "hotbar:itemsTex"
+			}
+		})
+
+		createEntity({
+			AddCommandEvent = {
+				command = "numSlots",
+				self = self,
+				callback = self.setNumSlots,
+				description = "Usage: numSlots {slots}\n\tSets the number of hotbar slots to {slots}"
+			}
+		})
+
+		createEntity({
+			AddCommandEvent = {
+				command = "hotbarWidth",
+				self = self,
+				callback = self.setHotbarWidth,
+				description = "Usage: hotbarWidth {width}\n\tSets what percentage of the width of the screen (from 0 to 1) does the hotbar take up"
+			}
+		})
+
+		self.verticalScrollEvent = archetype.new({
+			"VerticalScrollEvent"
+		})
+		self.keyPressEvent = archetype.new({
+			"KeyPressEvent"
+		})
+	end,
+	postInit = function(self)
+		local registerTextureEventArchetype = archetype.new({ "RegisterTextureEvent" })
+		for index,event in registerTextureEventArchetype:getComponents("RegisterTextureEvent"):iterate() do
+			if event.texture ~= nil and event.id == "hotbar:itemsTex" then
+				self.itemsTex = event.texture
+				registerTextureEventArchetype:deleteEntity(index)
+			end
 		end
 	end,
-	update = function(self, world)
+	update = function(self)
+		if not self.verticalScrollEvent:isEmpty() then
+			for _,event in self.verticalScrollEvent:getComponents("VerticalScrollEvent"):iterate() do
+				if not event.cancelled then
+					self.activeSlot = self.activeSlot - event.yOffset
+					if self.activeSlot < 1 then
+						self.activeSlot = self.numSlots
+					elseif self.activeSlot > self.numSlots then
+						self.activeSlot = 1
+					end
+				end
+			end
+		end
+
+		if not self.keyPressEvent:isEmpty() then
+			for _,event in self.keyPressEvent:getComponents("KeyPressEvent"):iterate() do
+				if not event.cancelled then
+					if event.key > keys["0"] and event.key <= keys["9"] then
+						local key = event.key - keys["0"]
+						if key <= self.numSlots then
+							self.activeSlot = key
+						end
+					end
+				end
+			end
+		end
+
+		ig.lock()
 		local width, height = glfw.windowSize()
 		-- 16 is twice the default window padding in imgui (8)
 		-- 7 is used to account for the child frame padding
@@ -65,6 +127,7 @@ return {
 		end
 
 		ig.endWindow()
+		ig.release()
 	end,
 	setNumSlots = function(self, args)
 		if #args == 1 then
@@ -78,24 +141,6 @@ return {
 			self.hotbarWidth = tonumber(args[1])
 		else
 			debugger.addLog(debugLevels.Warn, "Wrong number of parameters.\nUsage: hotbarWidth {width}\n\tSets what percentage of the width of the screen (from 0 to 1) does the hotbar take up")
-		end
-	end,
-	onVerticalScroll = function(self, world, data)
-		if world.systems.debug ~= nil and world.systems.debug.isDebugWindowOpen then return end
-		self.activeSlot = self.activeSlot - data.yOffset
-		if self.activeSlot < 1 then
-			self.activeSlot = self.numSlots
-		elseif self.activeSlot > self.numSlots then
-			self.activeSlot = 1
-		end
-	end,
-	onKeyPress = function(self, world, data)
-		if world.systems.debug ~= nil and world.systems.debug.isDebugWindowOpen then return end
-		if data.key > keys["0"] and data.key <= keys["9"] then
-			local key = data.key - keys["0"]
-			if key <= self.numSlots then
-				self.activeSlot = key
-			end
 		end
 	end
 }

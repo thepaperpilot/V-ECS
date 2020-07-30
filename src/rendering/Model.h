@@ -2,7 +2,6 @@
 
 #include "Texture.h"
 #include "../engine/Buffer.h"
-#include "../engine/Device.h"
 
 #include <vulkan/vulkan.h>
 
@@ -18,8 +17,10 @@ namespace vecs {
 	} MaterialComponent;
 
 	// Forward declarations
+	class Device;
 	class SubRenderer;
 	struct VertexLayout;
+	class Worker;
 
 	// References:
 	// https://pastebin.com/PZYVnJCd
@@ -35,8 +36,8 @@ namespace vecs {
 		VkShaderStageFlagBits materialShaderStage;
 		VkDescriptorBufferInfo materialBufferInfo;
 
-		Model(SubRenderer* subrenderer, const char* filename);
-		Model(SubRenderer* subrenderer, const char* filename, VkShaderStageFlagBits shaderStage, std::vector<MaterialComponent> materialComponents);
+		Model(SubRenderer* subrenderer, Worker* worker, const char* filename);
+		Model(SubRenderer* subrenderer, Worker* worker, const char* filename, VkShaderStageFlagBits shaderStage, std::vector<MaterialComponent> materialComponents);
 
 		void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
 
@@ -52,7 +53,7 @@ namespace vecs {
 		uint32_t indexCount;
 		Buffer materialBuffer;
 
-		void init(SubRenderer* subrenderer, const char* filename);
-		void loadObj(VkQueue copyQueue, VkCommandPool commandPool, std::filesystem::path filepath);
+		void init(SubRenderer* subrenderer, Worker* worker, const char* filename);
+		void loadObj(Worker* worker, std::filesystem::path filepath);
 	};
 }

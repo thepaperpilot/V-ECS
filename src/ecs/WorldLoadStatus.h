@@ -8,6 +8,8 @@ namespace vecs {
 		WORLD_LOAD_STEP_SETUP,
 		WORLD_LOAD_STEP_PREINIT,
 		WORLD_LOAD_STEP_INIT,
+		WORLD_LOAD_STEP_POSTINIT,
+		WORLD_LOAD_STEP_FINISHING,
 		WORLD_LOAD_STEP_FINISHED
 	};
 
@@ -15,6 +17,7 @@ namespace vecs {
 		DEPENDENCY_FUNCTION_NOT_AVAILABLE,
 		DEPENDENCY_FUNCTION_WAITING,
 		DEPENDENCY_FUNCTION_ACTIVE,
+		DEPENDENCY_FUNCTION_ERROR,
 		DEPENDENCY_FUNCTION_COMPLETE
 	};
 
@@ -23,11 +26,13 @@ namespace vecs {
 		std::string name;
 		DependencyFunctionStatus preInitStatus;
 		DependencyFunctionStatus initStatus;
+		DependencyFunctionStatus postInitStatus;
 
-		DependencyNodeLoadStatus(std::string name, DependencyFunctionStatus preInitStatus, DependencyFunctionStatus initStatus) {
+		DependencyNodeLoadStatus(std::string name, DependencyFunctionStatus preInitStatus, DependencyFunctionStatus initStatus, DependencyFunctionStatus postInitStatus) {
 			this->name = name;
 			this->preInitStatus = preInitStatus;
 			this->initStatus = initStatus;
+			this->postInitStatus = postInitStatus;
 		}
 	};
 

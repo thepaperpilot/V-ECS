@@ -1,0 +1,1 @@
+target_sources(vecs PRIVATE ECSBindings.cpp ECSBindings.h GLFWBindings.cpp GLFWBindings.h imguiBindings.cpp imguiBindings.h JobBindings.cpp JobBindings.h LuaVal.cpp LuaVal.h MathBindings.cpp MathBindings.h NoiseBindings.cpp NoiseBindings.h RenderingBindings.cpp RenderingBindings.h UtilityBindings.cpp UtilityBindings.h)

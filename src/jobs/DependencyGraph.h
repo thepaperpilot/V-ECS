@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../rendering/SubRenderer.h"
-#include "../ecs/WorldLoadStatus.h"
+#include "../lua/LuaVal.h"
 
 #include <vector>
 #include <map>
+#include <atomic>
 
 #define SOL_DEFAULT_PASS_ON_ERROR 1
 #define SOL_ALL_SAFETIES_ON 1
@@ -12,63 +12,83 @@
 
 namespace vecs {
 
+	// Forward Declarations
+	class DependencyGraph;
+	class DependencyNodeLoadStatus;
+	class Device;
+	class Renderer;
+	class SubRenderer;
+	class Worker;
+	class WorldLoadStatus;
+
 	enum DependencyNodeType {
 		DEPENDENCY_NODE_TYPE_SYSTEM,
 		DEPENDENCY_NODE_TYPE_RENDERER
 	};
 
 	class DependencyNode {
+		friend class DependencyGraph;
 	public:
 		std::vector<DependencyNode*> dependencies;
 		std::vector<DependencyNode*> dependents;
 
-		uint8_t dependenciesRemaining;
+		std::atomic_uint8_t dependenciesRemaining;
 
-		DependencyNode(DependencyNodeType type, sol::table config, DependencyNodeLoadStatus* status) {
+		LuaVal config;
+
+		DependencyNode(DependencyGraph* graph, DependencyNodeType type, LuaVal config, DependencyNodeLoadStatus* status) {
+			this->graph = graph;
 			this->type = type;
 			this->config = config;
 			this->status = status;
 		}
 
-		void preInit(Device* device, Renderer* renderer, ThreadResources* resources, sol::table worldConfig);
-
-		void init(sol::table worldConfig);
-
+		void preInit(Worker* worker);
+		void init(Worker* worker);
+		void postInit(Worker* worker);
 		// Use the node's config and fill dependencies and dependents using these maps of names to their respective nodes
 		// We do this outside the constructor because we need all the nodes to exist before we can start linking them
 		void createEdges(std::map<std::string, DependencyNode*> systemsMap, std::map<std::string, DependencyNode*> renderersMap);
 
-		void startFrame(sol::table worldConfig);
-		// In the future we'll create a number of worker threads, with their own VkQueues,
-		// and execute will add any number of jobs to a job queue that each worker thread will pull from
-		// Whenever the last job for a dependency node is completed,
-		// it'll check for any nodes that now have all their dependencies met, and execute them
-		void execute(sol::table worldConfig);
-		void windowRefresh(bool numImagesChanged, int imageCount);
+		void startFrame(Worker* worker);
+		void execute(Worker* worker);
+		void windowRefresh(int imageCount);
 
 		void cleanup();
 
 	private:
+		DependencyGraph* graph;
+
 		DependencyNodeType type;
-		sol::table config;
-		SubRenderer* subrenderer = nullptr;
-		sol::function update;
 		DependencyNodeLoadStatus* status;
+
+		SubRenderer* subrenderer = nullptr;
 	};
 
 	class DependencyGraph {
+		friend class DependencyNode;
 	public:
-		bool init(Device* device, Renderer* renderer, ThreadResources* resources, sol::state* lua, sol::table config, WorldLoadStatus* status);
+		// Only used during world loading process
+		WorldLoadStatus* status;
 
-		void execute();
-		void windowRefresh(bool numImagesChanged, int imageCount);
+		Job* load(Engine* engine, Worker* worker, sol::table config, WorldLoadStatus* status);
+		void preInit(Worker* worker);
+		void init(Worker* worker);
+		void postInit(Worker* worker);
+		void finish(Worker* worker);
+
+		void execute(Worker* worker);
+		void windowRefresh(int imageCount);
 
 		void cleanup();
 
 	private:
-		sol::table config;
+		Engine* engine;
 
 		std::vector<DependencyNode*> nodes;
 		std::vector<DependencyNode*> leaves;
+
+		std::map<std::string, DependencyNode*> systemsMap;
+		std::map<std::string, DependencyNode*> renderersMap;
 	};
 }

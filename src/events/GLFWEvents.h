@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../events/EventManager.h"
+
 #include <GLFW/glfw3.h>
 
 namespace vecs {
