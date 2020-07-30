@@ -235,7 +235,7 @@ void Engine::cleanup() {
     jobManager.cleanup();
 
     // If we're in debug mode, destroy our debug messenger
-    if (debugger.enableValidationLayers) {
+    if (debugger.enableDebugMessenger) {
         debugger.cleanup(instance);
     }
 
