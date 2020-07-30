@@ -60,25 +60,16 @@ void JobManager::init() {
 }
 
 uint32_t JobManager::getQueueIndex(uint32_t desiredIndex) {
-	// Handle easiest case, where no modding is required
-	if (overlap == 0) return desiredIndex;
-	// If overlap < availableQueues, skip the first queue so renderer's queue will never be locked
-	if (overlap < engine->device->queueFamilyIndices.graphicsQueueCount)
-		return (desiredIndex % (engine->device->queueFamilyIndices.graphicsQueueCount - 1)) + 1;
-	// Otherwise just return desiredIndex mod availableQueues
-	return desiredIndex % engine->device->queueFamilyIndices.graphicsQueueCount;
+	uint32_t maxQueues = engine->device->queueFamilyIndices.graphicsQueueCount;
+	// The first couple indices are the most important, so allocate queues from the back first
+	// This means inverting the index (by doing max - index - 1), unless the index is higher than the max
+	if (desiredIndex >= maxQueues)
+		return desiredIndex % maxQueues;
+	return maxQueues - (desiredIndex % maxQueues) - 1;
 }
 
 std::mutex* JobManager::getQueueLock(uint32_t queueIndex) {
-	// If overlap < availableQueues then we're skipping index 0 - it always get nullptr,
-	// so the renderer doesn't have to contest for resources; We also treat overlap as
-	// if its one greater than it actually is, by subtracting 1 from queueIndex
-	if (overlap < engine->device->queueFamilyIndices.graphicsQueueCount) {
-		if (queueIndex == 0) return nullptr;
-		queueIndex--;
-	}
-	// If we're in the overlap, return the corresponding mutex
-	if (queueIndex < queueLocks.size()) return queueLocks[queueIndex];
+	if (queueIndex < overlap) return queueLocks[queueIndex];
 	return nullptr;
 }
 

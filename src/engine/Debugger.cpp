@@ -37,9 +37,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
 }
 
 void Debugger::setupLogFile(std::string filename) {
-#ifdef NDEBUG
+//#ifdef NDEBUG
     freopen(filename.c_str(), "w", stdout);
-#endif
+//#endif
 }
 
 void Debugger::addLog(DebugLevel debugLevel, std::string message) {

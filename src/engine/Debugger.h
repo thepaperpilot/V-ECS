@@ -52,7 +52,7 @@ namespace vecs {
 			//"VK_LAYER_LUNARG_api_dump"
 		};
 
-#ifndef NDEBUG
+#ifdef NDEBUG
 		const bool enableValidationLayers = false;
 		const bool enableDebugMessenger = false;
 #else

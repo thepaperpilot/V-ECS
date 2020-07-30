@@ -1,6 +1,6 @@
 return {
-	loadDistance = 2,
-	chunkSize = 2,
+	loadDistance = 4,
+	chunkSize = 16,
 	seed = 1337,
 	forwardDependencies = {
 		voxel = "renderer"
