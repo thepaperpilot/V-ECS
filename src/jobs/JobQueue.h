@@ -8,7 +8,7 @@
 
 namespace vecs {
 
-	static const uint32_t MAX_JOB_COUNT = 4096;
+	static const uint32_t MAX_JOB_COUNT = 8192;
 	static const uint32_t MASK = MAX_JOB_COUNT - 1u;
 
 	// Forward Declarations
