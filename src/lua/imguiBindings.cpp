@@ -436,6 +436,7 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 	ig["endChild"] = &EndChild;
 	ig["beginTooltip"] = []() { BeginTooltip(); };
 	ig["endTooltip"] = []() { EndTooltip(); };
+	ig["dummy"] = [](glm::vec2 size) -> void { Dummy(ImVec2(size.x, size.y)); };
 	ig["logToClipboard"] = []() { LogToClipboard(); };
 	ig["logFinish"] = &LogFinish;
 	ig["pushStyleColor"] = [](ImGuiCol idx, glm::vec4 color) { PushStyleColor(idx, ImVec4(color.r, color.g, color.b, color.a)); };

@@ -8,8 +8,6 @@ return {
 	init = function(self)
 		-- self.isDebugWindowOpen stores whether our console is open, toggled by pressing the grave key (`)
 		self.isDebugWindowOpen = false
-		-- self.showDemoWindow stores whether we should show the imgui demo window. it's toggled via a command added below
-		self.showDemoWindow = false
 		-- self.appearing stores whether its our first render with the debug window open, each time it opens
 		-- its used to set focus to the command line everytime the console is opened
 		self.appearing = false
@@ -227,10 +225,7 @@ return {
 
 			ig.popStyleColor(2)
 			ig.popStyleVar(1)
-
-			if self.showDemoWindow then
-				ig.showDemoWindow()
-			end
+			
 			ig.release()
 		elseif self.appearing then
 			self.appearing = false
