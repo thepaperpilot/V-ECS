@@ -258,14 +258,16 @@ return {
 	renderItem = function(self, inventory, index, size, ignoreHover)
 		local hovered = false
 		if not ignoreHover then
-			-- TODO check if we're hovering over the item before creating the child so we can style its background
-			-- I think the reason this isn't working is because cursorPos isn't relative to the glfw window, but rather the current ig window
-			local cursorX, cursorY = glfw.cursorPos()
 			local cursorPos = ig.getCursorPos()
-			if cursorX > cursorPos.x and cursorY > cursorPos.y and cursorX < cursorPos.x + size and cursorY < cursorPos.y + size then
-				--hovered = true
-				--ig.pushStyleColor(styleColors.ChildBg, vec4.new(0.5, 0.5, 0.5, 1))
+			-- check if we're hovering over the item before creating the child so we can style its background
+			-- This means creating a dummy child so we can get isItemHovered
+			ig.beginChild("dummyitem"..tostring(index), vec2.new(size, size), true, { })
+			ig.endChild()
+			if ig.isItemHovered() then
+				hovered = true
+				ig.pushStyleColor(styleColors.ChildBg, vec4.new(0.5, 0.5, 0.5, 1))
 			end
+			ig.setCursorPos(cursorPos.x, cursorPos.y)
 		end
 		ig.beginChild("item"..tostring(index), vec2.new(size, size), true, { windowFlags.NoScrollbar })
 		if inventory[index] ~= nil then
