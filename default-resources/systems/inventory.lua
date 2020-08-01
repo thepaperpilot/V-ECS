@@ -141,8 +141,9 @@ return {
 					elseif event.key == keys.E then
 						self.isInventoryOpen = not self.isInventoryOpen
 						if self.isInventoryOpen then
+							self.showCursor = glfw.isCursorVisible()
 							glfw.showCursor()
-						else
+						elseif not self.showCursor then
 							glfw.hideCursor()
 						end
 					end

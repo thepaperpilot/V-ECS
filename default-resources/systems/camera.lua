@@ -5,7 +5,7 @@ return {
 	dependencies = {
 		debug = "system"
 	},
-	init = function(self)
+	preInit = function(self)
 		self.camera = archetype.new({ "Camera" })
 		if self.camera:isEmpty() then
 			local id,index = self.camera:createEntity()

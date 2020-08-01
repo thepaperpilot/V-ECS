@@ -35,6 +35,7 @@ void vecs::MathBindings::setupState(sol::state& lua) {
 		"y", &glm::vec3::y,
 		"z", &glm::vec3::z,
 		"length", [](const glm::vec3& v1) -> float { return glm::length(v1); },
+		"normalized", [](const glm::vec3& v1) -> glm::vec3 { return glm::normalize(v1); },
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 * v2; },
 			[](const glm::vec3& v1, float f) -> glm::vec3 { return v1 * f; },
