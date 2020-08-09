@@ -3,14 +3,14 @@ return {
 		["resources/shaders/voxel.vert"] = shaderStages.Vertex,
 		["resources/shaders/voxel.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.Mat4 + sizes.Vec3,
+	pushConstantsSize = sizes.Mat4 * 2 + sizes.Vec3,
 	vertexLayout = {
 		[0] = vertexComponents.R32G32B32,
 		[1] = vertexComponents.R32G32B32,
 		[2] = vertexComponents.R32G32,
 		[3] = vertexComponents.R32G32B32A32
 	},
-	lightPos = vec3.new(0, 1, 0),
+	lightPos = vec3.new(0, 4, 2),
 	ambient = 0.8,
 	preInit = function(self, renderer)
 		-- setup blocks texture map
@@ -94,7 +94,8 @@ return {
 	renderChunks = function(data, first, last)
 		local commandBuffer = data.renderer:startRendering()
 		data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, data.viewProj)
-		data.renderer:pushConstantVec3(commandBuffer, shaderStages.Vertex, sizes.Mat4, data.cameraPos)
+		data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, sizes.Mat4, mat4.translate(vec3.new(0, 0, 0)))
+		data.renderer:pushConstantVec3(commandBuffer, shaderStages.Vertex, sizes.Mat4 * 2, data.cameraPos)
 		data.chunks:lock_shared()
 		for id,chunk in data.chunks:getComponents("Chunk"):iterate_range(luaVal.new(first), luaVal.new(last)) do
 			if chunk.valid and data.cullFrustum:isBoxVisible(chunk.minBounds, chunk.maxBounds) then

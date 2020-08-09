@@ -12,7 +12,6 @@ return {
 		if not self.camera:isEmpty() then
 			for index,camera in self.camera:getComponents("Camera"):iterate() do
 				camera.position = vec3.new(camera.position.x, self.height, camera.position.z)
-				print(camera.position)
 				local right = normalize(cross(self.angle, vec3.new(0, 1, 0)))
 				camera.forward = self.angle
 				camera.right = right
@@ -38,7 +37,6 @@ return {
 			self.dragging = false
 		end
 
-		print(self.dragging)
 		local dirty = false
 		local moveX = 0
 		local moveZ = 0
@@ -54,7 +52,6 @@ return {
 				end
 			end
 		end
-		print(moveX..","..moveZ)
 
 		if dirty and not self.camera:isEmpty() then
 			for index,camera in self.camera:getComponents("Camera"):iterate() do

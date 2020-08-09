@@ -1,9 +1,9 @@
 return {
 	shaders = {
 		["resources/shaders/gundam.vert"] = shaderStages.Vertex,
-		["resources/shaders/passthrough.frag"] = shaderStages.Fragment
+		["resources/shaders/gundam.frag"] = shaderStages.Fragment
 	},
-	pushConstantsSize = sizes.Mat4 + sizes.Vec3,
+	pushConstantsSize = sizes.Mat4 * 2 + sizes.Vec3,
 	vertexLayout = {
 		[0] = vertexComponents.Position,
 		[1] = vertexComponents.Normal,
@@ -41,13 +41,14 @@ return {
 	renderGundams = function(data, first, last)
 		data.gundams:lock_shared()
 		for id,gundam in data.gundams:getComponents("Gundam"):iterate_range(luaVal.new(first), luaVal.new(last)) do
-			local MVP = data.viewProj * mat4.translate(vec3.new(gundam.x, gundam.y, gundam.z)) * mat4.rotate(gundam.rotation, vec3.new(0, 1, 0))
+			local M = mat4.translate(vec3.new(gundam.x, gundam.y, gundam.z)) * mat4.rotate(gundam.rotation, vec3.new(0, 1, 0))
 
 			local commandBuffer = data.renderer:startRendering()
-			data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, MVP)
-			data.renderer:pushConstantVec3(commandBuffer, shaderStages.Vertex, sizes.Mat4, data.cameraPos)
+			data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, data.viewProj)
+			data.renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, sizes.Mat4, M)
+			data.renderer:pushConstantVec3(commandBuffer, shaderStages.Vertex, sizes.Mat4 * 2, data.cameraPos)
 			
-			local cullFrustum = frustum.new(MVP)
+			local cullFrustum = frustum.new(data.viewProj * M)
 			if cullFrustum:isBoxVisible(data.gundam.minBounds, data.gundam.maxBounds) then
 				data.renderer:draw(commandBuffer, data.gundam)
 			end
