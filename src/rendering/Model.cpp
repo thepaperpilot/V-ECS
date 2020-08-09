@@ -157,17 +157,17 @@ void Model::loadObj(Worker* worker, std::filesystem::path filepath) {
 						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_NORMAL:
-						*((float*)head) = attrib.vertices[3 * idx.normal_index];
+						*((float*)head) = attrib.normals[3 * idx.normal_index];
 						head = (float*)head + 1;
-						*((float*)head) = attrib.vertices[3 * idx.normal_index + 1];
+						*((float*)head) = attrib.normals[3 * idx.normal_index + 1];
 						head = (float*)head + 1;
-						*((float*)head) = attrib.vertices[3 * idx.normal_index + 2];
+						*((float*)head) = attrib.normals[3 * idx.normal_index + 2];
 						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_UV:
-						*((float*)head) = attrib.vertices[2 * idx.texcoord_index];
+						*((float*)head) = attrib.texcoords[2 * idx.texcoord_index];
 						head = (float*)head + 1;
-						*((float*)head) = attrib.vertices[2 * idx.texcoord_index + 1];
+						*((float*)head) = attrib.texcoords[2 * idx.texcoord_index + 1];
 						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_MATERIAL_INDEX:
