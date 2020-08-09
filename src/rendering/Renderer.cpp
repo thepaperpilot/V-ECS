@@ -151,6 +151,7 @@ void Renderer::presentImage() {
     // Increment current frame so the next frame uses the next set of semaphores
     // and allow us to limit how many frames ahead we get
     currentFrame = (currentFrame + 1) % maxFramesInFlight;
+    imageIndex = (imageIndex + 1) % imageCount;
 }
 
 void Renderer::cleanup() {
@@ -428,6 +429,7 @@ void Renderer::buildCommandBuffer() {
     clearValues[1].depthStencil = { 1.0f, 0 };
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
+    secondaryBufferMutex.lock(); // shouldn't ever be contested, but just in case
 
     // Begin recording our command buffer
     device->beginCommandBuffer(commandBuffers[imageIndex]);
@@ -436,7 +438,6 @@ void Renderer::buildCommandBuffer() {
     vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
     // Run our secondary command buffers
-    secondaryBufferMutex.lock(); // shouldn't ever be contested, but just in case
     vkCmdExecuteCommands(commandBuffers[imageIndex], secondaryBuffers.size(), secondaryBuffers.data());
 
     // End the render pass

@@ -236,11 +236,10 @@ bool Worker::work(Job* job) {
 		case JOB_TYPE_CASCADE: {
 			auto node = (DependencyNode*)job->extra;
 			for (auto node : node->dependents) {
-				node->dependenciesRemaining--;
 				// The way this is setup, circular dependencies won't cause an error,
 				// it'll just not run any involved nodes
 				// TODO handle parent jobs not running
-				if (node->dependenciesRemaining == 0) {
+				if (node->dependenciesRemaining.fetch_sub(1) == 1) {
 					Job* nodeJob = allocateJob();
 					nodeJob->type = JOB_TYPE_EXECUTE;
 					nodeJob->world = getWorld();

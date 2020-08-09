@@ -57,7 +57,7 @@ namespace vecs {
 		const bool enableDebugMessenger = false;
 #else
 		const bool enableValidationLayers = true;
-		const bool enableDebugMessenger = false;//true;
+		const bool enableDebugMessenger = true;
 #endif
 
 		// How severe must an error be to be printed to stdout
