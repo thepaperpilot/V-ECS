@@ -17,7 +17,7 @@ int main() {
     try {
         app.init();
     } catch (const std::exception & e) {
-        std::cout << e.what() << std::endl;
+        Debugger::addLog(DEBUG_LEVEL_ERROR, e.what());
         return EXIT_FAILURE;
     }
 

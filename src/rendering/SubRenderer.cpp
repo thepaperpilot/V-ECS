@@ -40,16 +40,15 @@ SubRenderer::SubRenderer(LuaVal* config, Worker* worker, Device* device, Rendere
             return;
         }
     }
+}
 
+void SubRenderer::init() {
     numTextures = static_cast<uint32_t>(textures.size());
     imageInfos.reserve(numTextures);
     for (auto texture : textures)
         imageInfos.emplace_back(texture->descriptor);
 
     for (auto model : models) {
-        numTextures += static_cast<uint32_t>(model->textures.size());
-        for (auto texture : model->textures)
-            imageInfos.emplace_back(texture.descriptor);
         if (model->hasMaterial) {
             switch (model->materialShaderStage) {
             case VK_SHADER_STAGE_VERTEX_BIT:
@@ -491,12 +490,16 @@ void SubRenderer::createPushConstantRanges() {
     LuaVal sizeVal = config->get("pushConstantsSize");
     uint32_t size = sizeVal.type == LUA_TYPE_NUMBER ? (uint32_t)std::get<double>(sizeVal.value) : 0;
 
-    VkPushConstantRange pushConstantRange = {};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = size;
+    if (size > 0) {
+        VkPushConstantRange pushConstantRange = {};
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = size;
 
-    pushConstantRanges = { pushConstantRange };
+        pushConstantRanges = { pushConstantRange };
+    } else {
+        pushConstantRanges = { };
+    }
 }
 
 void SubRenderer::createGraphicsPipeline() {

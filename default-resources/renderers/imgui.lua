@@ -15,14 +15,20 @@ return {
 		ig.preInit(renderer)
 	end,
 	init = function(self, renderer)
-		ig.init(renderer)
-
-		for _,event in archetype.new({ "RegisterTextureEvent" }):getComponents("RegisterTextureEvent"):iterate() do
+		self.registerTexturesEvent = archetype.new({ "RegisterTextureEvent" })
+		for _,event in self.registerTexturesEvent:getComponents("RegisterTextureEvent"):iterate() do
 			if event.texture == nil then
-				event.texture = texture.new(renderer, event.pixels, event.width, event.height)
+				event.texture = texture.new(renderer, event.pixels, event.width, event.height, false)
+			end
+		end
+	end,
+	postInit = function(self, renderer)
+		for _,event in self.registerTexturesEvent:getComponents("RegisterTextureEvent"):iterate() do
+			if event.texture ~= nil then
 				renderer:addTexture(event.texture)
 			end
 		end
+		ig.postInit(renderer)
 	end,
 	startFrame = function(self)
 		ig.newFrame()

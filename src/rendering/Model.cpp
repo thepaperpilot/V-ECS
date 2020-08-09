@@ -39,7 +39,7 @@ void Model::init(SubRenderer* subrenderer, Worker* worker, const char* filename)
 	auto extension = filepath.extension();
 
 	if (extension == ".obj") {
-		loadObj(worker, filepath);
+		loadObj(subrenderer, worker, filepath);
 	}
 	else {
 		Debugger::addLog(DEBUG_LEVEL_ERROR, "[MODEL] " + filepath.string() + " has unknown file format \"" + extension.string() + "\"");
@@ -65,13 +65,14 @@ void Model::cleanup() {
 		device->cleanupBuffer(materialBuffer);
 }
 
-void Model::loadObj(Worker* worker, std::filesystem::path filepath) {
+void Model::loadObj(SubRenderer* subrenderer, Worker* worker, std::filesystem::path filepath) {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
+	std::filesystem::path baseDirName = filepath.parent_path();
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filepath.string().c_str(), filepath.parent_path().string().c_str())) {
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filepath.string().c_str(), baseDirName.string().c_str())) {
 		throw std::runtime_error(warn + err);
 	}
 
@@ -109,18 +110,25 @@ void Model::loadObj(Worker* worker, std::filesystem::path filepath) {
 					break;
 				}
 			}
+			
+			if (mat.diffuse_texname != "")
+				new Texture(subrenderer, worker, baseDirName.append(mat.diffuse_texname).string().c_str());
 		}
 
-		VkDeviceSize size = materialValues.size() * sizeof(float);
-		materialBuffer = device->createBuffer(size,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		Buffer staging = device->createStagingBuffer(size);
-		staging.copyTo(materialValues.data(), size);
-		device->copyBuffer(&staging, &materialBuffer, worker);
+		if (materialValues.size() > 0) {
+			VkDeviceSize size = materialValues.size() * sizeof(float);
+			materialBuffer = device->createBuffer(size,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+			Buffer staging = device->createStagingBuffer(size);
+			staging.copyTo(materialValues.data(), size);
+			device->copyBuffer(&staging, &materialBuffer, worker);
 
-		materialBufferInfo.buffer = materialBuffer;
-		materialBufferInfo.offset = 0;
-		materialBufferInfo.range = size;
+			materialBufferInfo.buffer = materialBuffer;
+			materialBufferInfo.offset = 0;
+			materialBufferInfo.range = size;
+		} else {
+			hasMaterial = false;
+		}
 	}
 
 	// Load vertices

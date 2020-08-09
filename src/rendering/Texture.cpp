@@ -25,7 +25,7 @@ void Texture::createImageView(Device* device, VkImage image, VkFormat format, Vk
 	VK_CHECK_RESULT(vkCreateImageView(*device, &viewInfo, nullptr, view));
 }
 
-Texture::Texture(SubRenderer* subrenderer, Worker* worker, const char* filename,
+Texture::Texture(SubRenderer* subrenderer, Worker* worker, const char* filename, bool addToSubrenderer,
 	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
 	this->device = subrenderer->device;
@@ -36,11 +36,12 @@ Texture::Texture(SubRenderer* subrenderer, Worker* worker, const char* filename,
 
 	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
 
-	subrenderer->textures.emplace_back(this);
+	if (addToSubrenderer)
+		subrenderer->textures.emplace_back(this);
 }
 
 Texture::Texture(SubRenderer* subrenderer, Worker* worker, unsigned char* pixels, int width, int height,
-	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+	bool addToSubrenderer, VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
 	this->device = subrenderer->device;
 	this->format = format;
@@ -48,8 +49,9 @@ Texture::Texture(SubRenderer* subrenderer, Worker* worker, unsigned char* pixels
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
 	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
-
-	subrenderer->textures.emplace_back(this);
+	
+	if (addToSubrenderer)
+		subrenderer->textures.emplace_back(this);
 }
 
 void Texture::cleanup() {

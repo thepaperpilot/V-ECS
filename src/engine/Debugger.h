@@ -18,8 +18,7 @@
         message += __FILE__;                                                                            \
 		message += " at line ";                                                                         \
 		message += std::to_string(__LINE__);                                                            \
-		vecs::Debugger::addLog(DEBUG_LEVEL_ERROR, message);                                             \
-		assert(res == VK_SUCCESS);																		\
+		throw std::exception(message.c_str());															\
 	}																									\
 }
 
@@ -57,6 +56,7 @@ namespace vecs {
 		const bool enableDebugMessenger = false;
 #else
 		const bool enableValidationLayers = true;
+		// TODO enableDebugMessenger requires enableValidationLayers to be true
 		const bool enableDebugMessenger = true;
 #endif
 

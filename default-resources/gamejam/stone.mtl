@@ -1,0 +1,6 @@
+# Created by Kenney (www.kenney.nl)
+
+newmtl _defaultMat (Instance)
+Kd 0.8137931 0.8137931 0.8137931
+map_Kd Textures/_defaultMat (Instance).png
+

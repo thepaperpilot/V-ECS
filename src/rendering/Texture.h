@@ -34,6 +34,7 @@ namespace vecs {
 			VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
 		Texture(SubRenderer* subrenderer, Worker* worker, const char* filename,
+			bool addToSubrenderer = true,
 			VkFilter filter = VK_FILTER_NEAREST,
 			VkFormat format = VK_FORMAT_R8G8B8A8_SRGB,
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -41,6 +42,7 @@ namespace vecs {
 
 		Texture(SubRenderer* subrenderer, Worker* worker, unsigned char* pixels,
 			int width, int height,
+			bool addToSubrenderer = true,
 			VkFilter filter = VK_FILTER_NEAREST,
 			VkFormat format = VK_FORMAT_R8G8B8A8_UNORM,
 			VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,

@@ -196,19 +196,24 @@ bool Worker::work(Job* job) {
 			((DependencyGraph*)job->extra)->preInit(this);
 			break;
 		case JOB_TYPE_PREINIT_NODE:
-			((DependencyNode*)job->extra)->preInit(this);
+			if (!getWorld()->status->isCancelled)
+				((DependencyNode*)job->extra)->preInit(this);
 			break;
 		case JOB_TYPE_INIT:
-			((DependencyGraph*)job->extra)->init(this);
+			if (!getWorld()->status->isCancelled)
+				((DependencyGraph*)job->extra)->init(this);
 			break;
 		case JOB_TYPE_INIT_NODE:
-			((DependencyNode*)job->extra)->init(this);
+			if (!getWorld()->status->isCancelled)
+				((DependencyNode*)job->extra)->init(this);
 			break;
 		case JOB_TYPE_POSTINIT:
-			((DependencyGraph*)job->extra)->postInit(this);
+			if (!getWorld()->status->isCancelled)
+				((DependencyGraph*)job->extra)->postInit(this);
 			break;
 		case JOB_TYPE_POSTINIT_NODE:
-			((DependencyNode*)job->extra)->postInit(this);
+			if (!getWorld()->status->isCancelled)
+				((DependencyNode*)job->extra)->postInit(this);
 			break;
 		case JOB_TYPE_FINISH: {
 			auto graph = (DependencyGraph*)job->extra;

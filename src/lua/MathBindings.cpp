@@ -65,6 +65,7 @@ void vecs::MathBindings::setupState(sol::state& lua) {
 		sol::constructors<glm::mat4()>(),
 		"translate", sol::factories([](glm::vec3 translation) -> glm::mat4 { return glm::translate(glm::mat4(1.0), translation); }),
 		"rotate", sol::factories([](float degrees, glm::vec3 axis) -> glm::mat4 { return glm::rotate(glm::mat4(1.0), glm::radians(degrees), axis); }),
+		"scale", sol::factories([](glm::vec3 scale) -> glm::mat4 { return glm::scale(glm::mat4(1.0), scale); }),
 		// TODO find better way to make setters/getters
 		"get", [](const glm::mat4& m1, int idx1, int idx2) -> float { return m1[idx1][idx2]; },
 		"set", [](glm::mat4& m1, int idx1, int idx2, float value) { m1[idx1][idx2] = value; },

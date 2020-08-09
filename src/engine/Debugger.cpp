@@ -16,6 +16,8 @@ std::vector<Log> Debugger::log = std::vector<Log>();
 
 std::mutex debugMutex;
 
+std::ofstream fout;
+
 // TODO look at the Vulkan debug docs to make this more robust
 // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_EXT_debug_utils
 VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
@@ -38,7 +40,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
 
 void Debugger::setupLogFile(std::string filename) {
 //#ifdef NDEBUG
-    freopen(filename.c_str(), "w", stdout);
+    fout = std::ofstream(filename);
+    std::cout.rdbuf(fout.rdbuf());
 //#endif
 }
 

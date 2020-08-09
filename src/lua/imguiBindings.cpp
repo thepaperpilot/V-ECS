@@ -228,7 +228,7 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		}
 		return world->fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels);
 	};
-	ig["init"] = [worker, device](SubRenderer* subrenderer) {
+	ig["postInit"] = [worker, device](SubRenderer* subrenderer) {
 		// Create our font texture from ImGUI's pixel data
 		ImGuiIO& io = ImGui::GetIO();
 		unsigned char* pixels;

@@ -1,5 +1,6 @@
 #include "DependencyGraph.h"
 
+#include "../ecs/World.h"
 #include "../ecs/WorldLoadStatus.h"
 #include "../engine/Debugger.h"
 #include "../engine/Engine.h"
@@ -164,7 +165,7 @@ void DependencyGraph::init(Worker* worker) {
 	worker->job->parent = nullptr;
 	World* world = worker->getWorld();
 	for (auto node : nodes) {
-		if (node->status->initStatus == DEPENDENCY_FUNCTION_NOT_AVAILABLE) continue;
+		if (node->type == DEPENDENCY_NODE_TYPE_SYSTEM && node->status->initStatus == DEPENDENCY_FUNCTION_NOT_AVAILABLE) continue;
 		worker->job->unfinishedJobs++;
 		Job* nodeJob = worker->allocateJob();
 		nodeJob->type = JOB_TYPE_INIT_NODE;
@@ -278,15 +279,25 @@ void DependencyNode::preInit(Worker* worker) {
 				sol::error err = loadResult;
 				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 				status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
+				worker->getWorld()->status->isCancelled = true;
 				// TODO cancel world loading and future jobs
 				return;
 			}
 
-			auto result = loadResult(config);
-			if (!result.valid()) {
-				sol::error err = result;
+			try {
+				auto result = loadResult(config);
+				if (!result.valid()) {
+					sol::error err = result;
+					Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+					status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
+					worker->getWorld()->status->isCancelled = true;
+					// TODO cancel world loading and future jobs
+					return;
+				}
+			} catch (const std::exception& err) {
 				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 				status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
+				worker->getWorld()->status->isCancelled = true;
 				// TODO cancel world loading and future jobs
 				return;
 			}
@@ -306,20 +317,33 @@ void DependencyNode::init(Worker* worker) {
 			sol::error err = loadResult;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 			status->initStatus = DEPENDENCY_FUNCTION_ERROR;
+			worker->getWorld()->status->isCancelled = true;
 			// TODO cancel world loading and future jobs
 			return;
 		}
 
-		auto result = type == DEPENDENCY_NODE_TYPE_RENDERER ? loadResult(config, subrenderer) : loadResult(config);
+		try {
+			auto result = type == DEPENDENCY_NODE_TYPE_RENDERER ? loadResult(config, subrenderer) : loadResult(config);
 
-		if (!result.valid()) {
-			sol::error err = result;
+			if (!result.valid()) {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+				status->initStatus = DEPENDENCY_FUNCTION_ERROR;
+				worker->getWorld()->status->isCancelled = true;
+				// TODO cancel world loading and future jobs
+				return;
+			}
+		} catch (const std::exception& err) {
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 			status->initStatus = DEPENDENCY_FUNCTION_ERROR;
+			worker->getWorld()->status->isCancelled = true;
 			// TODO cancel world loading and future jobs
 			return;
 		}
 	}
+
+	if (type == DEPENDENCY_NODE_TYPE_RENDERER)
+		subrenderer->init();
 
 	status->initStatus = DEPENDENCY_FUNCTION_COMPLETE;
 }
@@ -334,16 +358,26 @@ void DependencyNode::postInit(Worker* worker) {
 			sol::error err = loadResult;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 			status->postInitStatus = DEPENDENCY_FUNCTION_ERROR;
+			worker->getWorld()->status->isCancelled = true;
 			// TODO cancel world loading and future jobs
 			return;
 		}
 
-		auto result = type == DEPENDENCY_NODE_TYPE_RENDERER ? loadResult(config, subrenderer) : loadResult(config);
+		try {
+			auto result = type == DEPENDENCY_NODE_TYPE_RENDERER ? loadResult(config, subrenderer) : loadResult(config);
 
-		if (!result.valid()) {
-			sol::error err = result;
+			if (!result.valid()) {
+				sol::error err = result;
+				Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
+				status->postInitStatus = DEPENDENCY_FUNCTION_ERROR;
+				worker->getWorld()->status->isCancelled = true;
+				// TODO cancel world loading and future jobs
+				return;
+			}
+		} catch (const std::exception& err) {
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
 			status->postInitStatus = DEPENDENCY_FUNCTION_ERROR;
+			worker->getWorld()->status->isCancelled = true;
 			// TODO cancel world loading and future jobs
 			return;
 		}
@@ -425,7 +459,6 @@ void DependencyNode::startFrame(Worker* worker) {
 		if (!loadResult.valid()) {
 			sol::error err = loadResult;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-			status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
 			// TODO cancel world loading and future jobs
 			return;
 		}
@@ -434,7 +467,6 @@ void DependencyNode::startFrame(Worker* worker) {
 		if (!result.valid()) {
 			sol::error err = result;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-			status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
 			// TODO cancel world loading and future jobs
 			return;
 		}
@@ -448,7 +480,6 @@ void DependencyNode::execute(Worker* worker) {
 		if (!loadResult.valid()) {
 			sol::error err = loadResult;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-			status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
 			return;
 		}
 
@@ -457,7 +488,6 @@ void DependencyNode::execute(Worker* worker) {
 		if (!result.valid()) {
 			sol::error err = result;
 			Debugger::addLog(DEBUG_LEVEL_ERROR, "[LUA] " + std::string(err.what()));
-			status->preInitStatus = DEPENDENCY_FUNCTION_ERROR;
 			return;
 		}
 	}

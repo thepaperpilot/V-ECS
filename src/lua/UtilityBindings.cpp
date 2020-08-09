@@ -61,6 +61,7 @@ void vecs::UtilityBindings::setupState(sol::state& lua, Worker* worker, Engine* 
 		"addLog", [](DebugLevel level, std::string message) { Debugger::addLog(level, message); },
 		"clearLog", []() { Debugger::clearLog(); }
 	);
+	lua["print"] = [](sol::object message, sol::this_state Ls) { Debugger::addLog(DEBUG_LEVEL_INFO, sol::state_view(Ls)["tostring"](message)); };
 	lua.new_usertype<Log>("log",
 		"new", sol::no_constructor,
 		"level", &Log::level,

@@ -46,6 +46,7 @@ namespace vecs {
 
 		SubRenderer(LuaVal* config, Worker* worker, Device* device, Renderer* renderer, DependencyNodeLoadStatus* status);
 
+		void init();
 		SecondaryCommandBuffer* startRendering(Worker* worker);
 		void finishRendering(VkCommandBuffer buffer);
 		void windowRefresh(int imageCount);

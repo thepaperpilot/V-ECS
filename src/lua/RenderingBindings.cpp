@@ -86,6 +86,7 @@ void vecs::RenderingBindings::setupState(sol::state& lua, Worker* worker, Device
 			vkUpdateDescriptorSets(*device, 1, writeDescriptor, 0, nullptr);
 
 			texture->imguiTexId = (ImTextureID)descriptorSet;
+			renderer->textures.push_back(texture);
 		},
 		"pushConstantMat4", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
 			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
@@ -125,7 +126,9 @@ void vecs::RenderingBindings::setupState(sol::state& lua, Worker* worker, Device
 	lua.new_usertype<Texture>("texture",
 		sol::factories(
 			[worker](SubRenderer* subrenderer, const char* filename) -> Texture* { return new Texture(subrenderer, worker, filename); },
-			[worker](SubRenderer* subrenderer, unsigned char* pixels, int width, int height) -> Texture* { return new Texture(subrenderer, worker, pixels, width, height); }
+			[worker](SubRenderer* subrenderer, unsigned char* pixels, int width, int height) -> Texture* { return new Texture(subrenderer, worker, pixels, width, height); },
+			[worker](SubRenderer* subrenderer, const char* filename, bool addToSubrenderer) -> Texture* { return new Texture(subrenderer, worker, filename, addToSubrenderer); },
+			[worker](SubRenderer* subrenderer, unsigned char* pixels, int width, int height, bool addToSubrenderer) -> Texture* { return new Texture(subrenderer, worker, pixels, width, height, addToSubrenderer); }
 		),
 		"createStitched", [&lua, worker](std::vector<std::string> images) -> std::tuple<unsigned char*, int, int, sol::table> {
 			using spaces_type = empty_spaces<false, default_empty_spaces>;
@@ -139,11 +142,17 @@ void vecs::RenderingBindings::setupState(sol::state& lua, Worker* worker, Device
 			// Read pixels for each sub-texture and add their size to our rects list
 			subtextures.resize(images.size());
 			rects.resize(images.size());
+			bool foundImage = false;
 			for (auto image : images) {
 				int texChannels, texWidth, texHeight;
 				subtextures[texIdx].pixels = stbi_load(image.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 				subtextures[texIdx].filename = std::filesystem::path(image).filename().string();
 				rects[texIdx] = { 0, 0, texWidth + 2, texHeight + 2 };
+				if (subtextures[texIdx].pixels == nullptr) {
+					Debugger::addLog(DEBUG_LEVEL_WARN, "Unable to read image \"" + image + "\"");
+				} else {
+					foundImage = true;
+				}
 				texIdx++;
 			}
 
@@ -183,6 +192,10 @@ void vecs::RenderingBindings::setupState(sol::state& lua, Worker* worker, Device
 					"width", rect.w,
 					"height", rect.h
 				);
+
+				// If no images successfully loaded, we can't really set any pixel values
+				if (!foundImage) continue;
+
 				for (int y = 0; y < rect.h; y++) {
 					int mainOffset = (rect.y + y) * (texSize.w * 4) + rect.x * 4;
 					int subOffset = y * (rect.w * 4);

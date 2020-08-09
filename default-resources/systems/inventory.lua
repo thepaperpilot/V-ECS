@@ -95,7 +95,6 @@ return {
 		for index,event in registerTextureEventArchetype:getComponents("RegisterTextureEvent"):iterate() do
 			if event.texture ~= nil and event.id == "hotbar:itemsTex" then
 				self.itemsTex = event.texture
-				registerTextureEventArchetype:deleteEntity(index)
 			end
 		end
 	end,

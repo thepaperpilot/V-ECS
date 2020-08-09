@@ -30,7 +30,6 @@ namespace vecs {
 	public:
 		glm::vec3 minBounds = glm::vec3(FLT_MAX);
 		glm::vec3 maxBounds = glm::vec3(-FLT_MAX);
-		std::vector<Texture> textures;
 
 		bool hasMaterial = false;
 		VkShaderStageFlagBits materialShaderStage;
@@ -54,6 +53,6 @@ namespace vecs {
 		Buffer materialBuffer;
 
 		void init(SubRenderer* subrenderer, Worker* worker, const char* filename);
-		void loadObj(Worker* worker, std::filesystem::path filepath);
+		void loadObj(SubRenderer* subrenderer, Worker* worker, std::filesystem::path filepath);
 	};
 }
