@@ -88,11 +88,20 @@ void vecs::RenderingBindings::setupState(sol::state& lua, Worker* worker, Device
 			texture->imguiTexId = (ImTextureID)descriptorSet;
 			renderer->textures.push_back(texture);
 		},
-		"pushConstantMat4", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
-			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
+		"pushConstantFloat", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, float constant) {
+			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(float), &constant);
+		},
+		"pushConstantVec2", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::vec2 constant) {
+			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::vec2), &constant);
 		},
 		"pushConstantVec3", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::vec3 constant) {
 			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::vec3), &constant);
+		},
+		"pushConstantVec4", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::vec4 constant) {
+			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::vec4), &constant);
+		},
+		"pushConstantMat4", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, VkShaderStageFlags shaderStage, int offset, glm::mat4 constant) {
+			vkCmdPushConstants(commandBuffer, renderer->pipelineLayout, shaderStage, offset, sizeof(glm::mat4), &constant);
 		},
 		"draw", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, Model& model) { model.draw(commandBuffer, renderer->pipelineLayout); },
 		"drawVertices", [](SubRenderer* renderer, SecondaryCommandBuffer commandBuffer, Buffer* vertexBuffer, Buffer* indexBuffer, int indexCount) {
