@@ -194,11 +194,23 @@ add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoise.dll DESTINATION b
 # simd folder
 add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/Release/simd GLOB hastyNoise_*[!d].dll)
 
+# System DLLs
+# make it include ucrt libraries
+set(CMAKE_INSTALL_UCRT_LIBRARIES True)
+# get list of libraries
+include(InstallRequiredSystemLibraries)
+# install into release folder
+add_copy_files(copyResources ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION build/Release)
+# make it do debug libraries now
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS "")
+set(CMAKE_INSTALL_DEBUG_LIBRARIES True)
+set(CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY True)
+# get list of libraries
+include(InstallRequiredSystemLibraries)
+# install into debug folder
+add_copy_files(copyResources ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION build/Debug)
+
 #### Set Visual Studio specific properties ####
 
 # Sets the debugger working directory appropriately
 set_target_properties(vecs PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/$(Configuration)")
-
-# Makes it statically link the MSVC runtime so users don't need to download it manually
-# Note if I ever publish this to steam I should make it dynamically link and tell Steam to download the runtime instead
-set_property(TARGET vecs PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
