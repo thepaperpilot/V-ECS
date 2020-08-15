@@ -533,6 +533,8 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		// Since we can't create a string pointer in our lua code, we return the updated string alongside the input text's return value
 		return std::make_tuple(result, input);
 	};
+	ig["isWindowHovered"] = []() -> bool { return IsWindowHovered(); };
+	ig["isItemActive"] = []() -> bool { return IsItemActive(); };
 	lua.new_usertype<ImGuiTextFilter>("textFilter",
 		sol::constructors<ImGuiTextFilter()>(),
 		"draw", [](ImGuiTextFilter* filter, std::string label) { filter->Draw(label.c_str()); },
