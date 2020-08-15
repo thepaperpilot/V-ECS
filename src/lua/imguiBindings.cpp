@@ -516,7 +516,10 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		Checkbox(label.c_str(), &value);
 		return value;
 	};
-	ig["progressBar"] = [](float percent) { ProgressBar(percent); };
+	ig["progressBar"] = sol::overload(
+		[](float percent) { ProgressBar(percent); },
+		[](float percent, glm::vec2 size) { ProgressBar(percent, ImVec2(size.x, size.y)); }
+	);
 	ig["isItemHovered"] = []() -> bool { return IsItemHovered(); };
 	ig["isMouseClicked"] = []() -> bool { return IsMouseClicked(ImGuiMouseButton_Left); };
 	ig["separator"] = &Separator;
