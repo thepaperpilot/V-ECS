@@ -18,7 +18,11 @@ return {
 		self.registerTexturesEvent = archetype.new({ "RegisterTextureEvent" })
 		for _,event in self.registerTexturesEvent:getComponents("RegisterTextureEvent"):iterate() do
 			if event.texture == nil then
-				event.texture = texture.new(renderer, event.pixels, event.width, event.height, false)
+				if event.pixels ~= nil then
+					event.texture = texture.new(renderer, event.pixels, event.width, event.height, false)
+				elseif event.location ~= nil then
+					event.texture = texture.new(renderer, event.location, false)
+				end
 			end
 		end
 	end,

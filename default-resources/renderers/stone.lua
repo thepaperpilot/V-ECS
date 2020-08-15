@@ -10,13 +10,14 @@ return {
 		[2] = vertexComponents.UV
 	},
 	preInit = function(self, renderer)
-		self.stoneModel = model.new(renderer, "resources/gamejam/stone.obj", shaderStages.Vertex, { })
+		self.stoneModel = model.new(renderer, "resources/models/stone.obj", shaderStages.Vertex, { })
 
 		self.stone = archetype.new({ "Stone" })
 		self.camera = archetype.new({ "Camera" })
 	end,
 	dependencies = {
-		camera = "system"
+		camera = "system",
+		imgui = "renderer"
 	},
 	render = function(self, renderer)
 		if not self.camera:isEmpty() then

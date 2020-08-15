@@ -3,9 +3,14 @@ return {
 		["resources/shaders/sprite.vert"] = shaderStages.Vertex,
 		["resources/shaders/sprite.frag"] = shaderStages.Fragment
 	},
+	pushConstantsSize = sizes.Mat4,
+	performDepthTest = false,
 	vertexLayout = {
 		[0] = vertexComponents.R32G32,
 		[1] = vertexComponents.R32G32
+	},
+	forwardDependencies = {
+		imgui = "renderer"
 	},
 	init = function(self, renderer)
 		self.sprites = query.new({ "Sprite" })
@@ -33,11 +38,13 @@ return {
 	render = function(self, renderer)
 		for key,archetype in pairs(self.sprites:getArchetypes()) do
 			if not archetype:isEmpty() then
-				local commandBuffer = renderer:startRendering()
 				for index,s in archetype:getComponents("Sprite"):iterate() do
+					local commandBuffer = renderer:startRendering()
+					local M = mat4.translate(s.position == nil and vec3.new(0, 0, 0) or s.position) * mat4.rotate(s.rotation ~= nil and s.rotation or 0, vec3.new(0, 0, 1)) * mat4.scale(s.scale == nil and vec3.new(1, 1, 1) or s.scale)
+					renderer:pushConstantMat4(commandBuffer, shaderStages.Vertex, 0, M)
 					renderer:drawVertices(commandBuffer, s.vertexBuffer, s.indexBuffer, s.indexCount)
+					renderer:finishRendering(commandBuffer)
 				end
-				renderer:finishRendering(commandBuffer)
 			end
 		end
 	end

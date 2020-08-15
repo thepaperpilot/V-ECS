@@ -1,14 +1,15 @@
 return {
-	name = "Incremental Game Jam 2020",
+	name = "Sands of Time",
 	systems = {
-		hourglass = "gamejam/hourglass.lua",
+		hourglass = "systems/hourglass.lua",
 		camera = "systems/camera.lua",
-		stone = "gamejam/stone.lua",
+		stone = "systems/stone.lua",
 		fps = "systems/fps.lua",
 		debug = "systems/debug.lua",
 		loading = "systems/loading.lua"
 	},
 	renderers = {
+		starnest = "renderers/starnest.lua",
 		sprite = "renderers/sprite.lua",
 		stone = "renderers/stone.lua",
 		imgui = "renderers/imgui.lua"
