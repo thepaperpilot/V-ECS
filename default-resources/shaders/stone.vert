@@ -10,16 +10,19 @@ layout(location = 2) out vec3 outNormal;
 layout(location = 3) out vec3 outCameraPos;
 
 layout(push_constant) uniform PushConsts {
-    mat4 VP;
     mat4 M;
-	vec3 cameraPos;
 } pushConsts;
 
+layout (binding = 2) uniform UBO {
+    mat4 VP;
+	vec3 cameraPos;
+} ubo;
+
 void main() {
-    gl_Position = pushConsts.VP * pushConsts.M * vec4(inPosition, 1.0);
+    gl_Position = ubo.VP * pushConsts.M * vec4(inPosition, 1.0);
     outUV = inUV;
     vec4 vertPos4 = pushConsts.M * vec4(inPosition, 1.0);
     outPos = vec3(vertPos4) / vertPos4.w;
     outNormal = normalize(mat3(transpose(inverse(pushConsts.M))) * inNormal);
-    outCameraPos = pushConsts.cameraPos;
+    outCameraPos = ubo.cameraPos;
 }

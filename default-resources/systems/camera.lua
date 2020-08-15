@@ -19,6 +19,7 @@ return {
 			camera.projectionMatrix = perspective(radians(self.fieldOfView), aspectRatio, self.nearPlane, self.farPlane)
 			-- flip yy component because glm assumes we're using opengl but vulkan has y=0 on the opposite side of the screen as opengl
 			camera.projectionMatrix:set(1, 1, camera.projectionMatrix:get(1, 1) * -1)
+			camera.viewProjectionMatrix = camera.projectionMatrix * self.getViewMatrix(camera.position, camera.position + camera.forward)
 		end
 
 		createEntity({
