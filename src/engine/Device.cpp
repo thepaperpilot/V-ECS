@@ -352,7 +352,7 @@ void Device::createLogicalDevice() {
     // our preferred number of worker threads is thread::hardware_concurrency() - 1, and we're fine with the world loading
     // thread having to compete because it is relatively rare over the application's lifetime
     // Capped at max queue count in this family
-    uint32_t desiredQueues = std::max(1u, std::thread::hardware_concurrency()) + 3;
+    uint32_t desiredQueues = std::max(1u, std::thread::hardware_concurrency() - 1) + 3;
     for (int i = std::min(desiredQueues, queueFamilyIndices.graphicsQueueCount) - 1; i >= 0; i--)
         queuePriorities.push_back(1);
 

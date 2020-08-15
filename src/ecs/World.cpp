@@ -15,7 +15,12 @@ World::World(Engine* engine, std::string filename, WorldLoadStatus* status, bool
 	this->status = status;
 	status->currentStep = WORLD_LOAD_STEP_SETUP;
 
-	uint32_t queueIndex = engine->jobManager.getQueueIndex(1 + engine->nextQueueIndex);
+	size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+	size_t availableQueues = engine->device->queueFamilyIndices.graphicsQueueCount;
+	size_t desiredQueues = numThreads + 3; // 1 for engine and 2 for worlds
+	// Ternary to prevent underflow
+	uint32_t overlap = availableQueues > desiredQueues ? 0 : desiredQueues - availableQueues;
+	uint32_t queueIndex = engine->jobManager.getQueueIndex(1 + engine->nextQueueIndex, overlap > 0 ? availableQueues : desiredQueues);
 	worker.init(queueIndex, engine->jobManager.getQueueLock(queueIndex));
 	worker.stealPersistent = false;
 	engine->nextQueueIndex = !engine->nextQueueIndex;
@@ -48,8 +53,13 @@ World::World(Engine* engine, sol::table worldConfig, WorldLoadStatus* status, bo
 	device = engine->device;
 	this->status = status;
 	status->currentStep = WORLD_LOAD_STEP_SETUP;
-	
-	uint32_t queueIndex = engine->jobManager.getQueueIndex(1 + engine->nextQueueIndex);
+
+	size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+	size_t availableQueues = engine->device->queueFamilyIndices.graphicsQueueCount;
+	size_t desiredQueues = numThreads + 3; // 1 for engine and 2 for worlds
+	// Ternary to prevent underflow
+	uint32_t overlap = availableQueues > desiredQueues ? 0 : desiredQueues - availableQueues;
+	uint32_t queueIndex = engine->jobManager.getQueueIndex(1 + engine->nextQueueIndex, overlap > 0 ? availableQueues : desiredQueues);
 	worker.init(queueIndex, engine->jobManager.getQueueLock(queueIndex));
 	engine->nextQueueIndex = !engine->nextQueueIndex;
 

@@ -16,7 +16,7 @@ namespace vecs {
 		}
 
 		void init();
-		uint32_t getQueueIndex(uint32_t desiredIndex);
+		uint32_t getQueueIndex(uint32_t desiredIndex, uint32_t maxQueues);
 		std::mutex* getQueueLock(uint32_t queueIndex);
 		void resetFrame();
 		void windowRefresh();

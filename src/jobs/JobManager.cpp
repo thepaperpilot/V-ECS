@@ -53,14 +53,14 @@ void JobManager::init() {
 	}
 
 	for (size_t i = 0; i < numThreads; i++) {
-		uint32_t queueIndex = getQueueIndex(i + 3);
+		// If overlap is 1, then our max queue index should be the amount we requested in Device.cpp
+		uint32_t queueIndex = getQueueIndex(i + 3, overlap > 0 ? availableQueues : desiredQueues);
 		workerThreads[i]->init(queueIndex, getQueueLock(queueIndex));
 		workerThreads[i]->start();
 	}
 }
 
-uint32_t JobManager::getQueueIndex(uint32_t desiredIndex) {
-	uint32_t maxQueues = engine->device->queueFamilyIndices.graphicsQueueCount;
+uint32_t JobManager::getQueueIndex(uint32_t desiredIndex, uint32_t maxQueues) {
 	// The first couple indices are the most important, so allocate queues from the back first
 	// This means inverting the index (by doing max - index - 1), unless the index is higher than the max
 	if (desiredIndex >= maxQueues)
