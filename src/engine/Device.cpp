@@ -206,6 +206,35 @@ void Device::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
         physical = candidate.physicalDevice;
         queueFamilyIndices = candidate.indices;
         swapChainSupport = candidate.swapChainSupport;
+        
+        // Add device information to debug log
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(physical, &deviceProperties);
+
+        std::stringstream ss;
+        ss << "Physical Device Information:\n";
+        uint32_t major = deviceProperties.apiVersion >> 22;
+        uint32_t minor = (deviceProperties.apiVersion >> 12) & 0x3ff;
+        uint32_t patch = deviceProperties.apiVersion & 0xfff;
+        ss << "\tAPI Version: " << major << "." << minor << "." << patch << "\n";
+        ss << "\tDevice ID: 0x" << std::hex << deviceProperties.deviceID << std::dec << "\n";
+        ss << "\tDevice Name: " << deviceProperties.deviceName << "\n";
+        std::string deviceType;
+        switch (deviceProperties.deviceType) {
+        case (0): deviceType = "PHYSICAL_DEVICE_TYPE_OTHER"; break;
+        case (1): deviceType = "PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU"; break;
+        case (2): deviceType = "PHYSICAL_DEVICE_TYPE_DISCRETE_GPU"; break;
+        case (3): deviceType = "PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU"; break;
+        case (4): deviceType = "PHYSICAL_DEVICE_TYPE_CPU"; break;
+        default: deviceType = "UNKNOWN_VkPhysicalDeviceType"; break;
+        }
+        ss << "\tDevice Type: " << deviceType << "\n";
+        ss << "\tDriver Version: 0x" << std::hex << deviceProperties.driverVersion << std::dec << "\n";
+        ss << "\tVendor ID: 0x" << std::hex << deviceProperties.vendorID << "\n";
+        ss << "\tGraphics Queue Count: " << queueFamilyIndices.graphicsQueueCount;
+        // TODO any more information?
+
+        Debugger::addLog(DEBUG_LEVEL_VERBOSE, ss.str());
     } else {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
