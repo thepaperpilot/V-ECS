@@ -493,10 +493,15 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		ImVec2 size = CalcTextSize(text.c_str());
 		return std::make_tuple(size.x, size.y);
 	};
-	ig["image"] = [](Texture* texture, glm::vec2 size, glm::vec4 uv) {
-		// Note we flip q and t - that's because vulkan flips the y component compared to opengl
-		Image((ImTextureID)texture->imguiTexId, ImVec2(size.x, size.y), ImVec2(uv.p, uv.t), ImVec2(uv.s, uv.q));
-	};
+	ig["image"] = sol::overload(
+		[](Texture* texture, glm::vec2 size, glm::vec4 uv) {
+			// Note we flip q and t - that's because vulkan flips the y component compared to opengl
+			Image((ImTextureID)texture->imguiTexId, ImVec2(size.x, size.y), ImVec2(uv.p, uv.t), ImVec2(uv.s, uv.q));
+		},
+		[](Texture* texture, glm::vec2 size) {
+			Image((ImTextureID)texture->imguiTexId, ImVec2(size.x, size.y));
+		}
+	);
 	ig["sameLine"] = []() { SameLine(); };
 	ig["getCursorPos"] = []() -> glm::vec2 {
 		auto pos = GetCursorPos();
