@@ -87,6 +87,24 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		"Tooltip", ImGuiWindowFlags_Tooltip,
 		"UnsavedDocument", ImGuiWindowFlags_UnsavedDocument
 	);
+	lua.new_enum("tabBarFlags",
+		"None", ImGuiTabBarFlags_None,
+		"Reorderable", ImGuiTabBarFlags_Reorderable,
+		"AutoSelectNewTabs", ImGuiTabBarFlags_AutoSelectNewTabs,
+		"NoCloseWithMiddleMouseButton", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton,
+		"TabListPopupButton", ImGuiTabBarFlags_TabListPopupButton,
+		"NoTabListScrollingButtons", ImGuiTabBarFlags_NoTabListScrollingButtons,
+		"NoTooltip", ImGuiTabBarFlags_NoTooltip,
+		"FittingPolicyResizeDown", ImGuiTabBarFlags_FittingPolicyResizeDown,
+		"FittingPolicyScroll", ImGuiTabBarFlags_FittingPolicyScroll
+	);
+	lua.new_enum("tabItemFlags",
+		"None", ImGuiTabItemFlags_None,
+		"UnsavedDocument", ImGuiTabItemFlags_UnsavedDocument,
+		"SetSelected", ImGuiTabItemFlags_SetSelected,
+		"NoCloseWithMiddleMouseButton", ImGuiTabItemFlags_NoCloseWithMiddleMouseButton,
+		"NoPushId", ImGuiTabItemFlags_NoPushId
+	);
 	lua.new_enum("inputTextFlags",
 		"AllowTabInput", ImGuiInputTextFlags_AllowTabInput,
 		"AlwaysInsertMode", ImGuiInputTextFlags_AlwaysInsertMode,
@@ -436,6 +454,21 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 	ig["endChild"] = &EndChild;
 	ig["beginTooltip"] = []() { BeginTooltip(); };
 	ig["endTooltip"] = []() { EndTooltip(); };
+	ig["beginTabBar"] = [](std::string id, std::vector<ImGuiTabBarFlags> flags) -> bool {
+		ImGuiTabBarFlags tabBarFlags = 0;
+		for (auto flag : flags)
+			tabBarFlags |= flag;
+		return BeginTabBar(id.c_str(), tabBarFlags);
+	};
+	ig["endTabBar"] = &EndTabBar;
+	ig["beginTabItem"] = [](std::string label, bool* p_open, std::vector<ImGuiTabItemFlags> flags) -> bool {
+		ImGuiTabItemFlags tabItemFlags = 0;
+		for (auto flag : flags)
+			tabItemFlags |= flag;
+		return BeginTabItem(label.c_str(), p_open, tabItemFlags);
+	};
+	ig["endTabItem"] = &EndTabItem;
+	ig["setTabItemClosed"] = &SetTabItemClosed;
 	ig["dummy"] = [](glm::vec2 size) -> void { Dummy(ImVec2(size.x, size.y)); };
 	ig["logToClipboard"] = []() { LogToClipboard(); };
 	ig["logFinish"] = &LogFinish;
