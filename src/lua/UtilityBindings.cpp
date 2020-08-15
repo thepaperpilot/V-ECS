@@ -54,6 +54,10 @@ void vecs::UtilityBindings::setupState(sol::state& lua, Worker* worker, Engine* 
 		return resources;
 	};
 
+	lua["openURL"] = [](std::string url) {
+		system(("start " + url).c_str());
+	};
+
 	// debugger
 	lua["debugger"] = lua.create_table_with(
 		// Originally this was called "getLog", so in lua you'd do `debugger.getLog()`, but it was using it as a property getter instead of a function getter
