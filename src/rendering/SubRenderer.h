@@ -2,130 +2,110 @@
 
 #include <vulkan/vulkan.h>
 
+#define SOL_DEFAULT_PASS_ON_ERROR 1
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol\sol.hpp>
+
 #include <array>
 #include <vector>
-#include <unordered_set>
+#include <atomic>
+#include <shared_mutex>
 
 namespace vecs {
 
 	// Forward Declarations
+	class Buffer;
+	class DependencyNodeLoadStatus;
 	class Device;
+	class LuaVal;
+	class Model;
 	class Renderer;
-
-	struct ShaderInfo {
-		std::string filepath;
-		VkShaderStageFlagBits shaderStage;
-		VkShaderModule shaderModule;
-
-		ShaderInfo(std::string filepath, VkShaderStageFlagBits shaderStage) {
-			this->filepath = filepath;
-			this->shaderStage = shaderStage;
-		}
-	};
+	class SecondaryCommandBuffer;
+	class Texture;
+	struct VertexLayout;
+	class Worker;
 
 	class SubRenderer {
 	public:
-		Renderer* renderer;
+		Device* device;
+		Worker* worker;
 
-		int16_t priority = 0;
+		std::vector<Model*> models;
+		std::vector<Texture*> textures;
+		std::vector<VkSampler> immutableSamplers;
 
-		std::vector<VkCommandBuffer> commandBuffers;
-		std::unordered_set<uint32_t> dirtyBuffers;
+		VertexLayout* vertexLayout;
+		VkPipelineLayout pipelineLayout;
+		VkDescriptorSetLayout descriptorSetLayout;
+		std::atomic_size_t allocatedDescriptorSets = 0;
+		std::atomic_uint32_t numDescriptorPools = 0;
 
-		void init(Device* device, Renderer* renderer);
-		void markAllBuffersDirty();
-		void buildCommandBuffer(uint32_t imageIndex);
-		void windowRefresh(bool numImagesChanged, int imageCount);
+		// descriptor pool for use in imgui subrenderers that need to be able to load
+		// many images with descriptor sets
+		VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
+
+		SubRenderer(LuaVal* config, Worker* worker, Device* device, Renderer* renderer, DependencyNodeLoadStatus* status);
+
+		void init();
+		SecondaryCommandBuffer* startRendering(Worker* worker);
+		void finishRendering(VkCommandBuffer buffer);
+		void windowRefresh(int imageCount);
 		void cleanup();
 
-	protected:
-		Device* device;
-
-		// Settings each subrenderer should probably set in its constructor
-		std::vector<ShaderInfo> shaders;
-		bool alwaysDirty = false;
-
-		// This is made accessible to implementations so it can be used for sending push constants
-		VkPipelineLayout pipelineLayout;
-
-		// Optional method for implementations to prepare anything they need to
-		// This is called after getting references to the device, renderer, and renderPass
-		// but before all the values needed for the graphics pipeline are queried
-		// Return true if you created the graphics pipeline yourself
-		virtual void init() {};
-
-		// This method must be overidden by an implementation that tells it how to render this
-		// Prior to being run a command buffer is started, a render pass started, and the pipeline
-		// and descriptor set bound. The render function should send any push constants it has
-		// (if applicable) and draw the actual geometry. It should not end the buffer.
-		virtual void render(VkCommandBuffer buffer) = 0;
-
-		// These must be overidden by an implementation so we know what UBOs and samplers
-		// the shader will be expecting
-		// Note that pointers to objects returned in any of these functions MUST remain
-		// allocated, generally by making them class members. 
-		virtual std::vector<VkDescriptorSetLayoutBinding> getDescriptorLayoutBindings() { return {}; };
-		virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites(VkDescriptorSet descriptorSet) { return {}; };
-		virtual VkVertexInputBindingDescription getBindingDescription() { return {}; };
-		virtual std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() { return {}; };
-
-		// These all can be overidden for more advanced control over the subrenderer
-		// By default they'll handle things the recommended way, using the protected
-		// members as configuration options as necessary. They should be set by the
-		// implementation prior to registering it with the renderer
-		// TODO support non-two shader stages?
-		virtual std::vector<VkPipelineShaderStageCreateInfo> getShaderStages();
-		virtual VkPipelineInputAssemblyStateCreateInfo getInputAssembly();
-		virtual VkPipelineRasterizationStateCreateInfo getRasterizer();
-		virtual VkPipelineMultisampleStateCreateInfo getMultisampling();
-		virtual VkPipelineDepthStencilStateCreateInfo getDepthStencil();
-		virtual std::vector< VkPipelineColorBlendAttachmentState> getColorBlendAttachments();
-		virtual std::vector<VkDynamicState> getDynamicStates();
-		virtual std::vector<VkPushConstantRange> getPushConstantRanges() { return {}; };
-		virtual void OnWindowRefresh(bool numImagesChanged, int imageCount) {};
-		virtual void cleanShaderModules();
-
-		virtual void preRender() {};
-		virtual void preCleanup() {};
+		void addVertexUniform(Buffer* buffer, VkDeviceSize size);
+		void addFragmentUniform(Buffer* buffer, VkDeviceSize size);
 
 	private:
-		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		VkDescriptorSetLayout descriptorSetLayout;
+		Renderer* renderer;
 
-		VkVertexInputBindingDescription bindingDescription;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-		std::vector< VkPipelineColorBlendAttachmentState> colorBlendAttachments;
-		std::vector<VkDynamicState> dynamicStates;
+		LuaVal* config;
+
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		std::vector<VkDescriptorPool> descriptorPools;
+		std::vector<std::vector<VkDescriptorSet>> descriptorSets;
+		std::shared_mutex descriptorPoolsMutex;
 
 		std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+		std::vector<VkShaderModule> shaderModules;
+		VkPipelineVertexInputStateCreateInfo vertexInput;
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly;
-		VkPipelineViewportStateCreateInfo viewportState;
 		VkPipelineRasterizationStateCreateInfo rasterizer;
 		VkPipelineMultisampleStateCreateInfo multisampling;
 		VkPipelineDepthStencilStateCreateInfo depthStencil;
+		VkPipelineColorBlendAttachmentState colorBlendAttachment;
 		VkPipelineColorBlendStateCreateInfo colorBlending;
+		std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 		VkPipelineDynamicStateCreateInfo dynamicState;
 		std::vector<VkPushConstantRange> pushConstantRanges;
 
 		VkPipeline graphicsPipeline;
 
-		VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-		std::vector<VkDescriptorSet> descriptorSets;
+		uint32_t numTextures = 0;
+		uint32_t numVertexUniforms = 0;
+		uint32_t numFragmentUniforms = 0;
 
-		std::vector<VkCommandBufferInheritanceInfo> inheritanceInfo;
+		std::vector<VkDescriptorImageInfo> imageInfos;
+		std::vector<VkDescriptorBufferInfo> vertexUniformBufferInfos;
+		std::vector<VkDescriptorBufferInfo> fragmentUniformBufferInfos;
 
+		void createDescriptorLayoutBindings();
 		void createDescriptorSetLayout();
+		VkDescriptorPool createDescriptorPool(size_t imageCount);
+		std::vector<VkDescriptorSet> createDescriptorSets(VkDescriptorPool descriptorPool, size_t imageCount);
+		std::vector<VkWriteDescriptorSet> getDescriptorWrites(VkDescriptorSet descriptorSet);
+
+		void createShaderStages();
+		void createVertexInput();
+		void createInputAssembly();
+		void createRasterizer();
+		void createMultisampling();
+		void createDepthStencil();
+		void createColorBlendAttachments();
+		void createDynamicStates();
+		void createPushConstantRanges();
 
 		void createGraphicsPipeline();
 
-		VkPipelineVertexInputStateCreateInfo getVertexInputInfo();
-		VkPipelineColorBlendStateCreateInfo getColorBlending();
-		VkPipelineDynamicStateCreateInfo getDynamicState();
-
-		void createDescriptorPool(size_t imageCount);
-		void createDescriptorSets(size_t imageCount);
-
-		void createInheritanceInfo(size_t imageCount);
+		void cleanShaderModules();
 	};
 }

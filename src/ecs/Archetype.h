@@ -1,68 +1,59 @@
 #pragma once
 
+#include <atomic>
 #include <unordered_map>
-#include <typeindex>
 #include <array>
 #include <numeric>
+#include <set>
 #include <unordered_set>
+#include <shared_mutex>
 
 #include <vulkan/vulkan.h>
+
+#define SOL_ALL_SAFETIES_ON 1
+#define SOL_DEFAULT_PASS_ON_ERROR 1
+#include <sol\sol.hpp>
 
 namespace vecs {
 
 	// Forward Declarations
 	class World;
 	struct Component;
-	struct EntityQuery;
+	class EntityQuery;
+	class LuaVal;
 	
 	class Archetype {
 	public:
-		std::unordered_set<std::type_index> componentTypes;
+		std::unordered_set<std::string> componentTypes;
+		// TODO replace this with a bitset? (worse with a large number of small archetypes, better with small number of large archetypes)
+		std::set<uint32_t> entities;
 
-		std::unordered_map<std::type_index, Component*>* sharedComponents;
+		LuaVal* sharedComponents;
+		std::atomic_uint32_t numEntities = 0;
+		std::shared_mutex mutex;
 
-		Archetype(World* world, std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr) {
-			this->world = world;
-			this->componentTypes = componentTypes;
-			this->sharedComponents = sharedComponents;
+		Archetype(World* world, std::unordered_set<std::string> componentTypes, LuaVal* sharedComponents = nullptr);
 
-			for (auto component : componentTypes) {
-				components[component] = new std::vector<Component*>;
-			}
-		}
-
-		template <class C>
-		C* getComponent(size_t index) {
-			return static_cast<C*>(components[typeid(C)]->at(index));
-		}
-
-		template <class C>
-		C* getSharedComponent() {
-			return static_cast<C*>(sharedComponents->at(typeid(C)));
-		}
-
-		std::vector<Component*>* getComponentList(std::type_index componentType);
-
-		bool hasEntity(uint32_t entity);
-
-		ptrdiff_t getIndex(uint32_t entity);
+		LuaVal getSharedComponent(std::string componentType);
+		LuaVal getComponentList(std::string componentType);
 
 		bool checkQuery(EntityQuery* query);
 
-		// Returns pair of data representing the first entity ID, and index within the archetype
-		std::pair<uint32_t, size_t> createEntities(uint32_t amount);
+		// Returns pair of data representing the first entity's id and index within this archetype
+		std::pair<uint32_t, uint32_t> createEntities(uint32_t amount);
 
-		size_t addEntities(std::vector<uint32_t> entities);
-
+		void addEntities(std::vector<uint32_t> entities);
 		void removeEntities(std::vector<uint32_t> entities);
+		void clearEntities();
 
-		void cleanup(VkDevice* device);
+		// Used for ensuring iterations over this entity don't occur whilst entities are added or removed
+		// This is used because some jobs may iterate over entities and last between frames
+		void lock_shared();
+		void unlock_shared();
 
 	private:
 		World* world;
 
-		std::vector<uint32_t> entities;
-
-		std::unordered_map<std::type_index, std::vector<Component*>*> components;
+		std::unordered_map<std::string, LuaVal> components;
 	};
 }

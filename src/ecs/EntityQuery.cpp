@@ -3,18 +3,18 @@
 
 using namespace vecs;
 
-void ComponentFilter::with(std::type_index component) {
+void ComponentFilter::with(std::string component) {
 	required.insert(component);
 }
 
-void ComponentFilter::with(std::vector<std::type_index> components) {
+void ComponentFilter::with(std::vector<std::string> components) {
 	required.insert(components.begin(), components.end());
 }
 
-void ComponentFilter::without(std::type_index component) {
+void ComponentFilter::without(std::string component) {
 	disallowed.insert(component);
 }
 
-void ComponentFilter::without(std::vector<std::type_index> components) {
+void ComponentFilter::without(std::vector<std::string> components) {
 	disallowed.insert(components.begin(), components.end());
 }

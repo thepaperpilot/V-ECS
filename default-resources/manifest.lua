@@ -1,5 +1,6 @@
-application = {
+return {
 	width = 1280,
 	height = 720,
-	name = "A V-ECS Application"
+	name = "V-ECS",
+	initialWorld = "worlds/title.lua"
 }

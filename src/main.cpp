@@ -3,76 +3,47 @@
 #endif
 
 #include "engine/Engine.h"
-#include "ecs/World.h"
-#include "voxel/VoxelWorld.h"
-#include "voxel/data/ChunkComponent.h"
-#include "voxel/data/BlockComponent.h"
-#include "voxel/data/ChunkBuilder.h"
-#include "voxel/rendering/MeshComponent.h"
-#include "gui/GUIRenderer.h"
+#include "engine/Debugger.h"
 
-#include <thread>
+#include <iostream>
+
+#ifdef WIN32
+#include <Windows.h>
+#endif
 
 using namespace vecs;
 
-Engine app;
-
-uint16_t chunksPerAxis = 8;
-uint16_t chunkSize = 16;
-
-VoxelWorld* game;
-World* loading;
-
-void preCleanup() {
-    // Cleanup our worlds
-    if (loading->activeWorld) loading->cleanup();
-    else {
-        game->cleanup();
-    }
-}
-
-void loadGame() {
-    // Set up temporary chunks
-    int totalChunks = chunksPerAxis * chunksPerAxis * chunksPerAxis;
-    int totalBlocks = totalChunks * chunkSize * chunkSize * chunkSize;
-    ChunkBuilder::init();
-    ChunkBuilder chunkBuilder(game, &game->voxelRenderer.blockLoader, 1227, chunkSize);
-    for (int32_t x = -chunksPerAxis / 2; x < chunksPerAxis / 2; x++) {
-        for (int32_t y = -chunksPerAxis / 2; y < chunksPerAxis / 2; y++) {
-            for (int32_t z = -chunksPerAxis / 2; z < chunksPerAxis / 2; z++) {
-                chunkBuilder.fillChunk(x, y, z);
-            }
-        }
-    }
-
-    // Change world and cleanup loading world
-    app.setWorld(game, false, true);
-}
-
 int main() {
-    app.preCleanup = preCleanup;
-    app.init();
+    Engine app;
 
-    // Create thread to load our game screen
-    // TODO move this to the other thread once you can give the thread its own VkQeueue
-    game = new VoxelWorld(&app.renderer, chunkSize);
-    game->init(app.device, app.window);
-    std::thread loadingThread(loadGame);
+    Debugger::setupLogFile("latest.log");
 
-    // Create loading screen world
-    GUIRenderer loadingScreenRenderer;
-    loading = new World(&app.renderer);
-    loading->subrenderers.insert(&loadingScreenRenderer);
-    app.setWorld(loading);
+#ifdef WIN32
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+
+    // Build string of hardware information
+    std::stringstream ss;
+    ss << "Hardware Information\n";
+    ss << "\tOEM ID: " << sysInfo.dwOemId << "\n";
+    ss << "\tNumber of processors: " << sysInfo.dwNumberOfProcessors << "\n";
+    ss << "\tPage size: " << sysInfo.dwPageSize << "\n";
+    ss << "\tProcessor type: " << sysInfo.dwProcessorType << "\n";
+    ss << "\tMinimum application address: " << std::hex << sysInfo.lpMinimumApplicationAddress << "\n";
+    ss << "\tMaximum application address: " << std::hex << sysInfo.lpMaximumApplicationAddress << "\n";
+    ss << "\tActive processor mask: " << std::dec << sysInfo.dwActiveProcessorMask;
+
+    // Add to debug log
+    Debugger::addLog(DEBUG_LEVEL_VERBOSE, ss.str());
+#endif
+
 
     try {
-        app.run();
+        app.init();
     } catch (const std::exception & e) {
-        std::cerr << e.what() << std::endl;
+        Debugger::addLog(DEBUG_LEVEL_ERROR, e.what());
         return EXIT_FAILURE;
     }
-
-    loadingThread.join();
 
     return EXIT_SUCCESS;
 }

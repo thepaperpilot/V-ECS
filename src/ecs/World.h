@@ -1,182 +1,67 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <typeindex>
-#include <map>
-#include <set>
-#include <unordered_map>
-#include <iostream>
+#include <unordered_set>
 
-#include "../rendering/Renderer.h"
-#include "../rendering/SubRenderer.h"
-#include "EntityQuery.h"
-#include "System.h"
-#include "Archetype.h"
+#include "../engine/Buffer.h"
+#include "../events/GLFWEvents.h"
+#include "../jobs/DependencyGraph.h"
+#include "../jobs/Worker.h"
+
+// Forward Declarations
+struct ImFontAtlas;
 
 namespace vecs {
 
-	struct Component {
-		// Optional function to cleanup any necessary fields a component may have
-		virtual void cleanup(VkDevice* device) {}
-		// TODO serialize and deserialize functions
-	};
+	// Forward Declarations
+	class Archetype;
+	class Engine;
+	class EntityQuery;
+	class WorldLoadStatus;
+	class LuaVal;
 
-	// Forward declare World because we're just about to define it
-	class World;
-	struct StartRenderingSystem : public System {
-		Renderer* renderer;
-		World* world;
-
-		StartRenderingSystem(Renderer* renderer, World* world) {
-			this->renderer = renderer;
-			this->world = world;
-		}
-
-		virtual void update() override;
-	};
-
-	// The World contains all of the program's Systems
-	// and handles updating each system as appropriate
-	// TODO other ECS implementations have a class for each component
-	// type that handles storing data for that component (e.g. SOA instead of AOS).
+	// The World contains subrenderers and systems
+	// and handles updating them as appropriate
 	class World {
 	public:
-		Renderer* renderer;
+		sol::table config;
+
+		bool isValid = false;
+		bool isDisposed = false;
+		WorldLoadStatus* status;
+
+		ImFontAtlas* fonts = nullptr;
+
+		// Start at 1 so that 0 can be used to represent an invalid entity
+		std::atomic_uint32_t nextEntity = 1;
 
 		double deltaTime = 0;
-		bool cancelUpdate = false;
-		bool activeWorld = false;
 
-		std::multiset<SubRenderer*, SubRendererCompare> subrenderers;
+		// Each world has its own Worker that won't actually be ran, but exists for lua scripts to be
+		// able to access Vulkan resources and to have a job queue to add to, which will be stolen out of
+		Worker worker;
 
-		World(Renderer* renderer) : startRenderingSystem(renderer, this) {
-			this->renderer = renderer;
-			addSystem(&startRenderingSystem, START_RENDERING_PRIORITY);
-		};
+		DependencyGraph dependencyGraph;
+
+		World(Engine* engine, std::string filename, WorldLoadStatus* status, bool waitUntilLoaded = false);
+		World(Engine* engine, sol::table worldConfig, WorldLoadStatus* status, bool waitUntilLoaded = false);
 
 		uint32_t createEntities(uint32_t amount = 1);
-		void deleteEntity(uint32_t entity);
+		uint32_t createEntity(LuaVal* components);
 
-		Archetype* getArchetype(std::unordered_set<std::type_index> componentTypes, std::unordered_map<std::type_index, Component*>* sharedComponents = nullptr);
-		Archetype* getArchetype(uint32_t entity);
+		Archetype* getArchetype(std::unordered_set<std::string> componentTypes, LuaVal* sharedComponents = nullptr);
 
-		Archetype* addComponents(std::vector<uint32_t> entities, std::unordered_set<std::type_index> components) {
-			Archetype* oldArchetype = getArchetype(*entities.begin());
-			// Make new list of components
-			components.insert(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end());
-			// Find/create archetype for this set of components
-			Archetype* newArchetype = getArchetype(components, oldArchetype->sharedComponents);
-
-			size_t numComponents = components.size();
-			std::vector<std::vector<Component*>*> oldComponents(numComponents);
-			std::vector<std::vector<Component*>*> newComponents(numComponents);
-			uint16_t i = 0;
-			for (auto type : oldArchetype->componentTypes) {
-				oldComponents[i] = oldArchetype->getComponentList(type);
-				newComponents[i] = newArchetype->getComponentList(type);
-				i++;
-			}
-
-			// Add entities to new archetype
-			size_t newIndex = newArchetype->addEntities(entities);
-
-			// Copy components over to new archetype
-			for (uint32_t entity : entities) {
-				ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
-
-				for (size_t i = 0; i < numComponents; i++) {
-					newComponents[i][newIndex] = oldComponents[i][oldIndex];
-				}
-
-				newIndex++;
-			}
-
-			// Remove entities from old archetype
-			oldArchetype->removeEntities(entities);
-
-			// Return new archetype so it can be used to set the values of the new components
-			return newArchetype;
-		};
-		bool hasComponentType(uint32_t entity, std::type_index component_t);
-		template <class Component>
-		Archetype* removeComponents(std::vector<uint32_t> entities, std::unordered_set<std::type_index> components) {
-			Archetype* oldArchetype = getArchetype(*entities.begin());
-			// Make new list of components
-			std::unordered_set<std::type_index> newComponents;
-			std::copy_if(oldArchetype->componentTypes.begin(), oldArchetype->componentTypes.end(), std::back_inserter(newComponents),
-				[&components](int needle) { return !components.count(needle); });
-			// Find/create archetype for this set of components
-			Archetype* newArchetype = getArchetype(newComponents, oldArchetype->sharedComponents);
-			
-			uint16_t numComponents = newComponents.size();
-			std::vector<std::vector<Component*>*> oldComponents(numComponents);
-			std::vector<std::vector<Component*>*> newComponents(numComponents);
-			uint16_t i = 0;
-			for (auto type : components) {
-				oldComponents[i] = oldArchetype->getComponentList(type);
-				newComponents[i] = newArchetype->getComponentList(type);
-				i++;
-			}
-
-			// Add entities to new archetype
-			size_t newIndex = newArchetype->addEntities(entities);
-
-			// Copy components over to new archetype
-			for (uint32_t entity : entities) {
-				ptrdiff_t oldIndex = oldArchetype->getIndex(entity);
-
-				for (auto component : components) {
-					newComponents[newIndex] = oldComponents[oldIndex];
-				}
-
-				newIndex++;
-			}
-
-			// Remove entities from old archetype
-			oldArchetype->removeEntities(entities);
-
-			// Return new archetype
-			return newArchetype;
-		}
-
-		void addSystem(System* system, int priority);
 		void addQuery(EntityQuery* query);
 
-		void init(Device* device, GLFWwindow* window) {
-			this->device = device;
-			this->window = window;
-
-			preInit();
-
-			// Initialize our sub-renderers
-			for (auto subrenderer : subrenderers)
-				subrenderer->init(device, renderer);
-		}
-
-		// Optional function for child classes to setup anything they need to
-		// whenever setting the world up
-		virtual void preInit() {};
 		void update(double deltaTime);
+		void windowRefresh(int imageCount);
+
+		void addBuffer(Buffer buffer);
+
 		void cleanup();
 
-	protected:
-		Device* device;
-		GLFWwindow* window;
-
-		// Optional function for child classes to cleanup anything they need to
-		// This won't get called automatically by the Engine because Worlds may
-		// be switched around and re-used 
-		virtual void cleanupSystems() {};
-
 	private:
-		// Start at 1 so that 0 can be used to represent an invalid entity
-		uint32_t nextEntity = 1;
-
-		StartRenderingSystem startRenderingSystem;
-
-		// We use a map for the systems because it can sort on insert very quickly
-		// and allow us to run our systems in order by "priority"
-		std::multimap<int, System*> systems;
+		Device* device;
 		
 		// Store a list of filters added by our systems. Each tracks which entities meet a specific
 		// criteria of components it needs and/or disallows, and contains pointers for functions
@@ -185,5 +70,33 @@ namespace vecs {
 
 		// Each unique set of components is managed by an archetype
 		std::vector<Archetype*> archetypes;
+		std::shared_mutex archetypesMutex;
+
+		std::vector<Buffer> buffers;
+		std::mutex buffersMutex;
+
+		// Reference to several archetypes for GLFW events
+		Archetype* mouseMoveEventArchetype;
+		Archetype* leftMousePressEventArchetype;
+		Archetype* leftMouseReleaseEventArchetype;
+		Archetype* rightMousePressEventArchetype;
+		Archetype* rightMouseReleaseEventArchetype;
+		Archetype* horizontalScrollEventArchetype;
+		Archetype* verticalScrollEventArchetype;
+		Archetype* keyPressEventArchetype;
+		Archetype* keyReleaseEventArchetype;
+		Archetype* windowResizeEventArchetype;
+
+		void setupEvents();
+		bool mouseMoveEventCallback(MouseMoveEvent* event);
+		bool leftMousePressEventCallback(LeftMousePressEvent* event);
+		bool leftMouseReleaseEventCallback(LeftMouseReleaseEvent* event);
+		bool rightMousePressEventCallback(RightMousePressEvent* event);
+		bool rightMouseReleaseEventCallback(RightMouseReleaseEvent* event);
+		bool horizontalScrollEventCallback(HorizontalScrollEvent* event);
+		bool verticalScrollEventCallback(VerticalScrollEvent* event);
+		bool keyPressEventCallback(KeyPressEvent* event);
+		bool keyReleaseEventCallback(KeyReleaseEvent* event);
+		bool windowResizeEventCallback(WindowResizeEvent* event);
 	};
 }

@@ -1,32 +1,57 @@
 #include "Texture.h"
 
+#include "Renderer.h"
+#include "SubRenderer.h"
+#include "../jobs/Worker.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
 using namespace vecs;
 
-void Texture::init(Device* device, VkQueue copyQueue, const char* filename,
-	VkFilter filter, VkFormat format,  VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+void Texture::createImageView(Device* device, VkImage image, VkFormat format, VkImageView* view, VkImageAspectFlags aspectFlags) {
 
-	this->device = device;
+	VkImageViewCreateInfo viewInfo = {};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = aspectFlags;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VK_CHECK_RESULT(vkCreateImageView(*device, &viewInfo, nullptr, view));
+}
+
+Texture::Texture(SubRenderer* subrenderer, Worker* worker, const char* filename, bool addToSubrenderer,
+	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+
+	this->device = subrenderer->device;
 	this->format = format;
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readImageData(filename);
 
-	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
+
+	if (addToSubrenderer)
+		subrenderer->textures.emplace_back(this);
 }
 
-void Texture::init(Device* device, VkQueue copyQueue, unsigned char* pixels, int width, int height,
-	VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+Texture::Texture(SubRenderer* subrenderer, Worker* worker, unsigned char* pixels, int width, int height,
+	bool addToSubrenderer, VkFilter filter, VkFormat format, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
 
-	this->device = device;
+	this->device = subrenderer->device;
 	this->format = format;
 
 	// Read our texture data from file into a buffer
 	Buffer stagingBuffer = readPixels(pixels, width, height);
-
-	init(&stagingBuffer, copyQueue, filter, usageFlags, imageLayout);
+	init(stagingBuffer, worker, filter, usageFlags, imageLayout);
+	
+	if (addToSubrenderer)
+		subrenderer->textures.emplace_back(this);
 }
 
 void Texture::cleanup() {
@@ -37,9 +62,11 @@ void Texture::cleanup() {
 	vkFreeMemory(*device, deviceMemory, nullptr);
 }
 
-void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+void Texture::init(Buffer buffer, Worker* worker, VkFilter filter, VkImageUsageFlags usageFlags, VkImageLayout imageLayout) {
+	this->imageLayout = imageLayout;
+
 	// Creating our image is going to require several commands, so we'll create a buffer for them
-	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBuffer commandBuffer = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, worker->commandPool);
 
 	// Create our VkImage and VkDeviceMemory objects to store this file in
 	createImage(format, usageFlags);
@@ -51,10 +78,10 @@ void Texture::init(Buffer* buffer, VkQueue copyQueue, VkFilter filter, VkImageUs
 	transitionImageLayout(commandBuffer, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageLayout);
 
 	// Submit our command buffer with all its commands in it
-	device->submitCommandBuffer(commandBuffer, copyQueue);
+	device->submitCommandBuffer(commandBuffer, worker);
 
 	// Destroy our staging buffer now that we're done with it
-	buffer->cleanup();
+	device->cleanupBuffer(buffer);
 
 	// Create our image view
 	Texture::createImageView(device, image, format, &view);
@@ -91,9 +118,7 @@ Buffer Texture::readPixels(unsigned char* pixels, int width, int height) {
 	VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
 	// Create a staging buffer to transfer the image to the GPU
-	Buffer stagingBuffer = device->createBuffer(imageSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	Buffer stagingBuffer = device->createStagingBuffer(imageSize);
 
 	// Copy our image data to the staging buffer
 	stagingBuffer.copyTo(pixels, imageSize);
@@ -117,9 +142,7 @@ void Texture::createImage(VkFormat format, VkImageUsageFlags usageFlags) {
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
-	if (vkCreateImage(*device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create image!");
-	}
+	VK_CHECK_RESULT(vkCreateImage(*device, &imageInfo, nullptr, &image));
 
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(*device, image, &memRequirements);
@@ -130,9 +153,7 @@ void Texture::createImage(VkFormat format, VkImageUsageFlags usageFlags) {
 	allocInfo.memoryTypeIndex =
 		device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	if (vkAllocateMemory(*device, &allocInfo, nullptr, &deviceMemory) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate image memory!");
-	}
+	VK_CHECK_RESULT(vkAllocateMemory(*device, &allocInfo, nullptr, &deviceMemory));
 
 	vkBindImageMemory(*device, image, deviceMemory, 0);
 }
@@ -187,7 +208,7 @@ void Texture::transitionImageLayout(VkCommandBuffer commandBuffer, VkFormat form
 	);
 }
 
-void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer) {
+void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer buffer) {
 	VkBufferImageCopy region = {};
 	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
@@ -208,7 +229,7 @@ void Texture::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer* buffer) {
 	// Add our copy command to our buffer
 	vkCmdCopyBufferToImage(
 		commandBuffer,
-		buffer->buffer,
+		buffer.buffer,
 		image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
@@ -235,7 +256,5 @@ void Texture::createTextureSampler(VkFilter filter) {
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if (vkCreateSampler(*device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create texture sampler!");
-	}
+	VK_CHECK_RESULT(vkCreateSampler(*device, &samplerInfo, nullptr, &sampler));
 }

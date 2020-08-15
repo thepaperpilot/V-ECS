@@ -2,80 +2,112 @@
 
 #include "World.h"
 #include "EntityQuery.h"
+#include "../lua/LuaVal.h"
 
 using namespace vecs;
 
-std::vector<Component*>* Archetype::getComponentList(std::type_index componentType) {
+Archetype::Archetype(World* world, std::unordered_set<std::string> componentTypes, LuaVal* sharedComponents) {
+	this->world = world;
+	this->componentTypes = componentTypes;
+
+	if (sharedComponents != nullptr) {
+		assert(sharedComponents->type == LUA_TYPE_TABLE);
+		this->sharedComponents = new LuaVal(std::get<LuaVal::MapType*>(sharedComponents->value));
+	} else this->sharedComponents = nullptr;
+
+	for (auto component : componentTypes) {
+		components[component] = LuaVal({});
+	}
+}
+
+LuaVal Archetype::getSharedComponent(std::string componentType) {
+	if (sharedComponents == nullptr) return LuaVal();
+	return sharedComponents->get(componentType);
+}
+
+LuaVal Archetype::getComponentList(std::string componentType) {
 	return components[componentType];
 }
 
-bool Archetype::hasEntity(uint32_t entity) {
-	return std::find(entities.begin(), entities.end(), entity) != entities.end();
-}
-
-ptrdiff_t Archetype::getIndex(uint32_t entity) {
-	return std::distance(this->entities.begin(), std::find(this->entities.begin(), this->entities.end(), entity));
-}
-
+// TODO do I need to lock_shared mutex when calling find or contains?
 bool Archetype::checkQuery(EntityQuery* query) {
-	for (std::type_index component_t : query->filter.required) {
+	for (std::string component_t : query->filter.required) {
 		if (componentTypes.find(component_t) == componentTypes.end())
 			return false;
 	}
-	for (std::type_index component_t : query->filter.disallowed)
+	for (std::string component_t : query->filter.disallowed)
 		if (componentTypes.find(component_t) != componentTypes.end())
 			return false;
-	for (std::type_index component_t : query->sharedFilter.required) {
-		if (!sharedComponents->count(component_t))
+	if (sharedComponents == nullptr && query->sharedFilter.required.size() > 0) return false;
+	for (std::string component_t : query->sharedFilter.required) {
+		if (!sharedComponents->contains(component_t))
 			return false;
 	}
-	for (std::type_index component_t : query->sharedFilter.disallowed)
-		if (sharedComponents->count(component_t))
+	if (sharedComponents == nullptr) return true;
+	for (std::string component_t : query->sharedFilter.disallowed)
+		if (sharedComponents->contains(component_t))
 			return false;
 	return true;
 }
 
-// Returns pair of data representing the first entity ID, and index within the archetype
-std::pair<uint32_t, size_t> Archetype::createEntities(uint32_t amount) {
-	std::vector<uint32_t> entities(amount);
+std::pair<uint32_t, uint32_t> Archetype::createEntities(uint32_t amount) {
 	uint32_t firstEntity = world->createEntities(amount);
-	std::iota(entities.begin(), entities.end(), firstEntity);
+	uint32_t lastEntity = firstEntity + amount - 1;
+	uint32_t index = numEntities.fetch_add(amount);
 
-	size_t firstIndex = this->entities.size();
-	this->entities.insert(this->entities.end(), entities.begin(), entities.end());
-	size_t newCapacity = this->entities.size();
-	for (auto kvp : components) {
-		kvp.second->resize(newCapacity);
+	mutex.lock();
+	for (auto& kvp : components) {
+		for (uint32_t index = firstEntity; index <= lastEntity; index++) {
+			kvp.second.set(LuaVal((double)index), LuaVal({}));
+		}
 	}
-
-	return std::make_pair(firstEntity, firstIndex);
+	for (uint32_t index = firstEntity; index <= lastEntity; index++) {
+		entities.insert(index);
+	}
+	mutex.unlock();
+	return std::make_pair(firstEntity, index);
 }
 
-size_t Archetype::addEntities(std::vector<uint32_t> entities) {
-	size_t firstIndex = this->entities.size();
-	this->entities.insert(this->entities.end(), entities.begin(), entities.end());
-	size_t newCapacity = this->entities.size();
+void Archetype::addEntities(std::vector<uint32_t> entities) {
+	mutex.lock();
 	for (auto kvp : components) {
-		kvp.second->resize(newCapacity);
+		for (uint32_t index : entities)
+			kvp.second.set(LuaVal((double)index), LuaVal({}));
 	}
-	return firstIndex;
+	for (uint32_t index : entities)
+		this->entities.insert(index);
+	mutex.unlock();
+	numEntities += entities.size();
 }
 
 void Archetype::removeEntities(std::vector<uint32_t> entities) {
+	mutex.lock();
 	for (uint32_t entity : entities) {
-		auto index = getIndex(entity);
-		this->entities[index] = this->entities.back();
-		this->entities.pop_back();
 		for (auto kvp : components) {
-			kvp.second->at(index) = kvp.second->back();
-			kvp.second->pop_back();
+			kvp.second.set_nil(LuaVal((double)entity));
 		}
 	}
+	for (uint32_t entity : entities) {
+		this->entities.erase(entity);
+	}
+	mutex.unlock();
+	numEntities -= entities.size();
 }
 
-void Archetype::cleanup(VkDevice* device) {
+void Archetype::clearEntities() {
+	mutex.lock();
 	for (auto kvp : components) {
-		for (auto component : *kvp.second)
-			component->cleanup(device);
+		kvp.second.clear();
 	}
+	numEntities = 0;
+	entities.clear();
+	mutex.unlock();
+}
+
+void Archetype::lock_shared() {
+	mutex.lock_shared();
+}
+
+void Archetype::unlock_shared() {
+	mutex.unlock_shared();
 }

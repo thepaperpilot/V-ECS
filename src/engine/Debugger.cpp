@@ -1,12 +1,22 @@
 #include "Debugger.h"
+
 #include "../util/VulkanUtils.h"
+
+#include <GLFW\glfw3.h>
 
 #include <vector>
 #include <iostream>
+#include <mutex>
 
 using namespace vecs;
 
 VkDebugUtilsMessageSeverityFlagBitsEXT Debugger::logLevel = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+
+std::vector<Log> Debugger::log = std::vector<Log>();
+
+std::mutex debugMutex;
+
+std::ofstream fout;
 
 // TODO look at the Vulkan debug docs to make this more robust
 // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_EXT_debug_utils
@@ -17,27 +27,72 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Debugger::debugCallback(
     void* pUserData) {
 
     if (messageSeverity >= logLevel) {
-        const char* errorType =
-            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ? "GENERAL - " :
-            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ? "VALIDATION - " :
-            "PERFORMANCE - ";
+        std::string errorType =
+            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ? "[GENERAL] " :
+            messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ? "[VALIDATION] " :
+            "[PERFORMANCE] ";
 
-        std::cout << "[VULKAN] " << errorType << pCallbackData->pMessage << std::endl;
+        Debugger::addLog(DEBUG_LEVEL_ERROR, "[VULKAN] " + errorType + std::string(pCallbackData->pMessage));
     }
 
     return VK_FALSE;
 }
 
+void Debugger::setupLogFile(std::string filename) {
+//#ifdef NDEBUG
+    fout = std::ofstream(filename);
+    std::cout.rdbuf(fout.rdbuf());
+//#endif
+}
+
+void Debugger::addLog(DebugLevel debugLevel, std::string message) {
+    debugMutex.lock();
+    log.emplace_back(debugLevel, message);
+    std::cout << glfwGetTime() << " " << message << std::endl;
+    debugMutex.unlock();
+}
+
+std::string Debugger::getErrorString(VkResult errorCode) {
+    switch (errorCode)
+    {
+#define STR(r) case VK_ ##r: return #r
+        STR(NOT_READY);
+        STR(TIMEOUT);
+        STR(EVENT_SET);
+        STR(EVENT_RESET);
+        STR(INCOMPLETE);
+        STR(ERROR_OUT_OF_HOST_MEMORY);
+        STR(ERROR_OUT_OF_DEVICE_MEMORY);
+        STR(ERROR_INITIALIZATION_FAILED);
+        STR(ERROR_DEVICE_LOST);
+        STR(ERROR_MEMORY_MAP_FAILED);
+        STR(ERROR_LAYER_NOT_PRESENT);
+        STR(ERROR_EXTENSION_NOT_PRESENT);
+        STR(ERROR_FEATURE_NOT_PRESENT);
+        STR(ERROR_INCOMPATIBLE_DRIVER);
+        STR(ERROR_TOO_MANY_OBJECTS);
+        STR(ERROR_FORMAT_NOT_SUPPORTED);
+        STR(ERROR_SURFACE_LOST_KHR);
+        STR(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        STR(SUBOPTIMAL_KHR);
+        STR(ERROR_OUT_OF_DATE_KHR);
+        STR(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        STR(ERROR_VALIDATION_FAILED_EXT);
+        STR(ERROR_INVALID_SHADER_NV);
+#undef STR
+    default:
+        return "UNKNOWN_ERROR";
+    }
+}
+
 void Debugger::setupDebugMessenger(VkInstance instance) {
-    if (!enableValidationLayers) return;
+    if (!enableDebugMessenger) return;
 
     // Register our debug messenger that prints out our validation layer's logs
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
 
-    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-        throw std::runtime_error("failed to set up debug messenger!");
-    }
+    VK_CHECK_RESULT(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger));
 }
 
 bool Debugger::checkValidationLayerSupport() {
@@ -71,6 +126,7 @@ bool Debugger::checkValidationLayerSupport() {
 
         // Return false if one of our required layers wasn't found
         if (!layerFound) {
+            std::cout << "Could not find layer " << layerName << std::endl;
             return false;
         }
     }

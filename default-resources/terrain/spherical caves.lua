@@ -1,21 +1,24 @@
 -- Spherical underground rooms, like the "Worley caves" in https://forum.playboundless.com/t/having-the-hardest-time-with-cave-noise/2664/2
-local caveNoise = noise.createCellular(noise.seed, .01)
 
-terrain = {
+return {
 	priority = 100,
-	processChunk = function(chunk, x, y, z)
-		if y > -2 then return end
-		local noiseSet = caveNoise:getNoiseSet(x, y, z, blocks.chunkSize)
+	init = function(self, chunkSize, seed)
+		self.caveNoise = noise.new(noiseType.Cellular, seed, .01)
+	end,
+	generateChunk = function(self, archetypes, chunkSize, chunk)
+		if chunk.y > -2 then return end
+		local caveNoiseBuffer = noiseBuffer.new(chunkSize)
+		local noiseSet = self.caveNoise:getNoiseSet(caveNoiseBuffer, chunk.x, chunk.y, chunk.z, chunkSize)
 		for point,density in pairs(noiseSet) do
-			if y < -3 then
+			if chunk.y < -3 then
 				if density < 0.01 then
-					chunk:clearBlock(point)
+					chunk.blocks[point - 1] = nil
 				end
 			else
 				-- Taper off over the course of one vertical chunk
-				local internalY = (point - 1) % (blocks.chunkSize * blocks.chunkSize) / blocks.chunkSize
-				if density + internalY * 0.01 / blocks.chunkSize < 0.01 then
-					chunk:clearBlock(point)
+				local internalY = (point - 1) % (chunkSize * chunkSize) / chunkSize
+				if density + internalY * 0.01 / chunkSize < 0.01 then
+					chunk.blocks[point - 1] = nil
 				end
 			end
 		end

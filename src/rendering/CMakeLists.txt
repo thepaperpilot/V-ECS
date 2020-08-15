@@ -1,1 +1,1 @@
-target_sources(vecs PRIVATE CameraComponent.h DepthTexture.cpp DepthTexture.h LuaRenderer.cpp LuaRenderer.h Model.cpp Model.h Renderer.cpp Renderer.h SubRenderer.cpp SubRenderer.h Texture.cpp Texture.h)
+target_sources(vecs PRIVATE DepthTexture.cpp DepthTexture.h Model.cpp Model.h Renderer.cpp Renderer.h SecondaryCommandBuffer.cpp SecondaryCommandBuffer.h SubRenderer.cpp SubRenderer.h Texture.cpp Texture.h VertexLayout.cpp VertexLayout.h)

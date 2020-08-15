@@ -1,4 +1,6 @@
-block = {
+return {
 	id = "vecs:stone",
-	texture = "goodCat.png"
+	getArchetype = function(textureMap, util)
+		return util.getBlockFromTexture(textureMap["stone.png"])
+	end
 }

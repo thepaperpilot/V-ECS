@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.13)
 
-# Default to debug build if not specified
-if (NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Debug")
-endif()
-
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# enable AddressSantizer
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 
 #### Setup Libraries ####
 
@@ -45,9 +44,10 @@ add_subdirectory(src)
 #target_link_libraries(vecs PUBLIC glslang::glslang)
 
 # glfw https://hunter.readthedocs.io/en/latest/packages/pkg/glfw.html
-hunter_add_package(glfw)
-find_package(glfw3 REQUIRED)
-target_link_libraries(vecs PRIVATE glfw)
+# Need an updated version so downloading it manually
+#hunter_add_package(glfw)
+#find_package(glfw3 REQUIRED)
+#target_link_libraries(vecs PRIVATE glfw)
 
 # glm https://hunter.readthedocs.io/en/latest/packages/pkg/glm.html
 hunter_add_package(glm)
@@ -58,6 +58,12 @@ target_link_libraries(vecs PRIVATE glm)
 hunter_add_package(stb)
 find_package(stb CONFIG REQUIRED)
 target_link_libraries(vecs PUBLIC stb::stb)
+
+# VulkanMemoryAllocator https://hunter.readthedocs.io/en/latest/packages/pkg/VulkanMemoryAllocator.html
+# failed to install, so we're just going to use the git repo
+#hunter_add_package(VulkanMemoryAllocator)
+#find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+#target_link_libraries(vecs PUBLIC VulkanMemoryAllocator::VulkanMemoryAllocator)
 
 # HastyNoise https://hunter.readthedocs.io/en/latest/packages/pkg/HastyNoise.html
 hunter_add_package(HastyNoise)
@@ -81,6 +87,22 @@ target_link_libraries(vecs PRIVATE ${Vulkan_LIBRARIES})
 target_include_directories(vecs PRIVATE ${Vulkan_INCLUDE_DIRS})
 
 # TODO use ExternalProject_Add for all these git repos?
+
+# glfw
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/glfw)
+	execute_process(COMMAND git clone https://github.com/glfw/glfw.git ${CMAKE_CURRENT_BINARY_DIR}/glfw)
+endif()
+add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/glfw)
+target_link_libraries(vecs PRIVATE glfw)
+
+# VulkanMemoryAllocator
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator)
+	execute_process(COMMAND git clone https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator)
+endif()
+target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/VulkanMemoryAllocator/src/vk_mem_alloc.h)
 
 # glslang
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/glslang)
@@ -123,11 +145,11 @@ else()
 	target_include_directories(vecs PRIVATE ${LUA_INCLUDE_DIR})
 endif()
 
-# LuaBridge
-if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
-	execute_process(COMMAND git clone https://github.com/vinniefalco/LuaBridge ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
+# sol2
+if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sol2)
+	execute_process(COMMAND git clone https://github.com/ThePhD/sol2.git ${CMAKE_CURRENT_BINARY_DIR}/sol2)
 endif()
-target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge/Source)
+target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/sol2/include)
 
 # rectpack2D
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D)
@@ -137,10 +159,13 @@ target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/rectpack2D/s
 
 # imgui
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/imgui)
-	execute_process(COMMAND git clone https://github.com/ocornut/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+	# we pull an out of data fork with support for loading images with the vulkan backend
+	execute_process(COMMAND git clone https://github.com/martty/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+	# then merge upstream/master so its no longer out of date. Currently this merges smoothly
+	execute_process(COMMAND git pull --no-edit https://github.com/ocornut/imgui WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/imgui)
 endif()
 target_include_directories(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui)
-target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_demo.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_draw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_widgets.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/examples/imgui_impl_glfw.cpp)
+target_sources(vecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_demo.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_draw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/imgui_widgets.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/examples/imgui_impl_glfw.cpp ${CMAKE_CURRENT_BINARY_DIR}/imgui/misc/cpp/imgui_stdlib.cpp)
 
 # tinyobj
 if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tinyobj)
@@ -169,6 +194,23 @@ add_copy_files(copyResources ${HASTYNOISE_ROOT}/bin/hastyNoise.dll DESTINATION b
 # simd folder
 add_copy_directory(copyResources ${HASTYNOISE_ROOT}/bin DESTINATION build/Release/simd GLOB hastyNoise_*[!d].dll)
 
+# System DLLs
+# make it include ucrt libraries
+set(CMAKE_INSTALL_UCRT_LIBRARIES True)
+# get list of libraries
+include(InstallRequiredSystemLibraries)
+# install into release folder
+add_copy_files(copyResources ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION build/Release)
+# make it do debug libraries now
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS "")
+set(CMAKE_INSTALL_DEBUG_LIBRARIES True)
+set(CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY True)
+# get list of libraries
+include(InstallRequiredSystemLibraries)
+# install into debug folder
+add_copy_files(copyResources ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION build/Debug)
+
 #### Set Visual Studio specific properties ####
 
-set_property(TARGET vecs PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BUILD_TYPE}")
+# Sets the debugger working directory appropriately
+set_target_properties(vecs PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/$(Configuration)")

@@ -16,6 +16,7 @@ namespace vecs {
 	
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphics;
+		uint32_t graphicsQueueCount = 0;
 		std::optional<uint32_t> present;
 
 		bool isComplete() {
@@ -35,16 +36,18 @@ namespace vecs {
 		QueueFamilyIndices indices;
 		SwapChainSupportDetails swapChainSupport;
 	};
+
+	// Forward Declarations
+	class Worker;
 	
 	class Device {
 	public:
 		VkPhysicalDevice physical;
 		VkDevice logical;
+		VmaAllocator allocator;
 
 		QueueFamilyIndices queueFamilyIndices;
 		SwapChainSupportDetails swapChainSupport;
-
-		VkCommandPool commandPool;
 
 		operator VkDevice() { return logical; }
 
@@ -52,14 +55,15 @@ namespace vecs {
 
 		VkCommandPool createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, Buffer* buffer);
+		Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage allocUsage = VMA_MEMORY_USAGE_GPU_ONLY);
+		Buffer createStagingBuffer(VkDeviceSize size);
+		void cleanupBuffer(Buffer buffer);
 		void beginCommandBuffer(VkCommandBuffer buffer);
 		void beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info);
-		void copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
-		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool = nullptr, bool begin = true);
-		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool = nullptr, bool begin = false);
-		void submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool = nullptr, bool free = true);
+		void copyBuffer(Buffer* src, Buffer* dest, Worker* worker, VkBufferCopy* copyRegion = nullptr);
+		VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin = true);
+		std::vector<VkCommandBuffer> createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool, bool begin = false);
+		void submitCommandBuffer(VkCommandBuffer buffer, Worker* worker, bool free = true);
 
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
@@ -73,5 +77,7 @@ namespace vecs {
 		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
 		void createLogicalDevice();
+
+		void createMemoryAllocator(VkInstance instance);
 	};
 }

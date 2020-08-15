@@ -1,54 +1,78 @@
 #include "Model.h"
 
+#include "Renderer.h"
+#include "SubRenderer.h"
+#include "VertexLayout.h"
+#include "../engine/Debugger.h"
+#include "../engine/Device.h"
+#include "../jobs/Worker.h"
+
+#include <cstdlib>
 #include <cassert>
+#include <iostream>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
-#include <iostream>
 
 using namespace vecs;
 
-void Model::init(Device* device, VkQueue copyQueue, const char* filename, VertexLayout* vertexLayout, Material* materialLayout) {
-	this->device = device;
-	this->vertexLayout = vertexLayout;
-	this->materialLayout = materialLayout;
+Model::Model(SubRenderer* subrenderer, Worker* worker, const char* filename) {
+	this->device = subrenderer->device;
+	this->vertexLayout = subrenderer->vertexLayout;
 
+	init(subrenderer, worker, filename);
+}
+
+Model::Model(SubRenderer* subrenderer, Worker* worker, const char* filename, 
+	VkShaderStageFlagBits shaderStage, std::vector<MaterialComponent> materialComponents) {
+	this->device = subrenderer->device;
+	this->vertexLayout = subrenderer->vertexLayout;
+	this->materialShaderStage = shaderStage;
+	this->materialComponents = materialComponents;
+	hasMaterial = true;
+
+	init(subrenderer, worker, filename);
+}
+
+void Model::init(SubRenderer* subrenderer, Worker* worker, const char* filename) {
 	auto filepath = std::filesystem::path(filename).make_preferred();
 	auto extension = filepath.extension();
 
 	if (extension == ".obj") {
-		loadObj(copyQueue, filepath);
-	} else {
-		assert(0 && "Unknown model format");
+		loadObj(subrenderer, worker, filepath);
 	}
+	else {
+		Debugger::addLog(DEBUG_LEVEL_ERROR, "[MODEL] " + filepath.string() + " has unknown file format \"" + extension.string() + "\"");
+		return;
+	}
+
+	subrenderer->models.emplace_back(this);
 }
 
-void Model::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t pushConstantsOffset, uint32_t materialOffset) {
+void Model::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) {
 	VkBuffer vertexBuffers[] = { vertexBuffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-	for (auto part : parts) {
-		vkCmdDrawIndexed(commandBuffer, part.indexCount, 1, part.indexStart, 0, 0);
-	}
+	vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
 }
 
 void Model::cleanup() {
-	indexBuffer.cleanup();
-	vertexBuffer.cleanup();
+	device->cleanupBuffer(indexBuffer);
+	device->cleanupBuffer(vertexBuffer);
 
-	if (materialLayout != nullptr)
-		materialLayout->buffer.cleanup();
+	if (hasMaterial)
+		device->cleanupBuffer(materialBuffer);
 }
 
-void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
+void Model::loadObj(SubRenderer* subrenderer, Worker* worker, std::filesystem::path filepath) {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
+	std::filesystem::path baseDirName = filepath.parent_path();
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filepath.string().c_str(), filepath.parent_path().string().c_str())) {
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filepath.string().c_str(), baseDirName.string().c_str())) {
 		throw std::runtime_error(warn + err);
 	}
 
@@ -69,12 +93,12 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 			maxBounds.z = attrib.vertices[i + 2];
 	}
 
-	if (materialLayout != nullptr) {
+	if (hasMaterial) {
 		std::vector<float> materialValues;
 		uint16_t numFloats = 0;
 		for (auto& mat : materials) {
-			for (auto component : materialLayout->components) {
-				switch (component.second) {
+			for (auto component : materialComponents) {
+				switch (component) {
 				case MATERIAL_COMPONENT_DIFFUSE:
 					materialValues.emplace_back(mat.diffuse[0]);
 					materialValues.emplace_back(mat.diffuse[1]);
@@ -83,92 +107,109 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 					// so that it can be used as a default alpha value if the material
 					// doesn't have a transparency component
 					materialValues.emplace_back(1);
-					numFloats += 4;
 					break;
 				}
 			}
+			
+			if (mat.diffuse_texname != "")
+				new Texture(subrenderer, worker, baseDirName.append(mat.diffuse_texname).string().c_str());
 		}
 
-		device->createBuffer(materialValues.size() * sizeof(float),
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&materialLayout->buffer);
-		materialLayout->buffer.copyTo(materialValues.data(), materialValues.size() * sizeof(float));
+		if (materialValues.size() > 0) {
+			VkDeviceSize size = materialValues.size() * sizeof(float);
+			materialBuffer = device->createBuffer(size,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+			Buffer staging = device->createStagingBuffer(size);
+			staging.copyTo(materialValues.data(), size);
+			device->copyBuffer(&staging, &materialBuffer, worker);
 
-		materialLayout->bufferInfo.buffer = materialLayout->buffer;
-		materialLayout->bufferInfo.offset = 0;
-		materialLayout->bufferInfo.range = numFloats * sizeof(float);
+			materialBufferInfo.buffer = materialBuffer;
+			materialBufferInfo.offset = 0;
+			materialBufferInfo.range = size;
+		} else {
+			hasMaterial = false;
+		}
 	}
 
 	// Load vertices
-	uint32_t indexStart = 0;
-	uint32_t indexCount = 0;
-	int currentMat = -1;
-	std::vector<float> vertices;
+	indexCount = 0;
+	uint32_t vertexCount = 0;
+	std::vector<void*> vertices;
 	std::vector<uint32_t> indices;
 	for (auto& shape : shapes) {
 		size_t indexOffset = 0;
 		size_t numFaces = shape.mesh.num_face_vertices.size();
 		for (size_t face = 0; face < numFaces; face++) {
 			auto mat = shape.mesh.material_ids[face];
-			if (mat != currentMat) {
-				parts.emplace_back(indexStart, indexCount, currentMat);
-				currentMat = mat;
-				indexStart += indexCount;
-				indexCount = 0;
-			}
 
 			for (unsigned char i = 0; i < shape.mesh.num_face_vertices[face]; i++) {
 				auto idx = shape.mesh.indices[indexOffset + i];
 
-				std::vector<float> vertex;
-				vertex.reserve(vertexLayout->numFloats);
+				// Allocate a block of memory the size of one vertex
+				// It can have floats and integers so we'll use a void pointer,
+				// as well as a second pointer to track where we're currently writing to
+				void* vertex = malloc(vertexLayout->stride);
+				void* head = vertex;
 
+				// For each component, we'll write our data to our block, starting at head,
+				// and increment head the appropriate amount so the next component is written
+				// to the next part of the block
 				for (auto component : vertexLayout->components) {
 					switch (component.second) {
 					case VERTEX_COMPONENT_POSITION:
-						vertex.emplace_back(attrib.vertices[3 * idx.vertex_index]);
-						vertex.emplace_back(attrib.vertices[3 * idx.vertex_index + 1]);
-						vertex.emplace_back(attrib.vertices[3 * idx.vertex_index + 2]);
+						*((float*)head) = attrib.vertices[3 * idx.vertex_index];
+						head = (float*)head + 1;
+						*((float*)head) = attrib.vertices[3 * idx.vertex_index + 1];
+						head = (float*)head + 1;
+						*((float*)head) = attrib.vertices[3 * idx.vertex_index + 2];
+						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_NORMAL:
-						vertex.emplace_back(attrib.normals[3 * idx.normal_index]);
-						vertex.emplace_back(attrib.normals[3 * idx.normal_index + 1]);
-						vertex.emplace_back(attrib.normals[3 * idx.normal_index + 2]);
+						*((float*)head) = attrib.normals[3 * idx.normal_index];
+						head = (float*)head + 1;
+						*((float*)head) = attrib.normals[3 * idx.normal_index + 1];
+						head = (float*)head + 1;
+						*((float*)head) = attrib.normals[3 * idx.normal_index + 2];
+						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_UV:
-						vertex.emplace_back(attrib.texcoords[2 * idx.texcoord_index]);
-						vertex.emplace_back(attrib.texcoords[2 * idx.texcoord_index + 1]);
+						*((float*)head) = attrib.texcoords[2 * idx.texcoord_index];
+						head = (float*)head + 1;
+						*((float*)head) = attrib.texcoords[2 * idx.texcoord_index + 1];
+						head = (float*)head + 1;
 						break;
 					case VERTEX_COMPONENT_MATERIAL_INDEX:
-						vertex.emplace_back(mat);
+						*((int*)head) = mat;
+						head = (int*)head + 1;
+						break;
+					default:
+						// Ignore other cases because those are explicitly not set automatically by models
+						// (it's probably a mistake for them to use a model while using a vertex component not listed above)
+						Debugger::addLog(DEBUG_LEVEL_WARN, "[MODEL] " + filepath.string() + " loaded with a vertex layout using a custom vertex component");
 						break;
 					}
 				}
 
-				uint32_t index = vertices.size() / vertexLayout->numFloats;
+				uint32_t index = vertexCount;
 				bool uniqueVertex = true;
 				// Look through our existing vertex for a duplicate
 				// If none is found it'll use the initial index value,
 				// which is where the next vertex would be on the list
-				for (uint32_t i = 0; i < vertices.size(); i += vertexLayout->numFloats) {
-					// Check each value of this vertex
-					bool isDifferent = false;
-					for (uint16_t j = 0; j < vertexLayout->numFloats; j++)
-						if (vertices[i + j] != vertex[j]) {
-							isDifferent = true;
-							continue;
-						}
-					if (isDifferent) continue;
-
-					// Its a match!
-					index = i / vertexLayout->numFloats;
-					uniqueVertex = false;
-					break;
+				for (size_t i = 0; i < vertices.size(); i++) {
+					if (memcmp(vertex, vertices[i], vertexLayout->stride) == 0) {
+						// Its a match!
+						index = i;
+						uniqueVertex = false;
+						break;
+					}
 				}
 
 				if (uniqueVertex) {
-					vertices.insert(vertices.end(), vertex.begin(), vertex.end());
+					vertices.emplace_back(vertex);
+					vertexCount++;
+				} else {
+					// Free our memory since it wasn't added to our list of vertices
+					//free(vertex);
 				}
 				indices.emplace_back(index);
 				indexCount++;
@@ -176,32 +217,31 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 			indexOffset += shape.mesh.num_face_vertices[face];
 		}
 	}
-	parts.emplace_back(indexStart, indexCount, currentMat);
 
 	// Create our buffers
-	uint32_t vBufferSize = static_cast<uint32_t>(vertices.size()) * sizeof(float);
+	uint32_t vBufferSize = static_cast<uint32_t>(vertices.size()) * vertexLayout->stride;
 	uint32_t iBufferSize = static_cast<uint32_t>(indices.size()) * sizeof(uint32_t);
 
 	// Use staging buffer to move vertex and index buffer to device local memory
-	Buffer vertexStaging = device->createBuffer(vBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	vertexStaging.copyTo(vertices.data(), vBufferSize);
+	Buffer vertexStaging = device->createStagingBuffer(vBufferSize);
+	void* head = vertexStaging.map();
+	for (void* vertex : vertices) {
+		vertexStaging.copyTo(head, vertex, vertexLayout->stride);
+		// Make sure to free our memory once its copied!
+		free(vertex);
+		head = (char*)head + vertexLayout->stride;
+	}
+	vertexStaging.unmap();
 
-	Buffer indexStaging = device->createBuffer(iBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	Buffer indexStaging = device->createStagingBuffer(iBufferSize);
 	indexStaging.copyTo(indices.data(), iBufferSize);
 
 	// Initialize our device local target buffers
-	device->createBuffer(vBufferSize,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer);
-
-	device->createBuffer(iBufferSize,
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer);
+	vertexBuffer = device->createBuffer(vBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	indexBuffer = device->createBuffer(iBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 	// Copy from staging buffers
-	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, worker->commandPool);
 
 	VkBufferCopy copyRegion{};
 
@@ -211,51 +251,9 @@ void Model::loadObj(VkQueue copyQueue, std::filesystem::path filepath) {
 	copyRegion.size = iBufferSize;
 	vkCmdCopyBuffer(copyCmd, indexStaging.buffer, indexBuffer.buffer, 1, &copyRegion);
 
-	device->submitCommandBuffer(copyCmd, copyQueue);
+	device->submitCommandBuffer(copyCmd, worker);
 
 	// Destroy staging resources
-	vertexStaging.cleanup();
-	indexStaging.cleanup();
-}
-
-void VertexLayout::init(std::map<uint8_t, uint8_t> components) {
-	this->components = components;
-
-	// Calculate numFloats and attribute descriptions
-	numFloats = 0;
-	attributeDescriptions.reserve(components.size());
-	for (auto component : components) {
-		VkVertexInputAttributeDescription attribute = {};
-		attribute.binding = 0;
-		attribute.location = component.first;
-		attribute.offset = numFloats * 4;
-
-		switch (component.second) {
-		case VERTEX_COMPONENT_POSITION:
-			numFloats += 3;
-			attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-			break;
-		case VERTEX_COMPONENT_NORMAL:
-			numFloats += 3;
-			attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-			break;
-		case VERTEX_COMPONENT_UV:
-			numFloats += 2;
-			attribute.format = VK_FORMAT_R32G32_SFLOAT;
-			break;
-		case VERTEX_COMPONENT_MATERIAL_INDEX:
-			// Indices are also floats because abstracting our vertices this way
-			// doesn't allow us to have integers mixed with arbitrary numbers of floats
-			numFloats += 1;
-			attribute.format = VK_FORMAT_R32_SFLOAT;
-			break;
-		}
-
-		attributeDescriptions.push_back(attribute);
-	}
-
-	// Create binding description
-	bindingDescription.binding = 0;
-	bindingDescription.stride = numFloats * sizeof(float);
-	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	device->cleanupBuffer(vertexStaging);
+	device->cleanupBuffer(indexStaging);
 }

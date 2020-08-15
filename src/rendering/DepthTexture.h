@@ -1,11 +1,12 @@
 #pragma once
 
-#include "../engine/Buffer.h"
-#include "../engine/Device.h"
-
 #include <vulkan/vulkan.h>
+#include <vector>
 
 namespace vecs {
+
+	// Forward Declarations
+	class Device;
 
 	class DepthTexture {
 	public:
@@ -16,7 +17,7 @@ namespace vecs {
 		uint32_t width, height;
 		VkDescriptorImageInfo descriptor;
 
-		void init(Device* device, VkQueue copyQueue, VkExtent2D extent);
+		void init(Device* device, VkExtent2D extent);
 
 		void cleanup();
 

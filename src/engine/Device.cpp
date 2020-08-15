@@ -1,6 +1,9 @@
+#define VMA_IMPLEMENTATION
 #include "Device.h"
 
-#include <vulkan/vulkan.h>
+#include "Debugger.h"
+#include "../jobs/Worker.h"
+
 #include <vector>
 #include <map>
 #include <set>
@@ -10,7 +13,7 @@ using namespace vecs;
 Device::Device(VkInstance instance, VkSurfaceKHR surface) {
     pickPhysicalDevice(instance, surface);
     createLogicalDevice();
-    commandPool = createCommandPool(queueFamilyIndices.graphics.value());
+    createMemoryAllocator(instance);
 }
 
 VkCommandPool Device::createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags) {
@@ -20,88 +23,59 @@ VkCommandPool Device::createCommandPool(uint32_t queueFamilyIndex, VkCommandPool
     cmdPoolInfo.flags = createFlags;
 
     VkCommandPool commandPool;
-    if (vkCreateCommandPool(logical, &cmdPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    VK_CHECK_RESULT(vkCreateCommandPool(logical, &cmdPoolInfo, nullptr, &commandPool));
 
     return commandPool;
 }
 
-Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
-    // Create a new struct to wrap around the VkBuffer
-    Buffer buffer(&logical, size, usage, properties);
+Buffer Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage allocUsage) {
+    VkBufferCreateInfo vbInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    vbInfo.size = size;
+    vbInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage;
+    vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    // Create our new buffer with the given size
-    VkBufferCreateInfo bufferInfo = {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VmaAllocationCreateInfo info;
+    info.flags = 0;
+    info.requiredFlags = 0;
+    info.preferredFlags = 0;
+    info.memoryTypeBits = 0;
+    info.usage = allocUsage;
+    info.pool = VMA_NULL;
 
-    if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer.buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
-    }
-
-    // Assign memory to our buffer
-    // First define our memory requirements
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(logical, buffer.buffer, &memRequirements);
-
-    // Define our memory allocation request
-    VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // Allocate memory
-    if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer.memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
-    }
-
-    // Bind this memory to our new buffer
-    vkBindBufferMemory(logical, buffer.buffer, buffer.memory, 0);
-
+    Buffer buffer(allocator);
+    buffer.size = size;
+    VK_CHECK_RESULT(vmaCreateBuffer(allocator, &vbInfo, &info, &buffer.buffer, &buffer.allocation, nullptr));
     return buffer;
 }
 
-void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, Buffer* buffer) {
-    // Create a new struct to wrap around the VkBuffer
-    buffer->init(&logical, size, usage, properties);
+Buffer Device::createStagingBuffer(VkDeviceSize size) {
+    VkBufferCreateInfo vbInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    vbInfo.size = size;
+    vbInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    // Create our new buffer with the given size
-    VkBufferCreateInfo bufferInfo = {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VmaAllocationCreateInfo info;
+    info.flags = 0;
+    info.requiredFlags = 0;
+    info.preferredFlags = 0;
+    info.memoryTypeBits = 0;
+    info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    info.pool = VMA_NULL;
 
-    if (vkCreateBuffer(logical, &bufferInfo, nullptr, &buffer->buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
-    }
-
-    // Assign memory to our buffer
-    // First define our memory requirements
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(logical, buffer->buffer, &memRequirements);
-
-    // Define our memory allocation request
-    VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // Allocate memory
-    if (vkAllocateMemory(logical, &allocInfo, nullptr, &buffer->memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
-    }
-
-    // Bind this memory to our new buffer
-    vkBindBufferMemory(logical, buffer->buffer, buffer->memory, 0);
+    Buffer buffer(allocator);
+    buffer.size = size;
+    VK_CHECK_RESULT(vmaCreateBuffer(allocator, &vbInfo, &info, &buffer.buffer, &buffer.allocation, nullptr));
+    return buffer;
 }
 
-void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* copyRegion) {
+void Device::cleanupBuffer(Buffer buffer) {
+    vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
+    buffer.buffer = VK_NULL_HANDLE;
+}
+
+void Device::copyBuffer(Buffer* src, Buffer* dest, Worker* worker, VkBufferCopy* copyRegion) {
     // Get a command buffer to use
-    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, worker->commandPool);
 
     // Determine how much to copy
     VkBufferCopy bufferCopy = {};
@@ -114,13 +88,10 @@ void Device::copyBuffer(Buffer* src, Buffer* dest, VkQueue queue, VkBufferCopy* 
     vkCmdCopyBuffer(copyCmd, src->buffer, dest->buffer, 1, &bufferCopy);
 
     // End our command buffer and submit it
-    submitCommandBuffer(copyCmd, queue);
+    submitCommandBuffer(copyCmd, worker);
 }
 
 VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, bool begin) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
     // Tell it which pool to create a command buffer for, with the given level
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -130,9 +101,7 @@ VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkComman
 
     // Create the buffer
     VkCommandBuffer buffer;
-    if (vkAllocateCommandBuffers(logical, &allocInfo, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffer!");
-    }
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(logical, &allocInfo, &buffer));
 
     if (begin) beginCommandBuffer(buffer);
 
@@ -140,9 +109,6 @@ VkCommandBuffer Device::createCommandBuffer(VkCommandBufferLevel level, VkComman
 }
 
 std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel level, int amount, VkCommandPool commandPool, bool begin) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
     // Tell it which pool to create command buffers for, and how many, with the given level
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -152,9 +118,7 @@ std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel l
 
     // Create the buffers
     std::vector<VkCommandBuffer> buffers(amount);
-    if (vkAllocateCommandBuffers(logical, &allocInfo, buffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffer!");
-    }
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(logical, &allocInfo, buffers.data()));
 
     if (begin)
         for (VkCommandBuffer buffer : buffers) beginCommandBuffer(buffer);
@@ -162,13 +126,8 @@ std::vector<VkCommandBuffer> Device::createCommandBuffers(VkCommandBufferLevel l
     return buffers;
 }
 
-void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool, bool free) {
-    if (commandPool == nullptr)
-        commandPool = this->commandPool;
-
-    if (vkEndCommandBuffer(buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
+void Device::submitCommandBuffer(VkCommandBuffer buffer, Worker* worker, bool free) {
+    VK_CHECK_RESULT(vkEndCommandBuffer(buffer));
 
     // Submit our command buffer to its queue
     VkSubmitInfo submitInfo = {};
@@ -176,11 +135,17 @@ void Device::submitCommandBuffer(VkCommandBuffer buffer, VkQueue queue, VkComman
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &buffer;
 
-    vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(queue);
+    if (worker->queueLock != nullptr) {
+        worker->queueLock->lock();
+    }
+    vkQueueSubmit(worker->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(worker->graphicsQueue);
+    if (worker->queueLock != nullptr) {
+        worker->queueLock->unlock();
+    }
 
     // Destroy our command buffer
-    if (free) vkFreeCommandBuffers(logical, commandPool, 1, &buffer);
+    if (free) vkFreeCommandBuffers(logical, worker->commandPool, 1, &buffer);
 }
 
 uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -201,8 +166,8 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
 }
 
 void Device::cleanup() {
-    // Destroy our command pool
-    vkDestroyCommandPool(logical, commandPool, nullptr);
+    // Destroy our memory allocator
+    vmaDestroyAllocator(allocator);
 
     // Destroy our logical device
     vkDestroyDevice(logical, nullptr);
@@ -241,6 +206,35 @@ void Device::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
         physical = candidate.physicalDevice;
         queueFamilyIndices = candidate.indices;
         swapChainSupport = candidate.swapChainSupport;
+        
+        // Add device information to debug log
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(physical, &deviceProperties);
+
+        std::stringstream ss;
+        ss << "Physical Device Information:\n";
+        uint32_t major = deviceProperties.apiVersion >> 22;
+        uint32_t minor = (deviceProperties.apiVersion >> 12) & 0x3ff;
+        uint32_t patch = deviceProperties.apiVersion & 0xfff;
+        ss << "\tAPI Version: " << major << "." << minor << "." << patch << "\n";
+        ss << "\tDevice ID: 0x" << std::hex << deviceProperties.deviceID << std::dec << "\n";
+        ss << "\tDevice Name: " << deviceProperties.deviceName << "\n";
+        std::string deviceType;
+        switch (deviceProperties.deviceType) {
+        case (0): deviceType = "PHYSICAL_DEVICE_TYPE_OTHER"; break;
+        case (1): deviceType = "PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU"; break;
+        case (2): deviceType = "PHYSICAL_DEVICE_TYPE_DISCRETE_GPU"; break;
+        case (3): deviceType = "PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU"; break;
+        case (4): deviceType = "PHYSICAL_DEVICE_TYPE_CPU"; break;
+        default: deviceType = "UNKNOWN_VkPhysicalDeviceType"; break;
+        }
+        ss << "\tDevice Type: " << deviceType << "\n";
+        ss << "\tDriver Version: 0x" << std::hex << deviceProperties.driverVersion << std::dec << "\n";
+        ss << "\tVendor ID: 0x" << std::hex << deviceProperties.vendorID << "\n";
+        ss << "\tGraphics Queue Count: " << queueFamilyIndices.graphicsQueueCount;
+        // TODO any more information?
+
+        Debugger::addLog(DEBUG_LEVEL_VERBOSE, ss.str());
     } else {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
@@ -259,9 +253,12 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device, VkSurfaceK
 
     int i = 0;
     for (const auto& queueFamily : queueFamilies) {
-        // Check each queue family for one that supports VK_QUEUE_GRAPHICS_BIT
-        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        // Check each queue family for one that supports VK_QUEUE_GRAPHICS_BIT,
+        // selecting the one with the highest number of queues so we can have the
+        // highest chance of having enough for our optimal number of worker threads
+        if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && queueFamily.queueCount > indices.graphicsQueueCount) {
             indices.graphics = i;
+            indices.graphicsQueueCount = queueFamily.queueCount;
         }
 
         // Check each queue family for one that supports presenting to the window system
@@ -270,10 +267,6 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device, VkSurfaceK
         if (presentSupport) {
             indices.present = i;
         }
-
-        // Break out early if every feature has an index
-        if (indices.isComplete())
-            break;
 
         i++;
     }
@@ -380,18 +373,38 @@ void Device::createLogicalDevice() {
     // Create information structs for each of our device queue families
     // Configure it as appropriate and give it our queue family indices
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = { queueFamilyIndices.graphics.value(), queueFamilyIndices.present.value() };
     
     // We'll give them equal priority
-    const float queuePriority = 1.0f;
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    std::vector<float> queuePriorities;
+    // 1 for the Renderer and 2 for worlds (which will flip flop between the active and loading world),
+    // and 1 for each worker thread. Since our main thread shouldn't have to compete with the worker threads,
+    // our preferred number of worker threads is thread::hardware_concurrency() - 1, and we're fine with the world loading
+    // thread having to compete because it is relatively rare over the application's lifetime
+    // Capped at max queue count in this family
+    uint32_t desiredQueues = std::max(1u, std::thread::hardware_concurrency() - 1) + 3;
+    for (int i = std::min(desiredQueues, queueFamilyIndices.graphicsQueueCount) - 1; i >= 0; i--)
+        queuePriorities.push_back(1);
+
+    // Present queue
+    // If the queue families have the same index then the graphics queue
+    // will also act as our present queue
+    // (not vice versa, because we need more graphics queues than present queues)
+    if (queueFamilyIndices.graphics != queueFamilyIndices.present) {
         VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueFamilyIndex = queueFamilyIndices.present.value();
         queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfo.pQueuePriorities = queuePriorities.data();
         queueCreateInfos.push_back(queueCreateInfo);
     }
+
+    // Graphics queue
+    VkDeviceQueueCreateInfo queueCreateInfo = {};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = queueFamilyIndices.graphics.value();
+    queueCreateInfo.queueCount = static_cast<uint32_t>(queuePriorities.size());
+    queueCreateInfo.pQueuePriorities = queuePriorities.data();
+    queueCreateInfos.push_back(queueCreateInfo);
 
     // List the physical device features we need our logical device to support
     VkPhysicalDeviceFeatures deviceFeatures = {};
@@ -410,9 +423,16 @@ void Device::createLogicalDevice() {
     createInfo.ppEnabledExtensionNames = deviceExtensions;
     
     // Create the logical device and throw an error if anything goes wrong
-    if (vkCreateDevice(physical, &createInfo, nullptr, &logical) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    VK_CHECK_RESULT(vkCreateDevice(physical, &createInfo, nullptr, &logical));
+}
+
+void Device::createMemoryAllocator(VkInstance instance) {
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = physical;
+    allocatorInfo.device = logical;
+    allocatorInfo.instance = instance;
+
+    VK_CHECK_RESULT(vmaCreateAllocator(&allocatorInfo, &allocator));
 }
 
 void Device::beginCommandBuffer(VkCommandBuffer buffer) {
@@ -420,9 +440,7 @@ void Device::beginCommandBuffer(VkCommandBuffer buffer) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     // Being the command buffer
-    if (vkBeginCommandBuffer(buffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    VK_CHECK_RESULT(vkBeginCommandBuffer(buffer, &beginInfo));
 }
 
 void Device::beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBufferInheritanceInfo* info) {
@@ -432,7 +450,5 @@ void Device::beginSecondaryCommandBuffer(VkCommandBuffer buffer, VkCommandBuffer
     beginInfo.pInheritanceInfo = info;
 
     // Being the command buffer
-    if (vkBeginCommandBuffer(buffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    VK_CHECK_RESULT(vkBeginCommandBuffer(buffer, &beginInfo));
 }

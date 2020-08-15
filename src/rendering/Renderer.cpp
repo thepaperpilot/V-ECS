@@ -3,7 +3,7 @@
 #include "../engine/Engine.h"
 #include "../engine/Device.h"
 #include "../events/EventManager.h"
-#include "../engine/GLFWEvents.h"
+#include "../events/GLFWEvents.h"
 #include "../ecs/World.h"
 
 #include <algorithm>
@@ -26,11 +26,13 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
 
     // Initialize everything for our render pass
     createSwapChain();
-    depthTexture.init(device, graphicsQueue, swapChainExtent);
+    depthTexture.init(device, swapChainExtent);
     createImageViews();
     createRenderPass();
     createFramebuffers();
-    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+    // Create our own command pool for making rendering command buffers
+    commandPool = device->createCommandPool(device->queueFamilyIndices.graphics.value());
+    commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
 
     // Create semaphores and fences for asynchronous rendering
     imageAvailableSemaphores.resize(maxFramesInFlight);
@@ -89,10 +91,11 @@ void Renderer::acquireImage() {
     imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 }
 
-void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
-    buildCommandBuffer(subrenderers);
+void Renderer::presentImage() {
+    // Create our command buffer of draw calls
+    buildCommandBuffer();
 
-    // Create our info to submit an image to the buffers
+    // Create our info to submit an image to the present queue
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     // We need to set it up with a sempahore signal so it knows to wait until there's an image available
@@ -111,9 +114,12 @@ void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* sub
 
     // Submit our image to the graphic queue
     vkResetFences(*device, 1, &inFlightFences[currentFrame]);
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
+    std::mutex* queueLock = engine->jobManager.getQueueLock(0);
+    if (queueLock != nullptr)
+        queueLock->lock();
+    VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+    if (queueLock != nullptr)
+        queueLock->unlock();
 
     // Get ready to present the image to the screen
     VkPresentInfoKHR presentInfo = {};
@@ -128,7 +134,12 @@ void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* sub
     presentInfo.pImageIndices = &imageIndex;
 
     // Present the image to the screen
+    // Check if our graphicsqueue and presentqueue are the same, and if so lock the queue if necessary
+    if (queueLock != nullptr && device->queueFamilyIndices.graphics.value() == device->queueFamilyIndices.present.value())
+        queueLock->lock();
     VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+    if (queueLock != nullptr && device->queueFamilyIndices.graphics.value() == device->queueFamilyIndices.present.value())
+        queueLock->unlock();
 
     // Check if the image is out of date, so we can pre-emptively recreate the swap chain before next frame
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
@@ -140,6 +151,7 @@ void Renderer::presentImage(std::multiset<SubRenderer*, SubRendererCompare>* sub
     // Increment current frame so the next frame uses the next set of semaphores
     // and allow us to limit how many frames ahead we get
     currentFrame = (currentFrame + 1) % maxFramesInFlight;
+    imageIndex = (imageIndex + 1) % imageCount;
 }
 
 void Renderer::cleanup() {
@@ -151,7 +163,10 @@ void Renderer::cleanup() {
     }
 
     // Destroy our command buffers
-    vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+    // Destroy our command pool
+    vkDestroyCommandPool(*device, commandPool, nullptr);
 
     // Destroy our depth texture
     if (depthTexture.image)
@@ -243,12 +258,10 @@ void Renderer::createRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create render pass!");
-    }
+    VK_CHECK_RESULT(vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass));
 }
 
-void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
+bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // If we were minimized, wait until that changes
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
@@ -272,24 +285,34 @@ void Renderer::refreshWindow(RefreshWindowEvent* ignored) {
     // If it returns true we'll need to reconstruct a bunch of other stuff to
     bool numImagesChanged = createSwapChain(&swapChain);
     // Other resources always need to be updated when the window size changes
-    depthTexture.init(device, graphicsQueue, swapChainExtent);
+    depthTexture.init(device, swapChainExtent);
     createImageViews();
     createFramebuffers();
 
     // Only update image views and primary command buffers if the number of swap images changed
     if (numImagesChanged) {
         // Command Buffers
-        vkFreeCommandBuffers(*device, device->commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount);
+        vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
 
         // Sync objects
         imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
     }
 
-    // Tell sub-renderers the window size changed as well
-    for (auto subrenderer : engine->world->subrenderers) {
-        subrenderer->windowRefresh(numImagesChanged, imageCount);
-    }
+    // Tell worker the window size changed as well
+    engine->jobManager.windowRefresh();
+
+    // Update worlds
+    if (engine->world != nullptr)
+        engine->world->windowRefresh(imageCount);
+    if (engine->nextWorld != nullptr)
+        engine->nextWorld->windowRefresh(imageCount);
+
+    // Redraw screen
+    engine->updateWorld();
+
+    // We always want to continue listening to this event
+    return true;
 }
 
 bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
@@ -337,7 +360,11 @@ bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
     createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : *oldSwapChain;
 
     if (vkCreateSwapchainKHR(*device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create swap chain!");
+        // If this fails for any reason, then the old swapchain will be invalidated
+        // We don't throw a runtime error because creating a swapchain can fail for innocuous reasons,
+        // like moving the window near the edge of the screen too quickly
+        // Instead we'll just try creating it again, notably leaving oldSwapchain as nullptr
+        return createSwapChain();
     }
 
     vkGetSwapchainImagesKHR(*device, swapChain, &imageCount, nullptr);
@@ -373,9 +400,7 @@ void Renderer::createFramebuffers() {
         framebufferInfo.layers = 1;
 
         // Create the frame buffer!
-        if (vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
+        VK_CHECK_RESULT(vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
     }
 }
 
@@ -387,7 +412,7 @@ void Renderer::createImageViews() {
     }
 }
 
-void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare>* subrenderers) {
+void Renderer::buildCommandBuffer() {
     // Describe our render pass
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -404,15 +429,7 @@ void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare
     clearValues[1].depthStencil = { 1.0f, 0 };
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
-
-    // Make sure all our secondary command buffers are up to date
-    std::vector<VkCommandBuffer> secondaryBuffers(subrenderers->size());
-    int i = 0;
-    for (std::multiset<SubRenderer*, SubRendererCompare>::iterator it = subrenderers->begin(); it != subrenderers->end(); ++it) {
-        if ((*it)->dirtyBuffers.count(imageIndex))
-            (*it)->buildCommandBuffer(imageIndex);
-        secondaryBuffers[i++] = (*it)->commandBuffers[imageIndex];
-    }
+    secondaryBufferMutex.lock(); // shouldn't ever be contested, but just in case
 
     // Begin recording our command buffer
     device->beginCommandBuffer(commandBuffers[imageIndex]);
@@ -427,9 +444,10 @@ void Renderer::buildCommandBuffer(std::multiset<SubRenderer*, SubRendererCompare
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
 
     // End the command buffer
-    if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }    
+    VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffers[imageIndex]));
+
+    secondaryBuffers.clear();
+    secondaryBufferMutex.unlock();
 }
 
 VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
