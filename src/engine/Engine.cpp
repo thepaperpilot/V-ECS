@@ -93,6 +93,12 @@ void Engine::initWindow(sol::table manifest) {
     // Register GLFW callbacks
     glfwSetWindowUserPointer(window, this);
     glfwSetWindowSizeLimits(window, 1, 1, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetErrorCallback([](int error, const char* description) {
+        std::stringstream ss;
+        ss << "GLFW Error: " << error << "\n";
+        ss << description;
+        Debugger::addLog(DEBUG_LEVEL_ERROR, ss.str());
+    });
     glfwSetFramebufferSizeCallback(window, windowResizeCallback);
     glfwSetWindowRefreshCallback(window, windowRefreshCallback);
     glfwSetCursorPosCallback(window, cursorPositionCallback);
