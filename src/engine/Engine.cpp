@@ -54,6 +54,11 @@ WorldLoadStatus* Engine::setWorld(std::string filename) {
         }
         if (this->world->fonts != nullptr)
             ImGui::GetIO().Fonts = this->world->fonts;
+        std::string windowTitle = this->world->config["name"].get_or(std::string("V-ecs"));
+#ifndef NDEBUG
+        windowTitle += " [DEBUG]";
+#endif
+        glfwSetWindowTitle(window, windowTitle.c_str());
     } else {
         new std::thread([this](std::string filename, WorldLoadStatus* status) {
             if (this->nextWorld != nullptr) {
@@ -80,7 +85,7 @@ void Engine::initWindow(sol::table manifest) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    std::string windowTitle = manifest["name"];
+    std::string windowTitle = "V-ecs";
 #ifndef NDEBUG
     windowTitle += " [DEBUG]";
 #endif
@@ -139,12 +144,11 @@ void Engine::createInstance(sol::table manifest) {
 
     // Create our application info. Confiures the values both hard-coded by the engine
     // as well as some loaded in from the manifest
-    std::string windowTitle = manifest["name"];
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = windowTitle.c_str();
+    appInfo.pApplicationName = "V-ecs";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "Voxel-ECS";
+    appInfo.pEngineName = "V-ecs";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -233,6 +237,11 @@ void Engine::updateWorld() {
         world = nextWorld;
         if (world->fonts != nullptr)
             ImGui::GetIO().Fonts = world->fonts;
+        std::string windowTitle = nextWorld->config["name"].get_or(std::string("V-ecs"));
+#ifndef NDEBUG
+        windowTitle += " [DEBUG]";
+#endif
+        glfwSetWindowTitle(window, windowTitle.c_str());
         nextWorld = nullptr;
     }
 }
