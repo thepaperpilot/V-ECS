@@ -31,6 +31,9 @@ void Engine::init() {
     // Load application manifest
     sol::table manifest = lua.script_file("resources/manifest.lua");
 
+    // Default to true if not specified
+    vsyncEnabled = manifest["vsync"] != false;
+
     initWindow(manifest);
     initVulkan(manifest);
     initImGui();
@@ -196,6 +199,10 @@ void Engine::mainLoop() {
         // TODO find out how to update world efficiently when glfwPollEvents blocks the main thread
         glfwPollEvents();
         updateWorld();
+        if (needsRefresh) {
+            renderer.refreshWindow();
+            needsRefresh = false;
+        }
     }
     vkDeviceWaitIdle(*device);
 }

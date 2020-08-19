@@ -49,7 +49,7 @@ namespace vecs {
 		void start();
 		bool work(Job* job = nullptr);
 		void cleanup();
-		void createInheritanceInfo(uint32_t newSize = 0);
+		void createInheritanceInfo();
 
 	protected:
 		Job jobPool[MAX_JOB_COUNT];

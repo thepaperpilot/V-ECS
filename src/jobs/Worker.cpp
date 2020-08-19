@@ -146,11 +146,11 @@ VkCommandBuffer Worker::getCommandBuffer() {
 		newSize *= engine->renderer.imageCount;
 		while (imageIndex >= newSize)
 			newSize *= 2;
-		
-		createInheritanceInfo(newSize);
 
 		std::vector<VkCommandBuffer> newBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_SECONDARY, newSize - commandBuffers.size(), commandPool);
 		commandBuffers.insert(commandBuffers.end(), newBuffers.begin(), newBuffers.end());
+
+		createInheritanceInfo();
 	}
 
 	// Begin the command buffer
@@ -326,9 +326,9 @@ void Worker::cleanup() {
     vkDestroyCommandPool(*device, commandPool, nullptr);
 }
 
-void Worker::createInheritanceInfo(uint32_t newSize) {
-	if (!newSize) newSize = inheritanceInfo.size();
-	else inheritanceInfo.resize(newSize);
+void Worker::createInheritanceInfo() {
+	size_t newSize = commandBuffers.size();
+	inheritanceInfo.resize(newSize);
 	for (size_t i = 0; i < newSize; i++) {
 		inheritanceInfo[i] = {};
 		inheritanceInfo[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;

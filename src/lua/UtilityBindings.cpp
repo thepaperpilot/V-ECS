@@ -58,6 +58,13 @@ void vecs::UtilityBindings::setupState(sol::state& lua, Worker* worker, Engine* 
 		system(("start " + url).c_str());
 	};
 
+	auto eng = lua["engine"] = lua.create_table_with();
+	eng["getVsyncEnabled"] = [engine]() -> bool { return engine->vsyncEnabled; };
+	eng["setVsyncEnabled"] = [engine](bool vsyncEnabled) {
+		engine->vsyncEnabled = vsyncEnabled;
+		engine->needsRefresh = true;
+	};
+
 	// debugger
 	lua["debugger"] = lua.create_table_with(
 		// Originally this was called "getLog", so in lua you'd do `debugger.getLog()`, but it was using it as a property getter instead of a function getter

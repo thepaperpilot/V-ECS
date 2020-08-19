@@ -38,6 +38,7 @@ namespace vecs {
 		void init(Device* device, VkSurfaceKHR surface, GLFWwindow* window);
 		void acquireImage();
 		void presentImage();
+		bool refreshWindow(RefreshWindowEvent* ignored = nullptr);
 
 		void cleanup();
 
@@ -51,7 +52,6 @@ namespace vecs {
 
 		VkSurfaceFormatKHR surfaceFormat;
 		VkFormat swapChainImageFormat;
-		VkPresentModeKHR presentMode;
 
 		DepthTexture depthTexture;
 		VkRenderPass renderPass;
@@ -74,7 +74,6 @@ namespace vecs {
 
 		void createRenderPass();
 
-		bool refreshWindow(RefreshWindowEvent* ignored);
 		bool createSwapChain(VkSwapchainKHR* oldSwapChain = nullptr);
 		void createFramebuffers();
 		void createImageViews();

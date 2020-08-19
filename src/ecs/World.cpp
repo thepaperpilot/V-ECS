@@ -158,7 +158,7 @@ void World::update(double deltaTime) {
 
 void World::windowRefresh(int imageCount) {
 	dependencyGraph.windowRefresh(imageCount);
-	worker.createInheritanceInfo(imageCount);
+	worker.createInheritanceInfo();
 }
 
 void World::addBuffer(Buffer buffer) {

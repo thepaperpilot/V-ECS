@@ -225,6 +225,13 @@ return {
 			starnest.enabled = ig.checkbox("Special Effects Enabled", starnest.enabled)
 		end
 
+		ig.sameLine()
+
+		local vsync = engine.getVsyncEnabled()
+		if ig.checkbox("VSync", vsync) ~= vsync then
+			engine.setVsyncEnabled(not vsync)
+		end
+
 		ig.setCursorPos(width - 300, 10)
 
 		ig.text("Check me out:")

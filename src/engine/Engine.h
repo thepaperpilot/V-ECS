@@ -42,6 +42,9 @@ namespace vecs {
         World* nextWorld = nullptr;
         int nextInputMode = -1;
 
+        bool vsyncEnabled = true;
+        bool needsRefresh = false;
+
         Renderer renderer;
         Debugger debugger;
         JobManager jobManager;

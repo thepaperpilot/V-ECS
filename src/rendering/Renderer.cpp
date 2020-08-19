@@ -18,7 +18,6 @@ void Renderer::init(Device* device, VkSurfaceKHR surface, GLFWwindow* window) {
 
     // Select various properties by checking for our preferences or choosing a fallback
     surfaceFormat = chooseSwapSurfaceFormat(device->swapChainSupport.formats);
-    presentMode = chooseSwapPresentMode(device->swapChainSupport.presentModes);
 
     // Retrieve the queue handles for the first in each of our queue families
     vkGetDeviceQueue(*device, device->queueFamilyIndices.graphics.value(), 0, &graphicsQueue);
@@ -154,6 +153,60 @@ void Renderer::presentImage() {
     imageIndex = (imageIndex + 1) % imageCount;
 }
 
+bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
+    // If we were minimized, wait until that changes
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    // Wait until all current buffers finish
+    vkDeviceWaitIdle(*device);
+
+    // Destroy our current resources
+    if (depthTexture.image) depthTexture.cleanup();
+    for (int i = swapChainFramebuffers.size() - 1; i >= 0; i--) {
+        vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
+        vkDestroyFramebuffer(*device, swapChainFramebuffers[i], nullptr);
+    }
+
+    // Create new ones
+    // createSwapChain may (rarely) result in a new number of swap images
+    // If it returns true we'll need to reconstruct a bunch of other stuff to
+    bool numImagesChanged = createSwapChain(&swapChain);
+    // Other resources always need to be updated when the window size changes
+    depthTexture.init(device, swapChainExtent);
+    createImageViews();
+    createFramebuffers();
+
+    // Only update image views and primary command buffers if the number of swap images changed
+    if (numImagesChanged) {
+        // Command Buffers
+        vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
+
+        // Sync objects
+        imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
+    }
+
+    // Tell worker the window size changed as well
+    engine->jobManager.windowRefresh();
+
+    // Update worlds
+    if (engine->world != nullptr)
+        engine->world->windowRefresh(imageCount);
+    if (engine->nextWorld != nullptr)
+        engine->nextWorld->windowRefresh(imageCount);
+
+    // Redraw screen
+    engine->updateWorld();
+
+    // We always want to continue listening to this event
+    return true;
+}
+
 void Renderer::cleanup() {
     for (uint32_t i = 0; i < imageCount; i++) {
         // Destroy our swap chain images
@@ -261,60 +314,6 @@ void Renderer::createRenderPass() {
     VK_CHECK_RESULT(vkCreateRenderPass(*device, &renderPassInfo, nullptr, &renderPass));
 }
 
-bool Renderer::refreshWindow(RefreshWindowEvent* ignored) {
-    // If we were minimized, wait until that changes
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-    }
-
-    // Wait until all current buffers finish
-    vkDeviceWaitIdle(*device);
-
-    // Destroy our current resources
-    if (depthTexture.image) depthTexture.cleanup();
-    for (int i = swapChainFramebuffers.size() - 1; i >= 0; i--) {
-        vkDestroyImageView(*device, swapChainImageViews[i], nullptr);
-        vkDestroyFramebuffer(*device, swapChainFramebuffers[i], nullptr);
-    }
-
-    // Create new ones
-    // createSwapChain may (rarely) result in a new number of swap images
-    // If it returns true we'll need to reconstruct a bunch of other stuff to
-    bool numImagesChanged = createSwapChain(&swapChain);
-    // Other resources always need to be updated when the window size changes
-    depthTexture.init(device, swapChainExtent);
-    createImageViews();
-    createFramebuffers();
-
-    // Only update image views and primary command buffers if the number of swap images changed
-    if (numImagesChanged) {
-        // Command Buffers
-        vkFreeCommandBuffers(*device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        commandBuffers = device->createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, imageCount, commandPool);
-
-        // Sync objects
-        imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
-    }
-
-    // Tell worker the window size changed as well
-    engine->jobManager.windowRefresh();
-
-    // Update worlds
-    if (engine->world != nullptr)
-        engine->world->windowRefresh(imageCount);
-    if (engine->nextWorld != nullptr)
-        engine->nextWorld->windowRefresh(imageCount);
-
-    // Redraw screen
-    engine->updateWorld();
-
-    // We always want to continue listening to this event
-    return true;
-}
-
 bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
     VkSurfaceCapabilitiesKHR capabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, surface, &capabilities);
@@ -333,6 +332,7 @@ bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
     // Configure the data we need to create our swap chain
     VkSwapchainCreateInfoKHR createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.pNext = nullptr;
     createInfo.surface = surface;
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
@@ -355,7 +355,7 @@ bool Renderer::createSwapChain(VkSwapchainKHR* oldSwapChain) {
 
     createInfo.preTransform = capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode = presentMode;
+    createInfo.presentMode = chooseSwapPresentMode(device->swapChainSupport.presentModes);
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : *oldSwapChain;
 
@@ -464,10 +464,12 @@ VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat(const std::vector<VkSurface
 }
 
 VkPresentModeKHR Renderer::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
-    // If its available, prefer the mailbox presenting mode
-    for (const auto& availablePresentMode : availablePresentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            return availablePresentMode;
+    // If its available, prefer the mailbox presenting mode, unless v-sync is enabled
+    if (!engine->vsyncEnabled) {
+        for (const auto& availablePresentMode : availablePresentModes) {
+            if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+                return availablePresentMode;
+            }
         }
     }
 
