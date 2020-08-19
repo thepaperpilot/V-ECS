@@ -54,6 +54,11 @@ WorldLoadStatus* Engine::setWorld(std::string filename) {
         }
         if (this->world->fonts != nullptr)
             ImGui::GetIO().Fonts = this->world->fonts;
+        std::string windowTitle = this->world->config["name"].get_or(std::string("V-ecs"));
+#ifndef NDEBUG
+        windowTitle += " [DEBUG]";
+#endif
+        glfwSetWindowTitle(window, windowTitle.c_str());
     } else {
         new std::thread([this](std::string filename, WorldLoadStatus* status) {
             if (this->nextWorld != nullptr) {
@@ -80,7 +85,7 @@ void Engine::initWindow(sol::table manifest) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    std::string windowTitle = manifest["name"];
+    std::string windowTitle = "V-ecs";
 #ifndef NDEBUG
     windowTitle += " [DEBUG]";
 #endif
@@ -233,6 +238,11 @@ void Engine::updateWorld() {
         world = nextWorld;
         if (world->fonts != nullptr)
             ImGui::GetIO().Fonts = world->fonts;
+        std::string windowTitle = nextWorld->config["name"].get_or(std::string("V-ecs"));
+#ifndef NDEBUG
+        windowTitle += " [DEBUG]";
+#endif
+        glfwSetWindowTitle(window, windowTitle.c_str());
         nextWorld = nullptr;
     }
 }
