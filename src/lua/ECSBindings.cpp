@@ -45,16 +45,30 @@ void vecs::ECSBindings::setupState(sol::state& lua, Worker* worker) {
 	// Note: note ideal for creating large amounts of similar entities. Use an archetype
 	// This is just a convenience function for creating a single entity quickly
 	// I don't create a new usertype because uint8_t is already marked non-constructible
-	lua["createEntity"] = [worker](sol::table components) -> std::pair<uint32_t, uint32_t> {
-		std::unordered_set<std::string> componentTypes;
-		for (auto kvp : components) {
-			componentTypes.insert(kvp.first.as<std::string>());
+	lua["createEntity"] = sol::overload(
+		[worker](sol::table components) -> std::pair<uint32_t, uint32_t> {
+			std::unordered_set<std::string> componentTypes;
+			for (auto kvp : components) {
+				componentTypes.insert(kvp.first.as<std::string>());
+			}
+			Archetype* archetype = worker->getWorld()->getArchetype(componentTypes);
+			auto entity = archetype->createEntities(1);
+			for (auto kvp : components) {
+				archetype->getComponentList(kvp.first.as<std::string>()).set(LuaVal((double)entity.first), LuaVal::asLuaVal(kvp.second));
+			}
+			return entity;
+		},
+		[worker](sol::table components, sol::table sharedComponents) -> std::pair<uint32_t, uint32_t> {
+			std::unordered_set<std::string> componentTypes;
+			for (auto kvp : components) {
+				componentTypes.insert(kvp.first.as<std::string>());
+			}
+			Archetype* archetype = worker->getWorld()->getArchetype(componentTypes, &LuaVal::fromTable(sharedComponents));
+			auto entity = archetype->createEntities(1);
+			for (auto kvp : components) {
+				archetype->getComponentList(kvp.first.as<std::string>()).set(LuaVal((double)entity.first), LuaVal::asLuaVal(kvp.second));
+			}
+			return entity;
 		}
-		Archetype* archetype = worker->getWorld()->getArchetype(componentTypes);
-		auto entity = archetype->createEntities(1);
-		for (auto kvp : components) {
-			archetype->getComponentList(kvp.first.as<std::string>()).set(LuaVal((double)entity.first), LuaVal::asLuaVal(kvp.second));
-		}
-		return entity;
-	};
+	);
 }
