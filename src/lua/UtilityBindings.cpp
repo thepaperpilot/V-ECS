@@ -6,6 +6,7 @@
 #include "../engine/Engine.h"
 
 #include <filesystem>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
 void traverseResources(std::vector<std::string>* resources, std::filesystem::path filepath, std::string extension) {

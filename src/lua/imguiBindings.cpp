@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <examples\imgui_impl_glfw.h>
 #include <misc/cpp/imgui_stdlib.h>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
 using namespace vecs;

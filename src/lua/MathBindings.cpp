@@ -2,24 +2,31 @@
 
 #include "../lib/FrustumCull.h"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtx/string_cast.hpp>
 
 void vecs::MathBindings::setupState(sol::state& lua) {
 	// glm functions, w/o namespace to make it more glsl-like
-	lua["normalize"] = [](glm::vec3 v) -> glm::vec3 { return glm::normalize(v); };
+	lua["normalize"] = sol::overload(
+		[](glm::vec2 v) -> glm::vec2 { return glm::normalize(v); },
+		[](glm::vec3 v) -> glm::vec3 { return glm::normalize(v); },
+		[](glm::vec4 v) -> glm::vec4 { return glm::normalize(v); }
+	);
 	lua["radians"] = [](float v) -> float { return glm::radians(v); };
 	lua["sin"] = [](float v) -> float { return glm::sin(v); };
 	lua["cos"] = [](float v) -> float { return glm::cos(v); };
 	lua["cross"] = [](glm::vec3 first, glm::vec3 second) -> glm::vec3 { return glm::cross(first, second); };
 	lua["perspective"] = [](float fov, float aspectRatio, float nearPlane, float farPlane) -> glm::mat4 { return glm::perspective(fov, aspectRatio, nearPlane, farPlane); };
+	lua["orthographic"] = [](float nearPlane, float farPlane) -> glm::mat4 { return glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, nearPlane, farPlane); };
 	lua["lookAt"] = [](glm::vec3 position, glm::vec3 forward, glm::vec3 up) -> glm::mat4 { return glm::lookAt(position, forward, up); };
 	lua.new_usertype<glm::vec2>("vec2",
 		sol::constructors<glm::vec2(), glm::vec2(float), glm::vec2(float, float)>(),
 		"x", &glm::vec2::x,
 		"y", &glm::vec2::y,
 		"length", [](const glm::vec2& v1) -> float { return glm::length(v1); },
+		"normalized", [](const glm::vec2& v1) -> glm::vec2 { return glm::normalize(v1); },
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec2& v1, const glm::vec2& v2) -> glm::vec2 { return v1 * v2; },
 			[](const glm::vec2& v1, float f) -> glm::vec2 { return v1 * f; },
@@ -52,6 +59,7 @@ void vecs::MathBindings::setupState(sol::state& lua) {
 		"y", &glm::vec4::y,
 		"z", &glm::vec4::z,
 		"length", [](const glm::vec4& v1) -> float { return glm::length(v1); },
+		"normalized", [](const glm::vec4& v1) -> glm::vec4 { return glm::normalize(v1); },
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec4& v1, const glm::vec4& v2) -> glm::vec4 { return v1 * v2; },
 			[](const glm::vec4& v1, float f) -> glm::vec4 { return v1 * f; },
