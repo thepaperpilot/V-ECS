@@ -46,7 +46,7 @@ void vecs::MathBindings::setupState(sol::state& lua) {
 		sol::meta_function::multiplication, sol::overload(
 			[](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 * v2; },
 			[](const glm::vec3& v1, float f) -> glm::vec3 { return v1 * f; },
-			[](const glm::vec3& v1, float f) -> glm::vec3 { return f * v1; }
+			[](float f, const glm::vec3& v1) -> glm::vec3 { return f * v1; }
 		),
 		sol::meta_function::addition, [](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 + v2; },
 		sol::meta_function::subtraction, [](const glm::vec3& v1, const glm::vec3& v2) -> glm::vec3 { return v1 - v2; },
