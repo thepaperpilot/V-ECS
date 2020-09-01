@@ -14,6 +14,8 @@
 #include <imgui.h>
 #include <examples\imgui_impl_glfw.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <imnodes.h>
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
@@ -247,6 +249,23 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		}
 		return world->fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels);
 	};
+	// TODO way to add arbitrary glyphs
+	// https://en.wikipedia.org/wiki/Unicode#Standardized_subsets
+	ImVector<ImWchar> geometricRanges;
+	ImGuiIO io = GetIO();
+	ImFontAtlas::GlyphRangesBuilder builder;
+	builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
+	static const ImWchar geometricShapes[] = { 0x25A0, 0x25FF,  0 };
+	builder.AddRanges(geometricShapes);
+	builder.BuildRanges(&geometricRanges);
+	ig["addFontWithGeometricShapes"] = [worker, geometricRanges](std::string fileTTF, float sizePixels) -> ImFont* {
+		World* world = worker->getWorld();
+		if (world->fonts == nullptr) {
+			world->fonts = new ImFontAtlas();
+			world->fonts->AddFontDefault();
+		}
+		return world->fonts->AddFontFromFileTTF(fileTTF.c_str(), sizePixels, nullptr, geometricRanges.Data);
+	};
 	ig["postInit"] = [worker, device](SubRenderer* subrenderer) {
 		// Create our font texture from ImGUI's pixel data
 		ImGuiIO& io = ImGui::GetIO();
@@ -445,7 +464,13 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 			windowFlags |= flag;
 		BeginPopupModal(title.c_str(), p_open, windowFlags);
 	};
+	ig["beginPopupContextWindow"] = []() -> bool { return BeginPopupContextWindow(); };
+	ig["menuItem"] = [](std::string label) -> bool { return MenuItem(label.c_str()); };
 	ig["endPopup"] = &EndPopup;
+	ig["getMousePosOnOpeningCurrentPopup"] = []() -> glm::vec2 {
+		ImVec2 v2 = GetMousePosOnOpeningCurrentPopup();
+		return glm::vec2(v2.x, v2.y);
+	};
 	ig["beginChild"] = [](std::string title, glm::vec2 size, bool border, std::vector<ImGuiWindowFlags> flags) {
 		ImGuiWindowFlags windowFlags = 0;
 		for (auto flag : flags)
@@ -534,8 +559,18 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		// Since we can't create a string pointer in our lua code, we return the updated string alongside the input text's return value
 		return std::make_tuple(result, input);
 	};
+	ig["inputTextMultiline"] = [](std::string label, glm::vec2 size, std::string input, std::vector<ImGuiInputTextFlags> flags, LuaVal* self, sol::function callback) -> std::tuple<bool, std::string> {
+		ImGuiInputTextFlags inputTextFlags = 0;
+		for (auto flag : flags)
+			inputTextFlags |= flag;
+		bool result = InputTextMultiline(label.c_str(), &input, ImVec2(size.x, size.y), inputTextFlags, InputTextCallback, new LuaCallback(self, callback));
+		// Since we can't create a string pointer in our lua code, we return the updated string alongside the input text's return value
+		return std::make_tuple(result, input);
+	};
+	ig["getTextLineHeight"] = &GetTextLineHeight;
 	ig["isWindowHovered"] = []() -> bool { return IsWindowHovered(); };
 	ig["isItemActive"] = []() -> bool { return IsItemActive(); };
+
 	lua.new_usertype<ImGuiTextFilter>("textFilter",
 		sol::constructors<ImGuiTextFilter()>(),
 		"draw", [](ImGuiTextFilter* filter, std::string label) { filter->Draw(label.c_str()); },
@@ -597,4 +632,124 @@ void vecs::imguiBindings::setupState(sol::state& lua, Worker* worker, Engine* en
 		"cursorPos", & ImGuiTextEditCallbackData::CursorPos
 	);
 	lua.new_usertype<ImFont>("font", sol::no_constructor);
+
+	lua.new_enum("pinShapes",
+		"Circle", imnodes::PinShape_Circle,
+		"CircleFilled", imnodes::PinShape_CircleFilled,
+		"Quad", imnodes::PinShape_Quad,
+		"QuadFilled", imnodes::PinShape_QuadFilled,
+		"Triangle", imnodes::PinShape_Triangle,
+		"TriangleFilled", imnodes::PinShape_TriangleFilled
+	);
+	lua.new_enum("nodesColorStyles",
+		"BoxSelector", imnodes::ColorStyle_BoxSelector,
+		"BoxSelectorOutline", imnodes::ColorStyle_BoxSelectorOutline,
+		"Count", imnodes::ColorStyle_Count,
+		"GridBackground", imnodes::ColorStyle_GridBackground,
+		"GridLine", imnodes::ColorStyle_GridLine,
+		"Link", imnodes::ColorStyle_Link,
+		"LinkHovered", imnodes::ColorStyle_LinkHovered,
+		"LinkSelected", imnodes::ColorStyle_LinkSelected,
+		"NodeBackground", imnodes::ColorStyle_NodeBackground,
+		"NodeBackgroundHovered", imnodes::ColorStyle_NodeBackgroundHovered,
+		"NodeBackgroundSelected", imnodes::ColorStyle_NodeBackgroundSelected,
+		"NodeOutline", imnodes::ColorStyle_NodeOutline,
+		"Pin", imnodes::ColorStyle_Pin,
+		"PinHovered", imnodes::ColorStyle_PinHovered,
+		"TitleBar", imnodes::ColorStyle_TitleBar,
+		"TitleBarHovered", imnodes::ColorStyle_TitleBarHovered,
+		"TitleBarSelected", imnodes::ColorStyle_TitleBarSelected
+	);
+	lua.new_enum("nodeAttributeFlags",
+		"EnableLinkDetachWithDragClick", imnodes::AttributeFlags_EnableLinkDetachWithDragClick,
+		"EnableLinkCreationOnSnap", imnodes::AttributeFlags_EnableLinkCreationOnSnap
+	);
+
+	auto nodes = ig["nodes"] = lua.create_table_with();
+	nodes["beginNodeEditor"] = &imnodes::BeginNodeEditor;
+	nodes["endNodeEditor"] = &imnodes::EndNodeEditor;
+	nodes["beginNode"] = &imnodes::BeginNode;
+	nodes["endNode"] = &imnodes::EndNode;
+	nodes["beginOutputAttribute"] = sol::overload(
+		&imnodes::BeginOutputAttribute,
+		[](int id) { imnodes::BeginOutputAttribute(id); }
+	);
+	nodes["endOutputAttribute"] = &imnodes::EndOutputAttribute;
+	nodes["beginInputAttribute"] = sol::overload(
+		&imnodes::BeginInputAttribute,
+		[](int id) { imnodes::BeginInputAttribute(id); }
+	);
+	nodes["endInputAttribute"] = &imnodes::EndInputAttribute;
+	nodes["beginStaticAttribute"] = &imnodes::BeginStaticAttribute;
+	nodes["endStaticAttribute"] = &imnodes::EndStaticAttribute;
+	nodes["isAnyAttributeActive"] = []() -> std::optional<int> {
+		int activeAttribute;
+		if (imnodes::IsAnyAttributeActive(&activeAttribute))
+			return activeAttribute;
+		return std::nullopt;
+	};
+	nodes["beginNodeTitleBar"] = &imnodes::BeginNodeTitleBar;
+	nodes["endNodeTitleBar"] = &imnodes::EndNodeTitleBar;
+	nodes["link"] = &imnodes::Link;
+	nodes["isLinkCreated"] = []() -> std::optional<std::tuple<int, int>> {
+		int start, end;
+		if (imnodes::IsLinkCreated(&start, &end))
+			return std::make_tuple(start, end);
+		return std::nullopt;
+	};
+	nodes["isLinkDestroyed"] = []() -> std::optional<int> {
+		int start;
+		if (imnodes::IsLinkDestroyed(&start))
+			return start;
+		return std::nullopt;
+	};
+	nodes["isLinkDropped"] = sol::overload(
+		[]() -> std::optional<int> {
+			int start;
+			if (imnodes::IsLinkDropped(&start))
+				return start;
+			return std::nullopt;
+		},
+		[](bool includeDetached) -> std::optional<int> {
+			int start;
+			if (imnodes::IsLinkDropped(&start, includeDetached))
+				return start;
+			return std::nullopt;
+		}
+	);
+	nodes["isNodeHovered"] = []() -> std::optional<int> {
+		int id;
+		if (imnodes::IsNodeHovered(&id))
+			return id;
+		return std::nullopt;
+	};
+	nodes["numSelectedNodes"] = &imnodes::NumSelectedNodes;
+	nodes["numSelectedLinks"] = &imnodes::NumSelectedLinks;
+	nodes["getSelectedNodes"] = []() ->sol::as_table_t<std::vector<int>> {
+		const int numSelected = imnodes::NumSelectedNodes();
+		if (numSelected == 0)
+			return sol::as_table(std::vector<int>());
+		std::vector<int> selectedNodes;
+		selectedNodes.resize(numSelected);
+		imnodes::GetSelectedNodes(selectedNodes.data());
+		return sol::as_table(selectedNodes);
+	};
+	nodes["getSelectedLinks"] = []() ->sol::as_table_t<std::vector<int>> {
+		const int numSelected = imnodes::NumSelectedLinks();
+		if (numSelected == 0)
+			return sol::as_table(std::vector<int>());
+		std::vector<int> selectedLinks;
+		selectedLinks.resize(numSelected);
+		imnodes::GetSelectedLinks(selectedLinks.data());
+		return sol::as_table(selectedLinks);
+	};
+	nodes["pushColorStyle"] = [](imnodes::ColorStyle idx, glm::vec4 color) { imnodes::PushColorStyle(idx, IM_COL32(color.r * 255, color.g * 255, color.b * 255, color.a * 255)); };
+	nodes["popColorStyle"] = &imnodes::PopColorStyle;
+	nodes["pushAttributeFlag"] = [](imnodes::AttributeFlags flag) {
+		imnodes::PushAttributeFlag(flag);
+	};
+	nodes["popAttributeFlag"] = []() {
+		imnodes::PopAttributeFlag();
+	};
+	nodes["setNodeScreenSpacePos"] = [](int id, glm::vec2 pos) { imnodes::SetNodeScreenSpacePos(id, ImVec2(pos.x, pos.y)); };
 }

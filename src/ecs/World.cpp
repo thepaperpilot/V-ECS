@@ -27,6 +27,8 @@ World::World(Engine* engine, std::string filename, WorldLoadStatus* status, bool
 
 	setupEvents();
 
+	nodeEditorContext = imnodes::EditorContextCreate();
+
 	if (!std::filesystem::exists(filename)) {
 		Debugger::addLog(DEBUG_LEVEL_WARN, "[WORLD] Attempted to load world at \"" + filename + "\" but file does not exist.");
 		return;
@@ -64,6 +66,8 @@ World::World(Engine* engine, sol::table worldConfig, WorldLoadStatus* status, bo
 	engine->nextQueueIndex = !engine->nextQueueIndex;
 
 	setupEvents();
+
+	nodeEditorContext = imnodes::EditorContextCreate();
 
 	auto job = dependencyGraph.load(engine, &worker, worldConfig, status);
 	if (waitUntilLoaded && !status->isCancelled) {
@@ -173,6 +177,9 @@ void World::cleanup() {
 
 	// Destroy our worker
 	worker.cleanup();
+
+	// Destroy our node editor context
+	imnodes::EditorContextFree(nodeEditorContext);
 
 	// Destroy any buffers created by this world
 	for (auto buffer : buffers)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <imnodes.h>
 #include <unordered_set>
 
 #include "../engine/Buffer.h"
@@ -31,6 +32,9 @@ namespace vecs {
 		WorldLoadStatus* status;
 
 		ImFontAtlas* fonts = nullptr;
+
+		// imnodes context
+		imnodes::EditorContext* nodeEditorContext;
 
 		// Start at 1 so that 0 can be used to represent an invalid entity
 		std::atomic_uint32_t nextEntity = 1;

@@ -11,6 +11,7 @@
 
 #include <imgui.h>
 #include <examples\imgui_impl_glfw.h>
+#include <imnodes.h>
 
 #define SOL_DEFAULT_PASS_ON_ERROR 1
 #define SOL_ALL_SAFETIES_ON 1
@@ -54,6 +55,7 @@ WorldLoadStatus* Engine::setWorld(std::string filename) {
         }
         if (this->world->fonts != nullptr)
             ImGui::GetIO().Fonts = this->world->fonts;
+        imnodes::EditorContextSet(world->nodeEditorContext);
         std::string windowTitle = this->world->config["name"].get_or(std::string("V-ecs"));
 #ifndef NDEBUG
         windowTitle += " [DEBUG]";
@@ -125,6 +127,7 @@ void Engine::initImGui() {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    imnodes::Initialize();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -237,6 +240,7 @@ void Engine::updateWorld() {
         world = nextWorld;
         if (world->fonts != nullptr)
             ImGui::GetIO().Fonts = world->fonts;
+        imnodes::EditorContextSet(world->nodeEditorContext);
         std::string windowTitle = nextWorld->config["name"].get_or(std::string("V-ecs"));
 #ifndef NDEBUG
         windowTitle += " [DEBUG]";
@@ -262,6 +266,8 @@ void Engine::cleanup() {
     }
 
     ImGui_ImplGlfw_Shutdown();
+    imnodes::Shutdown();
+    ImGui::DestroyContext();
     if (imguiVertexBuffer.buffer != VK_NULL_HANDLE)
         device->cleanupBuffer(imguiVertexBuffer);
     if (imguiIndexBuffer.buffer != VK_NULL_HANDLE)
